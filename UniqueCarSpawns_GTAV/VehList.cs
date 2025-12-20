@@ -15,7 +15,26 @@ using System.IO;
 public class VehList
 {
     public static List<string> models_cult = new List<string>() {
-
+    "entity2",
+    "autarch",
+    "sc1",
+    "cyclone",
+    "visione",
+    "xa21",
+    "gp1",
+    "italigtb",
+    "italigtb2",
+    "nero",
+    "nero2",
+    "tempesta",
+    "penetrator",
+    "pfister811",
+    "prototipo",
+    "reaper",
+    "fmj",
+    "t20",
+    "osiris",
+    "cyclone2",
     };
 
     public static List<string> models_boats = new List<string>() {
@@ -485,31 +504,14 @@ public class VehList
     };
 
     public static List<string> models_supers = new List<string>() {
-    "virtue",
-    "entity3",
     "lm87",
-    "torero2",
-    "zeno",
-    "ignus",
-    "champion",
-    "tigon",
-    "furia",
-    "zorrusso",
-    "krieger",
-    "emerus",
     "s80",
-    "thrax",
-    "deveste",
-    "tyrant",
-    "tezeract",
-    "taipan",
     "entity2",
     "autarch",
     "sc1",
     "cyclone",
     "visione",
     "xa21",
-    "vagner",
     "gp1",
     "italigtb",
     "italigtb2",
@@ -528,13 +530,7 @@ public class VehList
     "banshee2",
     "t20",
     "osiris",
-    "turismo3",
-    "pipistrello",
     "cyclone2",
-    "suzume",
-    "fmj2",
-    "luiva",
-    "xtreme",
     };
 
     public static List<string> models_suvs = new List<string>() {

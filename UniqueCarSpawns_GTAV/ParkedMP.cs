@@ -1576,25 +1576,57 @@ public class SpawnMP : Script
                                 Blip mark = CreateMarkerAboveCar(veh[index_db]);
                                 marker.Add(mark);
                             }
-                            // Inside OnTick, right after SetNumberPlate(veh[index_db], mod_plate, plate_id);
-                            if (veh[index_db] != null && (index_db == arena_hotring || index_db == arena_speed || index_db == arena_offroad))
+                            // Inside the foreach loop in OnTick, after the vehicle is created
+                            if (veh[index_db] != null)
                             {
-                                // Initialize the mod kit so liveries can be applied
+                                // 1. Initialize Mod Kit (Required for all tuning) 
                                 Function.Call(Hash.SET_VEHICLE_MOD_KIT, veh[index_db], 0);
 
-                                // Get the total number of liveries for this specific car
-                                int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], 48);
-
-                                if (numLiveries > 0)
+                                // 2. Handle specialized tuning for Arena and Cult groups
+                                if (index_db == arena_hotring || index_db == arena_speed || index_db == arena_offroad || index_db == cult)
                                 {
-                                    // Pick a random livery (excluding -1 for "None")
-                                    Random rndArena = new Random();
-                                    int mandatoryLivery = rndArena.Next(0, numLiveries);
+                                    Random rndMax = new Random();
 
-                                    // Force the mod type 48 (Livery)
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, mandatoryLivery, false);
+                                    // --- MANDATORY PERFORMANCE (MAXED) ---
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 11, 3, false); // Engine Level 4
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 12, 2, false); // Race Brakes
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 13, 2, false); // Race Transmission
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 15, 3, false); // Competition Suspension
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 16, 4, false); // 100% Armor
+                                    Function.Call(Hash.TOGGLE_VEHICLE_MOD, veh[index_db], 18, true);  // Turbo Tuning
+
+                                    // --- RANDOMIZED VISUAL PARTS ---
+                                    // Array of visual mod IDs: 0=Spoiler, 1=FBumper, 2=RBumper, 3=Skirts, 7=Hood, 10=Roof
+                                    int[] visualMods = { 0, 1, 2, 3, 7, 10 };
+                                    foreach (int modType in visualMods)
+                                    {
+                                        int count = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], modType);
+                                        if (count > 0)
+                                        {
+                                            // rndMax.Next(-1, count) allows for "Stock" (-1) or a random mod
+                                            Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], modType, rndMax.Next(-1, count), false);
+                                        }
+                                    }
+
+                                    // --- GROUP SPECIFIC LIVERIES AND COLORS ---
+                                    if (index_db != cult) // Arena groups get random liveries
+                                    {
+                                        int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], 48);
+                                        if (numLiveries > 0)
+                                        {
+                                            Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, rndMax.Next(0, numLiveries), false);
+                                        }
+                                    }
+                                    else if(index_db == cult) // Cult cars get fixed Epsilon Blue
+                                    {
+                                        veh[index_db].Mods.PrimaryColor = (VehicleColor)157; // Standard Epsilon/Kifflom Blue
+                                        veh[index_db].Mods.SecondaryColor = (VehicleColor)157;
+                                        veh[index_db].Mods.PearlescentColor = (VehicleColor)157;
+                                    }
                                 }
                             }
+
+
                             //Optional mods (livery, colors, etc.)
                             switch (model_name)
                             {
