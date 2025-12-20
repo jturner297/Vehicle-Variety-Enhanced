@@ -94,10 +94,7 @@ public class VehList
     "eurosX32",
     };
 
-    public static List<string> models_cycles = new List<string>() {
-    "inductor",
-    "inductor2",
-    };
+
 
     public static List<string> models_ghetto = new List<string>() {
     "peyote3",
@@ -329,13 +326,6 @@ public class VehList
     "l352",
     };
 
-    public static List<string> models_openwheel = new List<string>() {
-    "openwheel1",
-    "openwheel2",
-    "formula",
-    "formula2",
-    "raptor",
-    };
 
     public static List<string> models_beach = new List<string>() {
     "pbus2",
@@ -348,13 +338,7 @@ public class VehList
     "velum2",
     };
 
-    public static List<string> models_police = new List<string>() {
-    "riot2",
-    "polgauntlet",
-    "police5",
-    "polbuffalo",
-    "polbuffalo6",
-    };
+ 
 
     public static List<string> models_police_traffic = new List<string>() {
     "polgauntlet",
@@ -605,29 +589,16 @@ public class VehList
     };
 
     public static List<string> models_weaponboats = new List<string>() {
-    "dinghy5",
-    "patrolboat",
     "tug",
     };
 
-    public static List<string> models_enforcement = new List<string>() {
-    "policet3",
-    "policeb2",
-    };
+
 
     public static List<string> models_pizza = new List<string>() {
     "pizzaboy",
     };
 
-    public static List<string> models_bros_1 = new List<string>() {
-    "polcoquette4",
-    "polcaracara",
-    };
 
-    public static List<string> models_bros_2 = new List<string>() {
-    "polfaction2",
-    "polterminus",
-    };
 
     public static List<string> models_plane_sandy = new List<string>() {
     "duster2",
@@ -672,9 +643,7 @@ public class VehList
     "maverick2",
     };
 
-    public static List<string> models_ignus2 = new List<string>() {
-    "ignus2",
-    };
+
 
     public static List<string> models_latest = new List<string>() {
     "astrale",
@@ -690,25 +659,40 @@ public class VehList
     public static List<string> models_arena_speed = new List<string>() {
     "sheava",
     "tyrus",
-    "omnis",
-    "tampa2",
     "le7b",
-    "tropos"
+    "tropos",
+    "lm87",
+    "specter2",
+    "italigtb2",
+    "s80",
 };
 
     public static List<string> models_arena_hotring = new List<string>() {
+    "tampa2",
     "gauntlet6",
     "hotring",
-    "everon2"
-};
-
-    public static List<string> models_arena_offroad = new List<string>() {
-    "s80",
-    "lm87",
+    "everon2",
     "flashgt",
     "gb200",
-    "specter2",
-    "italigtb2"
+    "omnis",
 };
+
+    public static List<string> models_arena_offroad = new List<string>() { 
+    "ratel",
+    "monstrociti",
+    "hellion",
+    "trophytruck",
+    "trophytruck2",
+    "bf400",
+    "cliffhanger",
+};
+    public static List<string> models_openwheel = new List<string>() {
+    "openwheel1",
+    "openwheel2",
+    "formula",
+    "formula2",
+    "raptor",
+    };
+
 
 }

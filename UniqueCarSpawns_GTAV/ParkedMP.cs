@@ -34,7 +34,7 @@ public class SpawnMP : Script
     private string mod_version = "1.72";
 
     //Coords
-    private const int cult = 0;
+    private const int cult = 0;      
     private const int boats = 1;
     private const int cemetery = 2;
     private const int cheburek = 3;
@@ -52,12 +52,14 @@ public class SpawnMP : Script
     private const int coupes_4 = 15;
     private const int coupes_5 = 16;
     private const int coupes_6 = 17;
-    private const int coupes_7 = 18;
+    private const int coupes_7 = 18; 
+    
     private const int cycles_1 = 19;
     private const int cycles_2 = 20;
     private const int cycles_3 = 21;
     private const int cycles_4 = 22;
     private const int cycles_5 = 23;
+  
     private const int ghetto_1 = 24;
     private const int ghetto_2 = 25;
     private const int ghetto_3 = 26;
@@ -70,7 +72,6 @@ public class SpawnMP : Script
     private const int industrial_3 = 33;
     private const int industrial_4 = 34;
     private const int karting = 35;
-
     private const int vetir = 36;
     private const int scarab = 37;
     private const int terrorbyte = 38;
@@ -82,8 +83,6 @@ public class SpawnMP : Script
     private const int halfTrack = 44;
     private const int apc = 45;
     private const int trailerSmall2 = 46;
-
-
     private const int military_planes_1 = 47;
     private const int military_planes_2 = 48;
     private const int military_helicopters = 49;
@@ -92,7 +91,6 @@ public class SpawnMP : Script
     private const int raiju = 52;
     private const int streamer216 = 53;
     private const int conada2 = 54;
-
     private const int motorcycles_1 = 55;
     private const int motorcycles_2 = 56;
     private const int motorcycles_3 = 57;
@@ -113,11 +111,13 @@ public class SpawnMP : Script
     private const int openwheel = 72;
     private const int beach = 73;
     private const int planes = 74;
+    
     private const int police_1 = 75;
     private const int police_2 = 76;
     private const int police_3 = 77;
     private const int police_4 = 78;
     private const int police_5 = 79;
+    
     private const int sedans_1 = 80;
     private const int sedans_2 = 81;
     private const int sedans_3 = 82;
@@ -176,20 +176,26 @@ public class SpawnMP : Script
     private const int vans_13 = 135;
     private const int wastelander = 136;
     private const int weaponboats = 137;
+   
     private const int enforcement_1 = 138;
     private const int enforcement_2 = 139;
     private const int enforcement_3 = 140;
     private const int enforcement_4 = 141;
     private const int enforcement_5 = 142;
+
     private const int pizzaboy = 143;
+    
     private const int police_bros_1 = 144;
     private const int police_bros_2 = 145;
+   
     private const int plane_sandy = 146;
     private const int heli_sandy = 147;
     private const int titan2 = 148;
     private const int hsw = 149;
     private const int heli_higgins = 150;
+   
     private const int weapon_ignus2 = 151;
+
     private const int arena_hotring = 152; // new stuff
     private const int arena_speed = 153;
     private const int arena_offroad = 154;
@@ -264,7 +270,7 @@ public class SpawnMP : Script
         new Vector3(393.4623f, -649.7198f, 27.92926f),
         new Vector3(124.0182f, -1472.58f, 28.6794f),
         new Vector3(185.595f, -1016.01f, 28.3f),
-        new Vector3(392.6896f, 2641.558f, 44.07256f),
+        new Vector3(1135.19f, 39.81987f, 80.34249f),
         new Vector3(1991.201f, 3076.069f, 46.79815f),
         new Vector3(1977.402f, 3835.433f, 31.59359f),
         new Vector3(1350.489f, 3605.351f, 34.47185f),
@@ -334,20 +340,26 @@ public class SpawnMP : Script
         new Vector3(-2555.51f, 2322.827f, 32.06f),
         new Vector3(1111.018f, 2221.073f, 50.140f),
         new Vector3(-3092.066f, 3465.729f, -0.474f),
-        new Vector3(486.359f, -948.2272f, 26.64442f), 
+        
+        new Vector3(486.359f, -948.2272f, 26.64442f), //enforcement
         new Vector3(127.562f, 15.10451f, 68.00917f),
         new Vector3(-61.72556f, 6499.053f, 30.99122f),
         new Vector3(120.8748f, -1709.281f, 28.58102f),
         new Vector3(-1420.277f, -655.5345f, 28.17369f),
+       
         new Vector3(541.7154f, 97.22734f, 95.95358f),
-        new Vector3(714.0365f, -981.6344f, 23.54063f),
+      
+        new Vector3(714.0365f, -981.6344f, 23.54063f), //police
         new Vector3(722.5751f, -981.2658f, 23.4088f),
+       
         new Vector3(1705.741f, 3271.236f, 41.56281f),
         new Vector3(2140.588f, 4816.544f, 41.05009f),
         new Vector3(-2078.637f, 2931.623f, 33.99109f),
         new Vector3(792.5626f, -1862.284f, 28.52566f),
         new Vector3(-744.5989f, -1467.786f, 5.675299f),
-        new Vector3(-1864.326f, 3225.93f, 32.17207f),
+       
+        new Vector3(-1864.326f, 3225.93f, 32.17207f),//ignus
+       
         new Vector3(-206.046f, -1988.758f, 26.96269f),  // Index 152 (Hotring )
         new Vector3(-176.5869f, -2019.529f, 27.14398f), // Index 153 (Speed )
         new Vector3(-192.949f, -1928.497f, 27.20675f), // Index 154 (Offroad )
@@ -430,7 +442,7 @@ public class SpawnMP : Script
         16.77524f,
         294.684f,
         276.757f,
-        147.589f,
+        58.2715f,
         35.312f,
         29.408f,
         198.4456f,
@@ -494,20 +506,26 @@ public class SpawnMP : Script
         273.837f,
         273.390f,
         47.552f,
-        90.42657f,
+       
+        90.42657f,//enforce
         -110.5593f,
         139.6896f,
         48.76577f,
         -54.15135f,
+      
         113.416f,
-        -31.42274f,
+       
+        -31.42274f, //police
         60.22583f,
-        -179.1466f,
+        
+        -179.1466f, 
         115.5491f,
         58.04224f,
         167.2133f,
         -40.04208f,
-        327.426f,
+       
+        327.426f, //ignus
+
         90.24596f,  // Index 152 (Hotring Angle)
         75.33392f,  // Index 153 (Speed Angle)
         -151.2955f,// Index 154 (Offroad Angle)
@@ -604,8 +622,6 @@ public class SpawnMP : Script
             if (VehList.models_coupes.Contains(hash))
                 VehList.models_coupes.Remove(hash);
 
-            if (VehList.models_cycles.Contains(hash))
-                VehList.models_cycles.Remove(hash);
 
             if (VehList.models_ghetto.Contains(hash))
                 VehList.models_ghetto.Remove(hash);
@@ -648,9 +664,6 @@ public class SpawnMP : Script
 
             if (VehList.models_planes.Contains(hash))
                 VehList.models_planes.Remove(hash);
-
-            if (VehList.models_police.Contains(hash))
-                VehList.models_police.Remove(hash);
 
             if (VehList.models_sedans.Contains(hash))
                 VehList.models_sedans.Remove(hash);
@@ -729,9 +742,6 @@ public class SpawnMP : Script
                 VehList.models_coupes.Add(Model);
                 break;
 
-            case "cycles":
-                VehList.models_cycles.Add(Model);
-                break;
 
             case "emergency":
                 VehList.models_industrial.Add(Model);
@@ -881,18 +891,6 @@ public class SpawnMP : Script
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
                     model_name = VehList.models_coupes[random.Next(VehList.models_coupes.Count)];
-                }
-                break;
-
-            case cycles_1:
-            case cycles_2:
-            case cycles_3:
-            case cycles_4:
-            case cycles_5:
-                isEmpty = !VehList.models_cycles.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_cycles[random.Next(VehList.models_cycles.Count)];
                 }
                 break;
 
@@ -1136,17 +1134,6 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case police_1:
-            case police_2:
-            case police_3:
-            case police_4:
-            case police_5:
-                isEmpty = !VehList.models_police.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_police[random.Next(VehList.models_police.Count)];
-                }
-                break;
 
             case sedans_1:
             case sedans_2:
@@ -1291,17 +1278,7 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case enforcement_1:
-            case enforcement_2:
-            case enforcement_3:
-            case enforcement_4:
-            case enforcement_5:
-                isEmpty = !VehList.models_enforcement.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_enforcement[random.Next(VehList.models_enforcement.Count)];
-                }
-                break;
+
 
             case pizzaboy:
                 isEmpty = !VehList.models_pizza.Any();
@@ -1311,21 +1288,7 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case police_bros_1:
-                isEmpty = !VehList.models_bros_1.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_bros_1[random.Next(VehList.models_bros_1.Count)];
-                }
-                break;
-
-            case police_bros_2:
-                isEmpty = !VehList.models_bros_2.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_bros_2[random.Next(VehList.models_bros_2.Count)];
-                }
-                break;
+        
 
             case plane_sandy:
                 isEmpty = !VehList.models_plane_sandy.Any();
@@ -1368,13 +1331,7 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case weapon_ignus2:
-                isEmpty = !VehList.models_ignus2.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_ignus2[random.Next(VehList.models_ignus2.Count)];
-                }
-                break;
+
             case arena_hotring:
                 // Check if the list has cars AND if the spot is currently empty
                 isEmpty = !VehList.models_arena_hotring.Any();
