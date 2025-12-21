@@ -1,15 +1,16 @@
-﻿﻿using System;
+﻿using GTA;
+using GTA.Math;
+using GTA.Native;
+﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using GTA;
-using GTA.Native;
-using GTA.Math;
-using System.Drawing;
-using System.Reflection;
 using System.Windows.Forms;
-using System.IO;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 public class SpawnMP : Script
 {
@@ -65,24 +66,13 @@ public class SpawnMP : Script
     private const int industrial_3 = 28;
     private const int industrial_4 = 29;
     private const int karting = 30;
-    private const int vetir = 31;
-    private const int scarab = 32;
-    private const int terrorbyte = 33;
     private const int thruster = 34;
-    private const int khanjari = 35;
-    private const int chernobog = 36;
-    private const int barrage = 37;
-    private const int trailerLarge = 38;
-    private const int halfTrack = 39;
-    private const int apc = 40;
-    private const int trailerSmall2 = 41;
     private const int military_planes_1 = 42;
     private const int military_planes_2 = 43;
     private const int military_helicopters = 44;
     private const int military_opressors = 45;
     private const int military_bikes = 46;
     private const int raiju = 47;
-    private const int streamer216 = 48;
     private const int conada2 = 49;
     private const int motorcycles_1 = 50;
     private const int motorcycles_2 = 51;
@@ -110,7 +100,6 @@ public class SpawnMP : Script
     private const int sedans_5 = 73;
     private const int sedans_6 = 74;
     private const int sedans_7 = 75;
-    private const int slawmantruck = 76;
     private const int sportclassic_1 = 77;
     private const int sportclassic_2 = 78;
     private const int sportclassic_3 = 79;
@@ -164,12 +153,14 @@ public class SpawnMP : Script
     private const int pizzaboy = 127;
     private const int plane_sandy = 128;
     private const int heli_sandy = 129;
-    private const int titan2 = 130;
     private const int hsw = 131;
     private const int heli_higgins = 132;
-    private const int arena_hotring = 133;
-    private const int arena_speed = 134;
-    private const int arena_offroad = 135;
+    private const int arena_hotring_1 = 133;
+    private const int arena_hotring_2 = 134;
+    private const int arena_speed_1 = 135;
+    private const int arena_speed_2 = 136;
+    private const int arena_offroad_1 = 137;
+    private const int arena_offroad_2 = 138;
 
     private List<Vector3> coords = new List<Vector3>()
     {
@@ -204,24 +195,13 @@ public class SpawnMP : Script
         new Vector3(839.097f, 2202.196f, 50.46f),
         new Vector3(2717.772f, 1391.725f, 23.535f),
         new Vector3(-1530.63f, -993.47f, 12.017f),
-        new Vector3(-1922.443f, 3010.560f, 32.810f),
-        new Vector3(-1941.971f, 3025.726f, 32.810f),
-        new Vector3(-1898.065f, 3046.221f, 32.811f),
         new Vector3(-1985.113f, 3044.164f, 32.810f),
-        new Vector3(-1988.379f, 3029.776f, 32.810f),
-        new Vector3(-1985.841f, 3056.533f, 32.810f),
-        new Vector3(-1976.082f, 3079.133f, 32.810f),
-        new Vector3(-1987.650f, 3091.420f, 32.810f),
-        new Vector3(-2027.833f, 3078.663f, 32.810f),
-        new Vector3(-2045.754f, 3095.386f, 32.810f),
-        new Vector3(-2059.501f, 3077.011f, 32.810f),
         new Vector3(-1892.247f, 3082.933f, 32.810f),
         new Vector3(-1934.867f, 3109.608f, 32.810f),
         new Vector3(-1965.212f, 3101.532f, 32.810f),
         new Vector3(-1907.528f, 3117.613f, 32.959f),
         new Vector3(-1903.383f, 3115.676f, 32.810f),
         new Vector3(-2060.052f, 3146.352f, 32.8103f),
-        new Vector3(-2084.384f, 3161.351f, 32.8103f),
         new Vector3(-2116.779f, 3166.792f, 32.8101f),
         new Vector3(-2316.357f, 280.0749f, 168.9348f),
         new Vector3(-3036.57f, 105.31f, 10.593f),
@@ -249,7 +229,6 @@ public class SpawnMP : Script
         new Vector3(642.1031f, 587.9972f, 128.4254f),
         new Vector3(-3139.044f, 1086.714f, 20.23225f),
         new Vector3(-1144.189f, 2666.219f, 17.47463f),
-        new Vector3(452.709f, -1020.140f, 28.379f),
         new Vector3(-1114.1f, 479.205f, 81.161f),
         new Vector3(-160.8898f, 275.334f, 92.95601f),
         new Vector3(-504.323f, 424.21f, 96.287f),
@@ -303,12 +282,14 @@ public class SpawnMP : Script
         new Vector3(541.7154f, 97.22734f, 95.95358f),
         new Vector3(1705.741f, 3271.236f, 41.56281f),
         new Vector3(2140.588f, 4816.544f, 41.05009f),
-        new Vector3(-2078.637f, 2931.623f, 33.99109f),
-        new Vector3(792.5626f, -1862.284f, 28.52566f),
-        new Vector3(-746.4702f, -1469.937f, 4.87726f),
+        new Vector3(-1120.460f, -2022.790f, 12.563f),
+        new Vector3(-746.4702f, -1469.937f, 8.87726f),    
         new Vector3(-206.046f, -1988.758f, 26.96269f),  // Index 152 (Hotring )
+        new Vector3(1189.208f, 304.6935f, 81.48812f),
         new Vector3(-176.5869f, -2019.529f, 27.14398f), // Index 153 (Speed )
+        new Vector3(1117.519f, 257.8285f, 80.31487f),
         new Vector3(-192.949f, -1928.497f, 27.20675f), // Index 154 (Offroad )
+        new Vector3(1151.233f, 183.6329f, 80.23096f)
 
 };
 
@@ -345,24 +326,13 @@ public class SpawnMP : Script
         245.553f,
         1.832709f,
         254.258f,
-        327.087f,
-        240.052f,
-        239.996f,
         344.361f,
-        60.516f,
-        329.284f,
-        149.870f,
-        60.084f,
-        151.765f,
-        5.327f,
-        145.951f,
         147.141f,
         150.073f,
         236.324f,
         147.964f,
         150.114f,
         239.2013f,
-        61.37347f,
         237.5298f,
         201.5139f,
         141.262f,
@@ -390,7 +360,6 @@ public class SpawnMP : Script
         160.515f,
         260.5882f,
         130.5594f,
-        270.200f,
         171.220f,
         176.2266f,
         313.167f,
@@ -444,12 +413,14 @@ public class SpawnMP : Script
         113.416f,
        -179.1466f, 
         115.5491f,
-        58.04224f,
-        167.2133f,
-        140.3646f,
+        -45.004f,
+        140.3646f, 
         90.24596f,  // Index 152 (Hotring Angle)
+        146.9079f,
         75.33392f,  // Index 153 (Speed Angle)
+        -122.0743f,
         -151.2955f,// Index 154 (Offroad Angle)
+        -53.71473f
 
 };
 
@@ -862,26 +833,6 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case vetir:
-                if (veh[index_db] == null && VehList.vetir_model != "Blocked")
-                {
-                    model_name = VehList.models_karting[random.Next(VehList.models_karting.Count)];
-                }
-                break;
-
-            case scarab:
-                if (veh[index_db] == null && VehList.scarab_model != "Blocked")
-                {
-                    model_name = VehList.scarab_model;
-                }
-                break;
-
-            case terrorbyte:
-                if (veh[index_db] == null && VehList.terrorbyte_model != "Blocked")
-                {
-                    model_name = VehList.terrorbyte_model;
-                }
-                break;
 
             case thruster:
                 if (veh[index_db] == null && VehList.thruster_model != "Blocked")
@@ -890,54 +841,8 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case khanjari:
-                if (veh[index_db] == null && VehList.khanjari_model != "Blocked")
-                {
-                    model_name = VehList.khanjari_model;
-                }
-                break;
 
-            case chernobog:
-                if (veh[index_db] == null && VehList.chernobog_model != "Blocked")
-                {
-                    model_name = VehList.chernobog_model;
-                }
-                break;
 
-            case barrage:
-                if (veh[index_db] == null && VehList.barrage_model != "Blocked")
-                {
-                    model_name = VehList.barrage_model;
-                }
-                break;
-
-            case trailerLarge:
-                if (veh[index_db] == null && VehList.trailerLarge_model != "Blocked")
-                {
-                    model_name = VehList.trailerLarge_model;
-                }
-                break;
-
-            case halfTrack:
-                if (veh[index_db] == null && VehList.halfTrack_model != "Blocked")
-                {
-                    model_name = VehList.halfTrack_model;
-                }
-                break;
-
-            case apc:
-                if (veh[index_db] == null && VehList.apc_model != "Blocked")
-                {
-                    model_name = VehList.apc_model;
-                }
-                break;
-
-            case trailerSmall2:
-                if (veh[index_db] == null && VehList.trailerSmall2_model != "Blocked")
-                {
-                    model_name = VehList.trailerSmall2_model;
-                }
-                break;
 
             case military_planes_1:
             case military_planes_2:
@@ -979,12 +884,7 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case streamer216:
-                if (veh[index_db] == null && VehList.streamer216_model != "Blocked")
-                {
-                    model_name = VehList.streamer216_model;
-                }
-                break;
+
 
             case conada2:
                 if (veh[index_db] == null && VehList.conada2_model != "Blocked")
@@ -1249,34 +1149,36 @@ public class SpawnMP : Script
                 {
                     model_name = VehList.models_higgins[random.Next(VehList.models_higgins.Count)];
                 }
+
+
                 break;
 
 
-            case arena_hotring:
+            case arena_hotring_1:
+            case arena_hotring_2:
                 // Check if the list has cars AND if the spot is currently empty
                 isEmpty = !VehList.models_arena_hotring.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
                     model_name = VehList.models_arena_hotring[random.Next(VehList.models_arena_hotring.Count)];
-                    plate_id = 10; // Optional: use the arena-style plate
                 }
                 break;
 
-            case arena_speed:
+            case arena_speed_1:
+            case arena_speed_2:
                 isEmpty = !VehList.models_arena_speed.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
                     model_name = VehList.models_arena_speed[random.Next(VehList.models_arena_speed.Count)];
-                    plate_id = 10;
                 }
                 break;
 
-            case arena_offroad:
+            case arena_offroad_1:
+            case arena_offroad_2:
                 isEmpty = !VehList.models_arena_offroad.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
                     model_name = VehList.models_arena_offroad[random.Next(VehList.models_arena_offroad.Count)];
-                    plate_id = 10;
                 }
                 break;
         }
@@ -1368,7 +1270,7 @@ public class SpawnMP : Script
                 Random rnd_liv = new Random();
                 int livery = rnd_liv.Next(1, 3);
                 int mods = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, car, 48) - livery;
-                Function.Call(Hash.SET_VEHICLE_MOD, car, 48, mods, 0); //HSW Livery
+                //Function.Call(Hash.SET_VEHICLE_MOD, car, 48, mods, 0); //HSW Livery
 
                 IsHSW = false;
             }
@@ -1460,66 +1362,89 @@ public class SpawnMP : Script
                                 // 1. Initialize Mod Kit (Required for all tuning) 
                                 Function.Call(Hash.SET_VEHICLE_MOD_KIT, veh[index_db], 0);
 
-                                // 2. Handle specialized tuning for Arena and Cult groups
-                                if (index_db == arena_hotring || index_db == arena_speed || index_db == arena_offroad || index_db == cult)
+                                switch(index_db)
                                 {
-                          
-
-                                    // --- MANDATORY PERFORMANCE (MAXED) ---
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 11, 3, false); // Engine Level 4
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 12, 2, false); // Race Brakes
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 13, 2, false); // Race Transmission
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 15, 3, false); // Competition Suspension
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 16, 4, false); // 100% Armor
-                                    Function.Call(Hash.TOGGLE_VEHICLE_MOD, veh[index_db], 18, true);  // Turbo Tuning
-
-                                    // --- RANDOMIZED VISUAL PARTS ---
-                                    // Array of visual mod IDs: 0=Spoiler, 1=FBumper, 2=RBumper, 3=Skirts, 7=Hood, 10=Roof
-                                    int[] visualMods = { 0, 1, 2, 3, 7, 10 };
-                                    foreach (int modType in visualMods)
-                                    {
-                                        int count = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], modType);
-                                        if (count > 0)
+                                    case arena_hotring_1:
+                                    case arena_hotring_2:
+                                    case arena_speed_1:
+                                    case arena_speed_2:
+                                    case arena_offroad_1:
+                                    case arena_offroad_2:
+                                    case cult:
                                         {
-                                            // rndMax.Next(-1, count) allows for "Stock" (-1) or a random mod
-                                            Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], modType, rndMax.Next(-1, count), false);
-                                        }
-                                    }
+                                            Vehicle v = veh[index_db];
 
-                                    // --- GROUP SPECIFIC LIVERIES AND COLORS ---
-                                    if (index_db != cult) // Arena groups get random liveries
-                                    {
-                                        int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], 48);
-                                        if (numLiveries > 0)
+
+                                            // --- MANDATORY PERFORMANCE (MAXED) ---
+                                            Function.Call(Hash.SET_VEHICLE_MOD, v, 11, 3, false); // Engine Level 4
+                                            Function.Call(Hash.SET_VEHICLE_MOD, v, 12, 2, false); // Race Brakes
+                                            Function.Call(Hash.SET_VEHICLE_MOD, v, 13, 2, false); // Race Transmission
+                                            Function.Call(Hash.SET_VEHICLE_MOD, v, 15, 3, false); // Competition Suspension
+                                            Function.Call(Hash.SET_VEHICLE_MOD, v, 16, 4, false); // 100% Armor
+                                            Function.Call(Hash.TOGGLE_VEHICLE_MOD, v, 18, true);  // Turbo Tuning
+
+                                            // --- RANDOMIZED VISUAL PARTS ---
+                                            // Array of visual mod IDs: 0=Spoiler, 1=FBumper, 2=RBumper, 3=Skirts, 7=Hood, 10=Roof
+                                            int[] visualMods = { 0, 1, 2, 3, 7, 10 };
+                                            foreach (int modType in visualMods)
+                                            {
+                                                int count = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, v, modType);
+                                                if (count > 0)
+                                                {
+                                                    // rndMax.Next(-1, count) allows for "Stock" (-1) or a random mod
+                                                    Function.Call(Hash.SET_VEHICLE_MOD, v, modType, rndMax.Next(-1, count), false);
+                                                }
+                                            }
+                                            // --- GROUP-SPECIFIC DIFFERENCE ---
+                                            if (index_db == cult)
+                                            {
+                                                // Cult cars: fixed Epsilon Blue
+                                                v.Mods.PrimaryColor = (VehicleColor)157;
+                                                v.Mods.SecondaryColor = (VehicleColor)157;
+                                                v.Mods.PearlescentColor = (VehicleColor)157;
+                                            }
+                                            else
+                                            {
+                                                // Arena/Openwheel: random livery
+                                                int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, v, 48);
+                                                if (numLiveries > 0)
+                                                {
+                                                    Function.Call(Hash.SET_VEHICLE_MOD, v, 48, rndMax.Next(0, numLiveries), false);
+                                                }
+                                            }
+                                        }
+
+                                        break;
+                                    case heli_higgins:
                                         {
-                                            Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, rndMax.Next(0, numLiveries), false);
-                                        }
-                                    }
-                                    else if(index_db == cult) // Cult cars get fixed Epsilon Blue
-                                    {
-                                        veh[index_db].Mods.PrimaryColor = (VehicleColor)157; // Standard Epsilon/Kifflom Blue
-                                        veh[index_db].Mods.SecondaryColor = (VehicleColor)157;
-                                        veh[index_db].Mods.PearlescentColor = (VehicleColor)157;
-                                    }
+                                            if (model_name == "conada")
+                                            {
+                                                Vehicle v = veh[index_db];
 
+                                                v.Mods.PrimaryColor = (VehicleColor)89;
+                                                v.Mods.SecondaryColor = (VehicleColor)6;
+                                                v.Mods.PearlescentColor = (VehicleColor)1;
+                                                Function.Call(Hash.SET_VEHICLE_MOD, v, 48, 9, false);
+                                                Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+                                            }
+                                        }
+                                        break;
+                                    case helicopter:
+                                    case planes:
+                                        {
+                                            Vehicle v = veh[index_db];
+
+                                            int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, v, 48);
+                                            if (numLiveries > 0)
+                                            {
+                                                Function.Call(Hash.SET_VEHICLE_MOD, v, 48, rndMax.Next(0, numLiveries), false);
+                                            }
+                                            break;
+                                        }
+                                
                                 }
-                                else if (index_db == heli_higgins && model_name == "conada") // give the conada the higgins heli livery and yellow and blue colors
-                                {
-                                    veh[index_db].Mods.PrimaryColor = (VehicleColor)89; 
-                                    veh[index_db].Mods.SecondaryColor = (VehicleColor)6;
-                                    veh[index_db].Mods.PearlescentColor = (VehicleColor)1;
-                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, 9, false);
-                                    Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, veh[index_db], true);
-                                }
-                                else if (index_db == helicopter || index_db == planes) //LSIA helis and planes get random or no liveries
-                                {
-                       
-                                    int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], 48);
-                                    if (numLiveries > 0)
-                                    {
-                                        Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, rndMax.Next(0, numLiveries), false);
-                                    }
-                                }
+
+
                             }
 
 

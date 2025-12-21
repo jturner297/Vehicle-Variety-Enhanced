@@ -35,6 +35,12 @@ public class VehList
     "t20",
     "osiris",
     "cyclone2",
+        "granger2",
+    "astron",
+    "landstalker2",
+    "rebla",
+    "novak",
+    "toros",
     };
 
     public static List<string> models_boats = new List<string>() {
@@ -47,13 +53,14 @@ public class VehList
     "btype2",
     "sanctus",
     "lurcher",
-    "brigham"
+    "brigham",
     };
 
     public static List<string> models_cheburek = new List<string>() {
     "cheburek",
     "ratbike",
-    "slamvan3"
+    "slamvan3",
+   "clique2",
     };
 
     public static List<string> models_cinema = new List<string>() {
@@ -108,6 +115,8 @@ public class VehList
     "eudora",
     "greenwood",
     "voodoo",
+    "primo2",
+    "minivan2",
     };
 
     public static List<string> models_helicopter = new List<string>() {
@@ -144,32 +153,20 @@ public class VehList
     "veto2",
     };
 
-    public static string vetir_model = "vetir";
-    public static string scarab_model = "scarab";
-    public static string terrorbyte_model = "terbyte";
+
+
     public static string thruster_model = "thruster";
-    public static string khanjari_model = "khanjali";
-    public static string chernobog_model = "chernobog";
-    public static string barrage_model = "barrage";
-    public static string trailerLarge_model = "trailerlarge";
-    public static string halfTrack_model = "halftrack";
+
     public static string apc_model = "apc";
-    public static string trailerSmall2_model = "trailersmall2";
     public static string raiju_model = "raiju";
-    public static string streamer216_model = "streamer216";
     public static string conada2_model = "conada2";
 
     public static List<string> models_military_planes = new List<string>() {
-    "alkonost",
     "strikeforce",
-    "avenger",
-    "volatol",
     "nokota",
-    "seabreeze",
     "pyro",
     "mogul",
     "howard",
-    "bombushka",
     "molotok",
     "tula",
     "rogue",
@@ -199,9 +196,7 @@ public class VehList
     };
 
     public static List<string> models_motorcycles = new List<string>() {
-    "powersurge",
     "manchez3",
-    "reever",
     "shinobi",
     "manchez2",
     "stryder",
@@ -276,10 +271,6 @@ public class VehList
     "chino",
     "vigero",
     "slamVan2",
-    "clique2",
-    "buffalo5",
-    "vigero3",
-    "dominator9",
     "impaler6",
     "dominator10",
     "arbitergt",
@@ -335,7 +326,6 @@ public class VehList
 
     public static List<string> models_sedans = new List<string>() {
     "rhinehart",
-    "deity",
     "cinquemila",
     "tailgater2",
     "warrener2",
@@ -343,14 +333,8 @@ public class VehList
     "stafford",
     "schafter3",
     "schafter4",
-    "limo2",
-    "schafter5",
-    "schafter6",
-    "cog552",
     "cog55",
-    "cognoscenti2",
     "cognoscenti",
-    "primo2",
     "asterope2",
     "impaler5",
     "vorschlaghammer",
@@ -361,57 +345,35 @@ public class VehList
 
     };
 
-    public static List<string> models_slawmantruck = new List<string>() {
-    "slamtruck",
-    };
+
 
     public static List<string> models_sportclassic = new List<string>() {
-    "everon2",
-    "panthere",
-    "r300",
     "sentinel4",
-    "tenf2",
-    "tenf",
-    "sm722",
-    "omnisegt",
-    "corsita",
-    "comet7",
     "cypher",
     "sultan3",
-    "growler",
     "vectre",
-    "comet6",
     "remus",
     "jester4",
     "rt3000",
     "zr350",
     "euros",
     "futo2",
-    "italirsx",
     "penumbra2",
-    "coquette4",
     "sugoi",
     "vstr",
     "sultan2",
-    "imorgon",
     "komoda",
     "jugular",
     "zion3",
     "locust",
     "nebula",
     "neo",
-    "issi7",
-    "drafter",
-    "paragon",
-    "paragon2",
+    //"issi7",
     "schlagen",
     "italigto",
     "swinger",
     "jester3",
     "michelli",
-    "flashgt",
-    "gb200",
-    "hotring",
     "comet5",
     "z190",
     "neon",
@@ -419,14 +381,11 @@ public class VehList
     "gt500",
     "viseris",
     "savestra",
-    "streiter",
     "sentinel3",
     "raiden",
     "pariah",
-    "comet4",
     "rapidgt3",
     "retinue",
-    "ardent",
     "torero",
     "cheetah2",
     "turismo2",
@@ -436,10 +395,8 @@ public class VehList
     "specter",
     "comet3",
     "elegy",
-    "tampa2",
     "lynx",
     "tropos",
-    "omnis",
     "seven70",
     "bestiagts",
     "mamba",
@@ -449,21 +406,11 @@ public class VehList
     "feltzer3",
     "casco",
     "kuruma",
-    "kuruma2",
-    "stingertt",
-    "gauntlet6",
-    "coureur",
     "coquette5",
-    "envisage",
     "niobe",
-    "paragon3",
     "banshee3",
-    "jester5",
     "coquette6",
     "s95",
-    "cheetah3",
-    "rapidgt4",
-    "sentinel5",
     "astrale",
     "gt750",
     "itali2",
@@ -504,32 +451,19 @@ public class VehList
     };
 
     public static List<string> models_suvs = new List<string>() {
-    "issi8",
     "granger2",
-    "iwagen",
-    "baller7",
     "astron",
-    "jubilee",
     "seminole2",
     "landstalker2",
     "rebla",
     "novak",
     "toros",
-    "stretch",
     "contender",
-    "xls2",
+    "xls",
     "baller3",
     "baller4",
-    "baller5",
-    "baller6",
-    "vivanite",
-    "aleutian",
-    "cavalcade3",
-    "baller8",
     "dorado",
-    "castigator",
     "astron2",
-    "everon3",
     "woodlander",
     };
 
@@ -605,22 +539,14 @@ public class VehList
     "banshee3",
     "eurosx32",
     "niobe",
-    "vigero3",
     "fr36",
-    "vivanite",
-    "coureur",
-    "buffalo5",
     "monstrociti",
-    "stingertt",
     "issi8",
-    "entity3",
-    "vigero2",
     "arbitergt",
     "turismo2",
     "sentinel",
     "banshee",
     "hakuchou2",
-    "deveste",
     "brioso",
     "feltzer3"
     };
@@ -672,13 +598,27 @@ public class VehList
     "trophytruck2",
     "bf400",
     "cliffhanger",
+    "raptor",
 };
     public static List<string> models_openwheel = new List<string>() {
     "openwheel1",
     "openwheel2",
     "formula",
     "formula2",
-    "raptor",
+    };
+
+    public static List<string> models_armoured = new List<string>() {
+        "baller5",
+    "baller6",
+        "granger2",
+    "landstalker2",
+    "novak",
+    "toros",
+    "xls2",
+    "cognoscenti2",
+        "cog552",
+            "schafter5",
+    "schafter6",
     };
 
 
