@@ -307,7 +307,6 @@ public class TrafficMP : Script
             case 10: model_name = GetRandomModel(VehList.models_industrial); break;
             case 11: model_name = GetRandomModel(VehList.models_industrial); break;
             case 12: model_name = GetRandomModel(VehList.models_vans); break;
-            case 13: model_name = GetRandomModel(VehList.models_cycles); break;
         }
 
         return model_name;

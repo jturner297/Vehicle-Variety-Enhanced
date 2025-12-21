@@ -112,11 +112,13 @@ public class VehList
 
     public static List<string> models_helicopter = new List<string>() {
     "conada",
-    "havok",
-    "volatus",
-    "supervolito",
-    "supervolito2",
     "swift2",
+    "Havok",
+    "Volatus",
+    "SeaSparrow",
+    "Supervolito",
+    "Supervolito2",
+    "Swift2"
     };
 
     public static List<string> models_humanlabs = new List<string>() {
@@ -288,38 +290,23 @@ public class VehList
     "boor",
     "draugur",
     "patriot3",
-    "verus",
     "yosemite3",
     "outlaw",
-    "zhaba",
     "everon",
     "vagrant",
     "hellion",
     "caracara2",
-    "brutus",
-    "monster3",
-    "bruiser",
-    "freecrawler",
-    "menacer",
-    "caracara",
     "kamacho",
     "riata",
-    "nightShark",
-    "technical3",
-    "dune3",
-    "blazer5",
     "blazer4",
     "rallyTruck",
     "trophyTruck",
     "trophyTruck2",
     "brawler",
-    "technical",
-    "insurgent",
     "guardian",
     "l35",
     "ratel",
     "monstrociti",
-    "terminus",
     "yosemite1500",
     "firebolt",
     "uranus",
@@ -332,20 +319,19 @@ public class VehList
     };
 
     public static List<string> models_planes = new List<string>() {
-    "microlight",
-    "nimbus",
-    "luxor2",
-    "velum2",
+    "Nimbus",
+    "Luxor2",
+    "Velum2",
+    "Microlight",
+    "Seabreeze",
+    "Howard",
+    "Rogue",
+    "AlphaZ1",
+    "streamer216"
     };
 
  
 
-    public static List<string> models_police_traffic = new List<string>() {
-    "polgauntlet",
-    "poldorado",
-    "polimpaler5",
-    "polgreenwood",
-    };
 
     public static List<string> models_sedans = new List<string>() {
     "rhinehart",
@@ -641,6 +627,7 @@ public class VehList
 
     public static List<string> models_higgins = new List<string>() {
     "maverick2",
+    "conada",
     };
 
 

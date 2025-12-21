@@ -34,7 +34,7 @@ public class SpawnMP : Script
     private string mod_version = "1.72";
 
     //Coords
-    private const int cult = 0;      
+    private const int cult = 0;
     private const int boats = 1;
     private const int cemetery = 2;
     private const int cheburek = 3;
@@ -52,157 +52,128 @@ public class SpawnMP : Script
     private const int coupes_4 = 15;
     private const int coupes_5 = 16;
     private const int coupes_6 = 17;
-    private const int coupes_7 = 18; 
-    
-    private const int cycles_1 = 19;
-    private const int cycles_2 = 20;
-    private const int cycles_3 = 21;
-    private const int cycles_4 = 22;
-    private const int cycles_5 = 23;
-  
-    private const int ghetto_1 = 24;
-    private const int ghetto_2 = 25;
-    private const int ghetto_3 = 26;
-    private const int ghetto_4 = 27;
-    private const int ghetto_5 = 28;
-    private const int helicopter = 29;
-    private const int humanlabs = 30;
-    private const int industrial_1 = 31;
-    private const int industrial_2 = 32;
-    private const int industrial_3 = 33;
-    private const int industrial_4 = 34;
-    private const int karting = 35;
-    private const int vetir = 36;
-    private const int scarab = 37;
-    private const int terrorbyte = 38;
-    private const int thruster = 39;
-    private const int khanjari = 40;
-    private const int chernobog = 41;
-    private const int barrage = 42;
-    private const int trailerLarge = 43;
-    private const int halfTrack = 44;
-    private const int apc = 45;
-    private const int trailerSmall2 = 46;
-    private const int military_planes_1 = 47;
-    private const int military_planes_2 = 48;
-    private const int military_helicopters = 49;
-    private const int military_opressors = 50;
-    private const int military_bikes = 51;
-    private const int raiju = 52;
-    private const int streamer216 = 53;
-    private const int conada2 = 54;
-    private const int motorcycles_1 = 55;
-    private const int motorcycles_2 = 56;
-    private const int motorcycles_3 = 57;
-    private const int motorcycles_4 = 58;
-    private const int motorcycles_5 = 59;
-    private const int motorcycles_6 = 60;
-    private const int muscle_1 = 61;
-    private const int muscle_2 = 62;
-    private const int muscle_3 = 63;
-    private const int muscle_4 = 64;
-    private const int muscle_5 = 65;
-    private const int muscle_6 = 66;
-    private const int muscle_7 = 67;
-    private const int offroad_1 = 68;
-    private const int offroad_2 = 69;
-    private const int offroad_3 = 70;
-    private const int offroad_4 = 71;
-    private const int openwheel = 72;
-    private const int beach = 73;
-    private const int planes = 74;
-    
-    private const int police_1 = 75;
-    private const int police_2 = 76;
-    private const int police_3 = 77;
-    private const int police_4 = 78;
-    private const int police_5 = 79;
-    
-    private const int sedans_1 = 80;
-    private const int sedans_2 = 81;
-    private const int sedans_3 = 82;
-    private const int sedans_4 = 83;
-    private const int sedans_5 = 84;
-    private const int sedans_6 = 85;
-    private const int sedans_7 = 86;
-    private const int slawmantruck = 87;
-    private const int sportclassic_1 = 88;
-    private const int sportclassic_2 = 89;
-    private const int sportclassic_3 = 90;
-    private const int sportclassic_4 = 91;
-    private const int sportclassic_5 = 92;
-    private const int sportclassic_6 = 93;
-    private const int sportclassic_7 = 94;
-    private const int sportclassic_8 = 95;
-    private const int submarine = 96;
-    private const int supers_1 = 97;
-    private const int supers_2 = 98;
-    private const int supers_3 = 99;
-    private const int supers_4 = 100;
-    private const int supers_5 = 101;
-    private const int supers_6 = 102;
-    private const int supers_7 = 103;
-    private const int suvs_1 = 104;
-    private const int suvs_2 = 105;
-    private const int suvs_3 = 106;
-    private const int suvs_4 = 107;
-    private const int suvs_5 = 108;
-    private const int suvs_6 = 109;
-    private const int suvs_7 = 110;
-    private const int suvs_8 = 111;
-    private const int towtruck_1 = 112;
-    private const int towtruck_2 = 113;
-    private const int towtruck_3 = 114;
-    private const int towtruck_4 = 115;
-    private const int towtruck_5 = 116;
-    private const int tuners_1 = 117;
-    private const int tuners_2 = 118;
-    private const int tuners_3 = 119;
-    private const int tuners_4 = 120;
-    private const int tuners_5 = 121;
-    private const int valentine = 122;
-    private const int vans_1 = 123;
-    private const int vans_2 = 124;
-    private const int vans_3 = 125;
-    private const int vans_4 = 126;
-    private const int vans_5 = 127;
-    private const int vans_6 = 128;
-    private const int vans_7 = 129;
-    private const int vans_8 = 130;
-    private const int vans_9 = 131;
-    private const int vans_10 = 132;
-    private const int vans_11 = 133;
-    private const int vans_12 = 134;
-    private const int vans_13 = 135;
-    private const int wastelander = 136;
-    private const int weaponboats = 137;
-   
-    private const int enforcement_1 = 138;
-    private const int enforcement_2 = 139;
-    private const int enforcement_3 = 140;
-    private const int enforcement_4 = 141;
-    private const int enforcement_5 = 142;
-
-    private const int pizzaboy = 143;
-    
-    private const int police_bros_1 = 144;
-    private const int police_bros_2 = 145;
-   
-    private const int plane_sandy = 146;
-    private const int heli_sandy = 147;
-    private const int titan2 = 148;
-    private const int hsw = 149;
-    private const int heli_higgins = 150;
-   
-    private const int weapon_ignus2 = 151;
-
-    private const int arena_hotring = 152; // new stuff
-    private const int arena_speed = 153;
-    private const int arena_offroad = 154;
+    private const int coupes_7 = 18;
+    private const int ghetto_1 = 19;
+    private const int ghetto_2 = 20;
+    private const int ghetto_3 = 21;
+    private const int ghetto_4 = 22;
+    private const int ghetto_5 = 23;
+    private const int helicopter = 24;
+    private const int humanlabs = 25;
+    private const int industrial_1 = 26;
+    private const int industrial_2 = 27;
+    private const int industrial_3 = 28;
+    private const int industrial_4 = 29;
+    private const int karting = 30;
+    private const int vetir = 31;
+    private const int scarab = 32;
+    private const int terrorbyte = 33;
+    private const int thruster = 34;
+    private const int khanjari = 35;
+    private const int chernobog = 36;
+    private const int barrage = 37;
+    private const int trailerLarge = 38;
+    private const int halfTrack = 39;
+    private const int apc = 40;
+    private const int trailerSmall2 = 41;
+    private const int military_planes_1 = 42;
+    private const int military_planes_2 = 43;
+    private const int military_helicopters = 44;
+    private const int military_opressors = 45;
+    private const int military_bikes = 46;
+    private const int raiju = 47;
+    private const int streamer216 = 48;
+    private const int conada2 = 49;
+    private const int motorcycles_1 = 50;
+    private const int motorcycles_2 = 51;
+    private const int motorcycles_3 = 52;
+    private const int motorcycles_4 = 53;
+    private const int motorcycles_5 = 54;
+    private const int motorcycles_6 = 55;
+    private const int muscle_1 = 56;
+    private const int muscle_2 = 57;
+    private const int muscle_3 = 58;
+    private const int muscle_4 = 59;
+    private const int muscle_5 = 60;
+    private const int muscle_6 = 61;
+    private const int muscle_7 = 62;
+    private const int offroad_1 = 63;
+    private const int offroad_2 = 64;
+    private const int offroad_3 = 65;
+    private const int openwheel = 66;
+    private const int beach = 67;
+    private const int planes = 68;
+    private const int sedans_1 = 69;
+    private const int sedans_2 = 70;
+    private const int sedans_3 = 71;
+    private const int sedans_4 = 72;
+    private const int sedans_5 = 73;
+    private const int sedans_6 = 74;
+    private const int sedans_7 = 75;
+    private const int slawmantruck = 76;
+    private const int sportclassic_1 = 77;
+    private const int sportclassic_2 = 78;
+    private const int sportclassic_3 = 79;
+    private const int sportclassic_4 = 80;
+    private const int sportclassic_5 = 81;
+    private const int sportclassic_6 = 82;
+    private const int sportclassic_7 = 83;
+    private const int sportclassic_8 = 84;
+    private const int submarine = 85;
+    private const int supers_1 = 86;
+    private const int supers_2 = 87;
+    private const int supers_3 = 88;
+    private const int supers_4 = 89;
+    private const int supers_5 = 90;
+    private const int supers_6 = 91;
+    private const int supers_7 = 92;
+    private const int suvs_1 = 93;
+    private const int suvs_2 = 94;
+    private const int suvs_3 = 95;
+    private const int suvs_4 = 96;
+    private const int suvs_5 = 97;
+    private const int suvs_6 = 98;
+    private const int suvs_7 = 99;
+    private const int suvs_8 = 100;
+    private const int towtruck_1 = 101;
+    private const int towtruck_2 = 102;
+    private const int towtruck_3 = 103;
+    private const int towtruck_4 = 104;
+    private const int towtruck_5 = 105;
+    private const int tuners_1 = 106;
+    private const int tuners_2 = 107;
+    private const int tuners_3 = 108;
+    private const int tuners_4 = 109;
+    private const int tuners_5 = 110;
+    private const int valentine = 111;
+    private const int vans_1 = 112;
+    private const int vans_2 = 113;
+    private const int vans_3 = 114;
+    private const int vans_4 = 115;
+    private const int vans_5 = 116;
+    private const int vans_6 = 117;
+    private const int vans_7 = 118;
+    private const int vans_8 = 119;
+    private const int vans_9 = 120;
+    private const int vans_10 = 121;
+    private const int vans_11 = 122;
+    private const int vans_12 = 123;
+    private const int vans_13 = 124;
+    private const int wastelander = 125;
+    private const int weaponboats = 126;
+    private const int pizzaboy = 127;
+    private const int plane_sandy = 128;
+    private const int heli_sandy = 129;
+    private const int titan2 = 130;
+    private const int hsw = 131;
+    private const int heli_higgins = 132;
+    private const int arena_hotring = 133;
+    private const int arena_speed = 134;
+    private const int arena_offroad = 135;
 
     private List<Vector3> coords = new List<Vector3>()
     {
-        new Vector3(-719.9119f, 79.29325f, 55.13408f),
+        new Vector3(-719.9119f, 79.29325f, 55.13408f),           
         new Vector3(-926.119f, -1478.350f, -0.474f),
         new Vector3(-1640.42f, -202.879f, 54.146f),
         new Vector3(1546.591f, 3781.791f, 33.06f),
@@ -221,17 +192,12 @@ public class SpawnMP : Script
         new Vector3(-972.578f, -1464.27f, 4.013f),
         new Vector3(1309.942f, -530.154f, 70.312f),
         new Vector3(339.481f, 159.143f, 102.146f),
-        new Vector3(-1374.766f, -1399.443f, 6.142528f),
-        new Vector3(-941.4034f, -792.0335f, 15.95103f),
-        new Vector3(274.6519f, -194.8017f, 61.57079f),
-        new Vector3(698.6535f, -1197.893f, 24.39086f),
-        new Vector3(840.2529f, -257.3479f, 65.66613f),
         new Vector3(-229.587f, -1483.44f, 30.352f),
         new Vector3(-22.296f, -1851.58f, 24.108f),
         new Vector3(321.798f, -1948.14f, 23.627f),
         new Vector3(455.602f, -1695.26f, 28.289f),
         new Vector3(1228.548f, -1605.65f, 50.736f),
-        new Vector3(-979.378f, -2996.868f, 13.945f),
+        new Vector3(-1006.93f, -3015.079f, 13.82286f),
         new Vector3(3511.653f, 3783.877f, 28.925f),
         new Vector3(1566.097f, -1683.17f, 87.205f),
         new Vector3(2673.478f, 1678.569f, 23.488f),
@@ -270,18 +236,12 @@ public class SpawnMP : Script
         new Vector3(393.4623f, -649.7198f, 27.92926f),
         new Vector3(124.0182f, -1472.58f, 28.6794f),
         new Vector3(185.595f, -1016.01f, 28.3f),
-        new Vector3(1135.19f, 39.81987f, 80.34249f),
         new Vector3(1991.201f, 3076.069f, 46.79815f),
         new Vector3(1977.402f, 3835.433f, 31.59359f),
         new Vector3(1350.489f, 3605.351f, 34.47185f),
-        new Vector3(1122.086f, 267.125f, 79.856f),
+        new Vector3(1135.19f, 39.81987f, 80.34249f), //openwheel
         new Vector3(-1513.889f, -1253.183f, 2.433f),
-        new Vector3(-961.005f, -2963.593f, 13.945f),
-        new Vector3(-449.017f, 6052.354f, 31.341f),
-        new Vector3(1867.271f, 3696.303f, 33.606f),
-        new Vector3(626.4047f, 27.50228f, 87.9091f),
-        new Vector3(-1051.572f, -867.256f, 5.129f),
-        new Vector3(375.766f, -1612.061f, 29.292f),
+        new Vector3(-960.1053f, -2933.973f, 13.823f),
         new Vector3(1156.74f, -1474.257f, 33.9701f),
         new Vector3(-936.2781f, -2692.023f, 16.11801f),
         new Vector3(-532.5765f, -2133.869f, 5.491799f),
@@ -340,26 +300,12 @@ public class SpawnMP : Script
         new Vector3(-2555.51f, 2322.827f, 32.06f),
         new Vector3(1111.018f, 2221.073f, 50.140f),
         new Vector3(-3092.066f, 3465.729f, -0.474f),
-        
-        new Vector3(486.359f, -948.2272f, 26.64442f), //enforcement
-        new Vector3(127.562f, 15.10451f, 68.00917f),
-        new Vector3(-61.72556f, 6499.053f, 30.99122f),
-        new Vector3(120.8748f, -1709.281f, 28.58102f),
-        new Vector3(-1420.277f, -655.5345f, 28.17369f),
-       
         new Vector3(541.7154f, 97.22734f, 95.95358f),
-      
-        new Vector3(714.0365f, -981.6344f, 23.54063f), //police
-        new Vector3(722.5751f, -981.2658f, 23.4088f),
-       
         new Vector3(1705.741f, 3271.236f, 41.56281f),
         new Vector3(2140.588f, 4816.544f, 41.05009f),
         new Vector3(-2078.637f, 2931.623f, 33.99109f),
         new Vector3(792.5626f, -1862.284f, 28.52566f),
-        new Vector3(-744.5989f, -1467.786f, 5.675299f),
-       
-        new Vector3(-1864.326f, 3225.93f, 32.17207f),//ignus
-       
+        new Vector3(-746.4702f, -1469.937f, 4.87726f),
         new Vector3(-206.046f, -1988.758f, 26.96269f),  // Index 152 (Hotring )
         new Vector3(-176.5869f, -2019.529f, 27.14398f), // Index 153 (Speed )
         new Vector3(-192.949f, -1928.497f, 27.20675f), // Index 154 (Offroad )
@@ -387,17 +333,12 @@ public class SpawnMP : Script
         294.730f,
         341.133f,
         71.345f,
-        352.5828f,
-        1.6991f,
-        255.056f,
-        270.8829f,
-        99.87038f,
         146.244f,
         141.262f,
         47.597f,
         138.808f,
         33.185f,
-        331.180f,
+        330.7697f,
         166.594f,
         14.900f,
         270.297f,
@@ -436,18 +377,12 @@ public class SpawnMP : Script
         90.89349f,
         321.0109f,
         33.185f,
-        205.5221f,
         58.8943f,
         297.7102f,
         16.77524f,
-        294.684f,
+        58.2715f, //openwheel
         276.757f,
-        58.2715f,
-        35.312f,
-        29.408f,
-        198.4456f,
-        240.586f,
-        230.537f,
+        149.6461f,
         268.8033f,
         241.2007f,
         353.1183f,
@@ -506,26 +441,12 @@ public class SpawnMP : Script
         273.837f,
         273.390f,
         47.552f,
-       
-        90.42657f,//enforce
-        -110.5593f,
-        139.6896f,
-        48.76577f,
-        -54.15135f,
-      
         113.416f,
-       
-        -31.42274f, //police
-        60.22583f,
-        
-        -179.1466f, 
+       -179.1466f, 
         115.5491f,
         58.04224f,
         167.2133f,
-        -40.04208f,
-       
-        327.426f, //ignus
-
+        140.3646f,
         90.24596f,  // Index 152 (Hotring Angle)
         75.33392f,  // Index 153 (Speed Angle)
         -151.2955f,// Index 154 (Offroad Angle)
@@ -1102,7 +1023,6 @@ public class SpawnMP : Script
             case offroad_1:
             case offroad_2:
             case offroad_3:
-            case offroad_4:
                 isEmpty = !VehList.models_offroad.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
@@ -1536,13 +1456,14 @@ public class SpawnMP : Script
                             // Inside the foreach loop in OnTick, after the vehicle is created
                             if (veh[index_db] != null)
                             {
+                                Random rndMax = new Random();
                                 // 1. Initialize Mod Kit (Required for all tuning) 
                                 Function.Call(Hash.SET_VEHICLE_MOD_KIT, veh[index_db], 0);
 
                                 // 2. Handle specialized tuning for Arena and Cult groups
                                 if (index_db == arena_hotring || index_db == arena_speed || index_db == arena_offroad || index_db == cult)
                                 {
-                                    Random rndMax = new Random();
+                          
 
                                     // --- MANDATORY PERFORMANCE (MAXED) ---
                                     Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 11, 3, false); // Engine Level 4
@@ -1580,6 +1501,24 @@ public class SpawnMP : Script
                                         veh[index_db].Mods.SecondaryColor = (VehicleColor)157;
                                         veh[index_db].Mods.PearlescentColor = (VehicleColor)157;
                                     }
+
+                                }
+                                else if (index_db == heli_higgins && model_name == "conada") // give the conada the higgins heli livery and yellow and blue colors
+                                {
+                                    veh[index_db].Mods.PrimaryColor = (VehicleColor)89; 
+                                    veh[index_db].Mods.SecondaryColor = (VehicleColor)6;
+                                    veh[index_db].Mods.PearlescentColor = (VehicleColor)1;
+                                    Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, 9, false);
+                                    Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, veh[index_db], true);
+                                }
+                                else if (index_db == helicopter || index_db == planes) //LSIA helis and planes get random or no liveries
+                                {
+                       
+                                    int numLiveries = Function.Call<int>(Hash.GET_NUM_VEHICLE_MODS, veh[index_db], 48);
+                                    if (numLiveries > 0)
+                                    {
+                                        Function.Call(Hash.SET_VEHICLE_MOD, veh[index_db], 48, rndMax.Next(0, numLiveries), false);
+                                    }
                                 }
                             }
 
@@ -1587,13 +1526,6 @@ public class SpawnMP : Script
                             //Optional mods (livery, colors, etc.)
                             switch (model_name)
                             {
-                                case "police3":
-                                    veh[index_db].Mods.CustomPrimaryColor = Color.White;
-                                    veh[index_db].Mods.CustomSecondaryColor = Color.Black;
-                                    Function.Call(GTA.Native.Hash.SET_VEHICLE_MOD_KIT, veh[index_db], 0);
-                                    Function.Call(GTA.Native.Hash.SET_VEHICLE_MOD, veh[index_db], 48, 0, false);
-                                    break;
-
                                 case "brickade2":
                                     veh[index_db].Mods.CustomPrimaryColor = Color.Black;
                                     veh[index_db].Mods.CustomSecondaryColor = Color.Black;
