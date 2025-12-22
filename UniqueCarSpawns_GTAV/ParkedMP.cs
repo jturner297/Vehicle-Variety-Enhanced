@@ -125,11 +125,6 @@ public class SpawnMP : Script
     private const int suvs_6 = 87;
     private const int suvs_7 = 88;
     private const int suvs_8 = 89;
-    private const int towtruck_1 = 90;
-    private const int towtruck_2 = 91;
-    private const int towtruck_3 = 92;
-    private const int towtruck_4 = 93;
-    private const int towtruck_5 = 94;
     private const int tuners_1 = 95;
     private const int tuners_2 = 96;
     private const int tuners_3 = 97;
@@ -255,11 +250,6 @@ public class SpawnMP : Script
         new Vector3(388.3879f, -215.6955f, 56.76986f),
         new Vector3(-1235.388f, -1647.45f, 3.512795f),
         new Vector3(-472.0576f, 6034.684f, 30.74616f),
-        new Vector3(-198.5697f, 6273.029f, 31.48925f),
-        new Vector3(2502.232f, 4080.495f, 38.63095f),
-        new Vector3(1203.418f, -1262.387f, 35.22676f),
-        new Vector3(-71.37413f, -1339.442f, 29.25686f),
-        new Vector3(-464.9293f, -1718.74f, 18.66934f),
         new Vector3(934.148f, -1812.94f, 29.812f),
         new Vector3(246.847f, -1162.08f, 28.16f),
         new Vector3(1136.156f, -773.997f, 56.632f),
@@ -387,11 +377,6 @@ public class SpawnMP : Script
         341.7853f,
         124.5176f,
         43.40757f,
-        313.6799f,
-        68.68851f,
-        178.5483f,
-        89.01824f,
-        244.1471f,
         88.712f,
         180.390f,
         269.604f,
@@ -577,8 +562,7 @@ public class SpawnMP : Script
             if (VehList.models_suvs.Contains(hash))
                 VehList.models_suvs.Remove(hash);
 
-            if (VehList.models_towtruck.Contains(hash))
-                VehList.models_towtruck.Remove(hash);
+   
 
             if (VehList.models_tuners.Contains(hash))
                 VehList.models_tuners.Remove(hash);
@@ -1027,17 +1011,7 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case towtruck_1:
-            case towtruck_2:
-            case towtruck_3:
-            case towtruck_4:
-            case towtruck_5:
-                isEmpty = !VehList.models_towtruck.Any();
-                if ((veh[index_db] == null && !isEmpty) || type == 1)
-                {
-                    model_name = VehList.models_towtruck[random.Next(VehList.models_towtruck.Count)];
-                }
-                break;
+
 
             case tuners_1:
             case tuners_2:

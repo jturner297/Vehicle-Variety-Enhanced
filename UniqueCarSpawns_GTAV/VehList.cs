@@ -168,7 +168,6 @@ public class VehList
 
 
     public static string thruster_model = "thruster";
-
     public static string apc_model = "apc";
     public static string raiju_model = "raiju";
     public static string conada2_model = "conada2";
@@ -427,6 +426,36 @@ public class VehList
     };
 
     public static List<string> models_supers = new List<string>() {
+    //base game traffic cars
+       "zentorno",
+       "turismor",
+       "cheetah",
+       "entityxf",
+       "vacca",
+        
+        //base game parked cars
+   "adder",
+        
+        //traffic  cars
+        "tempesta",
+"italigtb",
+"sc1",
+"reaper",
+"penetrator",
+        //parked  cars
+        "t20",
+"pfister811",
+"osiris",
+"gp1",
+"xa21",
+"fmj",
+"cyclone",
+"prototipo",
+"nero",
+"nero2",
+"visione",
+"entity2",
+        /*
     "lm87",
     "s80",
     "entity2",
@@ -449,11 +478,9 @@ public class VehList
     "prototipo",
     "reaper",
     "fmj",
-    "sultanrs",
-    "banshee2",
     "t20",
     "osiris",
-    "cyclone2",
+    "cyclone2",*/
     };
 
     public static List<string> models_suvs = new List<string>() {
@@ -473,9 +500,7 @@ public class VehList
     "woodlander",
     };
 
-    public static List<string> models_towtruck = new List<string>() {
-    "towtruck4",
-    };
+
 
     public static List<string> models_tuners = new List<string>() {
     "kanjosj",
@@ -492,7 +517,9 @@ public class VehList
     "dominator8",
     "euros",
     "futo2",
-    "calico"
+    "calico",
+            "sultanrs",
+            "banshee2"
     };
 
     public static List<string> models_valentine = new List<string>() {
@@ -561,16 +588,7 @@ public class VehList
 
 
 
-    public static List<string> models_latest = new List<string>() {
-    "astrale",
-    "fmj2",
-    "gt750",
-    "itali2",
-    "keitora",
-    "luiva",
-    "sentinel6",
-    "xtreme",
-    };
+
 
     public static List<string> models_arena_speed = new List<string>() {
     "sheava",
