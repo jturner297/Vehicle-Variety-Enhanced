@@ -232,7 +232,7 @@ public class SpawnMP : Script
         new Vector3(-3139.044f, 1086.714f, 20.23225f),
         new Vector3(-1144.189f, 2666.219f, 17.47463f),
         new Vector3(-1114.1f, 479.205f, 81.161f),
-        new Vector3(-160.8898f, 275.334f, 92.95601f),
+        new Vector3(-205.516f, 281.035f, 91.818f),
         new Vector3(-504.323f, 424.21f, 96.287f),
         new Vector3(-1405.12f, 81.983f, 52.099f),
         new Vector3(-1299.92f, -228.464f, 59.654f),
@@ -284,7 +284,7 @@ public class SpawnMP : Script
         new Vector3(541.7154f, 97.22734f, 95.95358f),
         new Vector3(1705.741f, 3271.236f, 41.56281f),
         new Vector3(2140.588f, 4816.544f, 41.05009f),
-        new Vector3(-1120.460f, -2022.790f, 12.563f),
+        new Vector3(-1118.157f, -2013.173f ,12.76037f),
         new Vector3(-746.4702f, -1469.937f, 6.87726f),    
         new Vector3(-206.046f, -1988.758f, 26.96269f),  // Index 152 (Hotring )
         new Vector3(1189.208f, 304.6935f, 81.48812f),
@@ -364,7 +364,7 @@ public class SpawnMP : Script
         260.5882f,
         130.5594f,
         171.220f,
-        176.2266f,
+        165.351f,
         313.167f,
         53.145f,
         126.968f,
@@ -416,7 +416,7 @@ public class SpawnMP : Script
         113.416f,
        -179.1466f, 
         115.5491f,
-        -45.004f,
+        -45.004f,//hsw //X:0 Y:0 Z:0.3822183 W:0.9240721
         140.3646f, 
         90.24596f,  // Index 152 (Hotring Angle)
         146.9079f,
