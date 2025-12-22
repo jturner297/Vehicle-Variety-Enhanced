@@ -518,7 +518,7 @@ public class VehList
     "futo2",
     "calico",
             "sultanrs",
-            "banshee2"
+            "banshee2",
     };
 
     public static List<string> models_valentine = new List<string>() {
