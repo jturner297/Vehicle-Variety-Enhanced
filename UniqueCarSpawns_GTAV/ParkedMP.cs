@@ -40,13 +40,12 @@ public class SpawnMP : Script
     private const int cemetery = 2;
     private const int cheburek = 3;
     private const int cinema = 4;
-    private const int cluckin = 5;
-    private const int compacts_1 = 6;
-    private const int compacts_2 = 7;
-    private const int compacts_3 = 8;
-    private const int compacts_4 = 9;
-    private const int compacts_5 = 10;
-    private const int compacts_6 = 11;
+    private const int classics_1 = 6;
+    private const int classics_2 = 7;
+    private const int compacts_1 = 8;
+    private const int compacts_2 = 9;
+    private const int compacts_3 = 10;
+    private const int compacts_4 = 11;
     private const int coupes_1 = 12;
     private const int coupes_2 = 13;
     private const int coupes_3 = 14;
@@ -165,10 +164,9 @@ public class SpawnMP : Script
         new Vector3(-1640.42f, -202.879f, 54.146f),
         new Vector3(1546.591f, 3781.791f, 33.06f),
         new Vector3(-1084.873f, -477.591f, 36.2069f),
-        new Vector3(-19.4496f, 6321.813f, 31.22966f),
-        new Vector3(-1407.751f, -589.1447f, 29.65687f),
-        new Vector3(-817.325f, -1201.59f, 5.935f),
-        new Vector3(-489.2397f, -596.5908f, 30.56949f),
+        new Vector3(-1407.751f, -589.1447f, 29.65687f), //change to classics
+        new Vector3(-817.325f, -1201.59f, 5.935f), //classics 2
+        new Vector3(-489.2397f, -596.5908f, 30.56949f), //classics 3?
         new Vector3(870.7411f, -75.28734f, 78.10686f),
         new Vector3(110.261f, -714.605f, 32.133f),
         new Vector3(-220.102f, -590.273f, 33.264f),
@@ -292,7 +290,6 @@ public class SpawnMP : Script
         338.279f,
         26.557f,
         27.92156f,
-        30.12479f,
         298.6727f,
         318.133f,
         358.1453f,
@@ -736,21 +733,19 @@ public class SpawnMP : Script
                 }
                 break;
 
-            case cluckin:
-                isEmpty = !VehList.models_cluckin.Any();
+ 
+            case classics_1:
+            case classics_2:
+                isEmpty = !VehList.models_classics.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {
-                    model_name = VehList.models_cluckin[random.Next(VehList.models_cluckin.Count)];
-                    plate_id = 6;
+                    model_name = VehList.models_classics[random.Next(VehList.models_classics.Count)];
                 }
                 break;
-
             case compacts_1:
             case compacts_2:
             case compacts_3:
             case compacts_4:
-            case compacts_5:
-            case compacts_6:
                 isEmpty = !VehList.models_compacts.Any();
                 if ((veh[index_db] == null && !isEmpty) || type == 1)
                 {

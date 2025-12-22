@@ -212,9 +212,7 @@ public class TrafficMP : Script
     {
         if (_spawnSequenceIndex == 0)
         {
-            if (VehList.models_latest.Count > 0)
-                return VehList.models_latest[_rnd.Next(VehList.models_latest.Count)];
-            else
+            
                 return "vivanite2";
         }
         else if (_spawnSequenceIndex == 1)

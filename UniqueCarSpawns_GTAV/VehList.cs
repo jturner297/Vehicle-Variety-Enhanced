@@ -358,7 +358,6 @@ public class VehList
     "sultan3",
     "vectre",
     "remus",
-    "jester4",
     "rt3000",
     "zr350",
     "euros",
@@ -524,6 +523,9 @@ public class VehList
 
     public static List<string> models_valentine = new List<string>() {
     "btype3",
+    "broadway",
+    "stafford"
+
     };
 
     public static List<string> models_vans = new List<string>() {
@@ -640,6 +642,65 @@ public class VehList
         "cog552",
             "schafter5",
     "schafter6",
+    };
+    public static List<string> models_classics = new List<string>() {
+       
+       /* "brioso",
+    "brioso2",//widebody brioso
+       "broadway",//1940s car
+    "btype",//roosevelt
+    "casco",
+    "cheetah2",//cheetah classic
+    "comet3", //comet retro custom
+    "coquette2",
+        "coquette3",
+            "coquette5",
+    "feltzer3",
+        "gt500",
+    "infernus2",
+        "issi3",//issi classic
+            "jb7002",
+    "mamba",
+        "michelli",
+    "monroe",
+        "rapidgt3",
+          //  "stafford", //old school rolls
+    "stinger", //retro convertible
+           "stingergt", //retro convertible
+            "swinger", //retro race car 
+    "torero",//retro lambo
+           "tropos", //retro ferrari
+            "turismo2", //f40
+    "viseris", //mid-engine sports car*/
+
+        //traffic classics
+
+         "casco",
+         "cheetah2",
+         "comet3",
+         "coquette2",
+         "coquette3",
+         "coquette5",
+         "feltzer3",
+         "issi3",
+         "michelli",
+         "rapidgt3",
+         "tropos",
+         "viseris",
+
+         //parked classic
+             "infernus2",
+            "gt500",
+            "jb7002",
+            "mamba",
+            "monroe",
+            "stinger",
+            "stingergt",
+            "swinger",
+            "torero",
+            "turismo2",
+
+
     };
 
 
