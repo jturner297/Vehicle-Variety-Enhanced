@@ -104,20 +104,32 @@ public class VehList
 
 
     public static List<string> models_ghetto = new List<string>() {
-    "peyote3",
     "retinue2",
     "dynasty",
     "cheburek",
     "fagaloa",
-    "tornado5",
-    "youga4",
     "gburrito2",
     "eudora",
     "greenwood",
-    "voodoo",
-    "primo2",
-    "minivan2",
+        "faction3",
+        "Buccaneer2",
+     "Chino2",
+     "Faction2",
+     "Moonbeam2",
+     "Primo2",
+     "Voodoo",
+     "SlamVan3",
+     "Tornado5",
+     "Minivan2",
+     "Peyote3",
+     "Yosemite2",
+     "Chimera",
+     "Glendale2",
+     "Manana2",
+     "SabreGT2",
+        "virgo2"
     };
+
 
     public static List<string> models_helicopter = new List<string>() {
     "conada",
@@ -230,9 +242,7 @@ public class VehList
     "tahoma",
     "tulip2",
     "weevil2",
-    "vigero2",
     "ruiner4",
-    "buffalo4",
     "dominator7",
     "dominator8",
     "gauntlet5",
@@ -246,19 +256,15 @@ public class VehList
     "deviant",
     "tulip",
     "clique",
-    "imperator",
     "impaler",
     "dominator3",
     "ellie",
     "hustler",
     "hermes",
     "yosemite",
-    "tampa3",
-    "ruiner2",
     "sabreGT2",
     "virgo2",
     "virgo3",
-    "faction3",
     "tampa",
     "nightshade",
     "moonbeam2",
@@ -528,9 +534,6 @@ public class VehList
     "cargobob5",
     };
 
-    public static List<string> models_titan2 = new List<string>() {
-    "titan2",
-    };
 
     public static List<string> models_hsw = new List<string>() {
     "s95",
