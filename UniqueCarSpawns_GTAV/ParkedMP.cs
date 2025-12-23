@@ -441,7 +441,9 @@ public class SpawnMP : Script
                 modType == VehicleModType.Brakes ||
                 modType == VehicleModType.Transmission ||
                 modType == VehicleModType.Suspension ||
-                modType == VehicleModType.Armor) continue;
+                modType == VehicleModType.Armor ||
+                modType == VehicleModType.RearWheel ||
+                modType == VehicleModType.FrontWheel) continue;
 
             int count = v.Mods[modType].Count;
             if (count > 0)
@@ -476,7 +478,7 @@ public class SpawnMP : Script
                 // Fixed Epsilon Blue
                 v.Mods.PrimaryColor = (VehicleColor)157;
                 v.Mods.SecondaryColor = (VehicleColor)157;
-                //v.Mods.PearlescentColor = (VehicleColor)0;
+                v.Mods.PearlescentColor = (VehicleColor)1;
                 v.Mods[VehicleModType.Livery].Index = -1; // Tacky for cult members
                 break;
 
