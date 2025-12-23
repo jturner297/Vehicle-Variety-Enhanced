@@ -104,13 +104,7 @@ public class VehList
 
 
     public static List<string> models_ghetto = new List<string>() {
-    "retinue2",
-    "dynasty",
-    "cheburek",
-    "fagaloa",
-    "gburrito2",
     "eudora",
-    "greenwood",
         "faction3",
         "Buccaneer2",
      "Chino2",
@@ -129,7 +123,14 @@ public class VehList
      "SabreGT2",
         "virgo2"
     };
-
+    public static List<string> models_poor = new List<string>() {
+        "greenwood",
+        "retinue2",
+    "dynasty",
+    "cheburek",
+    "fagaloa",
+    "greenwood",
+    };
 
     public static List<string> models_helicopter = new List<string>() {
     "conada",
@@ -425,22 +426,22 @@ public class VehList
     };
 
     public static List<string> models_supers = new List<string>() {
-    //base game traffic cars
+   /* //base game traffic cars 
        "zentorno",
        "turismor",
        "cheetah",
        "entityxf",
-       "vacca",
+       "vacca", 
         
-        //base game parked cars
+        //base game parked cars*/
    "adder",
         
-        //traffic  cars
+     /*   //traffic  cars
         "tempesta",
 "italigtb",
 "sc1",
 "reaper",
-"penetrator",
+"penetrator",*/
         //parked  cars
         "t20",
 "pfister811",
@@ -645,36 +646,9 @@ public class VehList
     };
     public static List<string> models_classics = new List<string>() {
        
-       /* "brioso",
-    "brioso2",//widebody brioso
-       "broadway",//1940s car
-    "btype",//roosevelt
-    "casco",
-    "cheetah2",//cheetah classic
-    "comet3", //comet retro custom
-    "coquette2",
-        "coquette3",
-            "coquette5",
-    "feltzer3",
-        "gt500",
-    "infernus2",
-        "issi3",//issi classic
-            "jb7002",
-    "mamba",
-        "michelli",
-    "monroe",
-        "rapidgt3",
-          //  "stafford", //old school rolls
-    "stinger", //retro convertible
-           "stingergt", //retro convertible
-            "swinger", //retro race car 
-    "torero",//retro lambo
-           "tropos", //retro ferrari
-            "turismo2", //f40
-    "viseris", //mid-engine sports car*/
-
+ 
         //traffic classics
-
+/*
          "casco",
          "cheetah2",
          "comet3",
@@ -687,7 +661,7 @@ public class VehList
          "rapidgt3",
          "tropos",
          "viseris",
-
+*/
          //parked classic
              "infernus2",
             "gt500",

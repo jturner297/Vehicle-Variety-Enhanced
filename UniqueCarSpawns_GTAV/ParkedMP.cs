@@ -56,10 +56,44 @@ public class SpawnMP : Script
         ArenaSpeed2,
         ArenaOffroad1,
         ArenaOffroad2,
+        Cinema,
         Cult,
         Higgins_Heli,
         Helicopter,
+        Lowrider_1,
+        Lowrider_2,
+        Lowrider_3,
+        Lowrider_4,
+        Lowrider_5,
+        Lowrider_6,
+        Lowrider_7,
+        Openwheel,
         Planes,
+        RetroSports1,
+        RetroSports2,
+        RetroSports3,
+        RetroSports4,
+        RetroSports5,
+        RetroSports6,
+        RetroSports7,
+        RetroSports8,
+        RetroSports9,
+        RetroSports10,
+        RetroSports11,
+        RetroSports12,
+        Super1,
+        Super2,
+        Super3,
+        Super4,
+        Super5,
+        Super6,
+        Super7,
+        Super8,
+        Super9,
+        Super10,
+        Super11,
+        Super12,
+        Super13,
 
 
     }
@@ -89,6 +123,10 @@ public class SpawnMP : Script
             new Vector3(1151.233f, 183.6329f, 80.23096f),
            -53.71473f
         ),
+        [SpawnId.Cinema] = new SpawnPoint(
+          new Vector3(-1084.873f, -477.591f, 36.2069f), 
+          27.92156f
+        ),
         [SpawnId.Cult] = new SpawnPoint(
             new Vector3(-719.9119f, 79.29325f, 55.13408f),
            25.0975f
@@ -101,10 +139,150 @@ public class SpawnMP : Script
            new Vector3(-979.378f, -2996.868f, 13.945f),
           331.180f
         ),
+        [SpawnId.Lowrider_1] = new SpawnPoint(
+          new Vector3(-229.587f, -1483.44f, 30.352f),
+          146.244f
+      ),
+        [SpawnId.Lowrider_2] = new SpawnPoint(
+          new Vector3(-22.296f, -1851.58f, 24.108f),
+          141.262f
+      ),
+        [SpawnId.Lowrider_3] = new SpawnPoint(
+          new Vector3(321.798f, -1948.14f, 23.627f),
+          47.597f
+      ),
+        [SpawnId.Lowrider_4] = new SpawnPoint(
+          new Vector3(455.602f, -1695.26f, 28.289f),
+          138.808f
+      ),
+        [SpawnId.Lowrider_5] = new SpawnPoint(
+          new Vector3(1228.548f, -1605.65f, 50.736f),
+          33.185f
+      ),
+        [SpawnId.Lowrider_6] = new SpawnPoint(
+          new Vector3(298.2452f, -1241.624f, 28.75226f),
+          -179.7188f
+      ),
+        [SpawnId.Lowrider_7] = new SpawnPoint(
+          new Vector3(264.0245f, -1512.3302f, 28.7877f),
+          268.3357f
+      ),
+        [SpawnId.Openwheel] = new SpawnPoint(
+         new Vector3(1135.19f, 39.81987f, 80.34249f),
+          16.77524f
+        ),
         [SpawnId.Planes] = new SpawnPoint(
            new Vector3(-961.005f, -2963.593f, 13.945f),
            147.589f
         ),
+       
+        [SpawnId.RetroSports1] = new SpawnPoint(
+          new Vector3(-1114.1f, 479.205f, 81.161f),
+          169.13f
+        ),
+        [SpawnId.RetroSports2] = new SpawnPoint(
+            new Vector3(-1405.12f, 81.983f, 52.099f), //golfyard
+            58.178f
+        ),
+        [SpawnId.RetroSports3] = new SpawnPoint(
+          new Vector3(-1334.63f, -1008.97f, 6.867f), //beach house
+          126.968f
+        ),
+        [SpawnId.RetroSports4] = new SpawnPoint(
+         new Vector3(-1886.25f, 2016.572f, 139.951f), //vineyard
+         160.257f
+        ),
+        [SpawnId.RetroSports5] = new SpawnPoint(
+         new Vector3(-817.325f, -1201.59f, 5.935f), //vespucci hotel
+         318.133f
+        ),
+        [SpawnId.RetroSports6] = new SpawnPoint(
+         new Vector3(-1407.751f, -589.1447f, 29.65687f),  //bahama mamas
+         298.6727f
+        ),
+        [SpawnId.RetroSports7] = new SpawnPoint(
+        new Vector3(-552.673f, 309.154f, 82.191f),  //tequilala
+         260.340f
+        ),
+        [SpawnId.RetroSports8] = new SpawnPoint(
+        new Vector3(339.481f, 159.143f, 102.146f),  //vinewood cinema
+         71.345f
+        ),
+        [SpawnId.RetroSports9] = new SpawnPoint(
+            new Vector3(-3036.57f, 105.31f, 10.593f), //chumash yacht club
+        141.262f
+        ),
+        [SpawnId.RetroSports10] = new SpawnPoint(
+             new Vector3(-205.516f, 281.035f, 91.818f), //eclipse blvd 
+       165.351f
+        ),
+        [SpawnId.RetroSports11] = new SpawnPoint(
+            new Vector3(-972.578f, -1464.27f, 4.013f), //marina
+            294.730f
+        ),
+        [SpawnId.RetroSports12] = new SpawnPoint(
+            new Vector3(1309.942f, -530.154f, 70.312f), //mirror park suburbs 
+ 341.133f
+        ),
+
+
+
+        [SpawnId.Super1] = new SpawnPoint(
+          new Vector3(-1873.6f, -343.933f, 48.26f),//north vespucci hotel
+          225.300f
+        ),
+        [SpawnId.Super2] = new SpawnPoint(
+          new Vector3(-1297.2f, 252.495f, 61.813f), //rockford hotel
+            3.0345f
+        ),
+        [SpawnId.Super3] = new SpawnPoint(
+         new Vector3(-345.267f, 662.299f, 168.587f),    //vinewood hills mansion
+         171.211f
+        ),
+        [SpawnId.Super4] = new SpawnPoint(
+        new Vector3(-72.605f, 902.579f, 234.631f), //vinewood hills lake mansion
+         291.351f
+        ),
+        [SpawnId.Super5] = new SpawnPoint(
+        new Vector3(-1451.92f, 533.495f, 118.177f), //west vinewood hills mansion
+         73.674f
+        ),
+
+        [SpawnId.Super6] = new SpawnPoint(
+        new Vector3(443.542f, 253.197f, 102.21f), //east vinewood hotel
+         245.845f
+        ),
+       
+        [SpawnId.Super7] = new SpawnPoint(
+         new Vector3(-397.528046f, 210.366409f, 82.7887802f),  //eclipse strip club
+         91.1357f
+        ),
+       
+        [SpawnId.Super8] = new SpawnPoint(
+     new Vector3(-220.102f, -590.273f, 33.264f), //arcadius business center
+        341.667f
+        ),
+        [SpawnId.Super9] = new SpawnPoint(
+        new Vector3(-1535.044f, 890.5871f, 181.3348f), //rehab
+         19.50508f
+        ),
+        [SpawnId.Super10] = new SpawnPoint(
+          new Vector3(-718.510742f, -74.6843796f, 36.9155846f), //chumash beach house
+         62.2418f
+        ),
+        [SpawnId.Super11] = new SpawnPoint(
+          new Vector3(-1126.722f, -318.281f, 37.21f), //chumash beach house
+         -95.129f
+        ),
+        [SpawnId.Super12] = new SpawnPoint(
+          new Vector3(-801.566f, -1313.92f, 4.0f), //vespucci marina 
+        169.408f
+        ),
+        [SpawnId.Super13] = new SpawnPoint(
+          new Vector3(-504.323f, 424.21f, 96.287f), //vespucci marina 
+       313.167f
+        ),
+
     };
 
 
@@ -131,11 +309,6 @@ public class SpawnMP : Script
 
         config.Save();
 
-
-        string[] lines = File.ReadAllLines("Scripts\\mp_blacklist.txt");
-        string[] lines_addon = File.ReadAllLines("Scripts\\NewVehiclesList.txt");
-        List<string> blacklist_str = new List<string>();
-        List<string> new_list_str = new List<string>();
 
    
 
@@ -181,6 +354,11 @@ public class SpawnMP : Script
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
                     model_name = VehList.models_arena_offroad[random.Next(VehList.models_arena_offroad.Count)];
                 break;
+            case SpawnId.Cinema:
+                isEmpty = !VehList.models_cinema.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_cinema[random.Next(VehList.models_cinema.Count)];
+                break;
             case SpawnId.Cult:
                 isEmpty = !VehList.models_cult.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
@@ -196,10 +374,59 @@ public class SpawnMP : Script
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
                     model_name = VehList.models_helicopter[random.Next(VehList.models_helicopter.Count)];
                 break;
+            case SpawnId.Lowrider_1:
+            case SpawnId.Lowrider_2:
+            case SpawnId.Lowrider_3:
+            case SpawnId.Lowrider_4:
+            case SpawnId.Lowrider_5:
+            case SpawnId.Lowrider_6:
+            case SpawnId.Lowrider_7:
+                isEmpty = !VehList.models_ghetto.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_ghetto[random.Next(VehList.models_ghetto.Count)];
+                break;
+            case SpawnId.Openwheel:
+                isEmpty = !VehList.models_openwheel.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_openwheel[random.Next(VehList.models_openwheel.Count)];
+                break;
             case SpawnId.Planes:
                 isEmpty = !VehList.models_planes.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
                     model_name = VehList.models_planes[random.Next(VehList.models_planes.Count)];
+                break;
+            case SpawnId.RetroSports1:
+            case SpawnId.RetroSports2:
+            case SpawnId.RetroSports3:
+            case SpawnId.RetroSports4:
+            case SpawnId.RetroSports5:
+            case SpawnId.RetroSports6:
+            case SpawnId.RetroSports7:
+            case SpawnId.RetroSports8:
+            case SpawnId.RetroSports9:
+            case SpawnId.RetroSports10:
+                case SpawnId.RetroSports11:
+                case SpawnId.RetroSports12:
+                isEmpty = !VehList.models_classics.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_classics[random.Next(VehList.models_classics.Count)];
+                break;
+            case SpawnId.Super1:
+            case SpawnId.Super2:
+            case SpawnId.Super3:
+            case SpawnId.Super4:
+            case SpawnId.Super5:
+            case SpawnId.Super6:
+            case SpawnId.Super7:
+            case SpawnId.Super8:
+            case SpawnId.Super9:
+            case SpawnId.Super10:
+            case SpawnId.Super11:
+            case SpawnId.Super12:
+                case SpawnId.Super13:
+                isEmpty = !VehList.models_supers.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_supers[random.Next(VehList.models_supers.Count)];
                 break;
         }
 
@@ -256,18 +483,27 @@ public class SpawnMP : Script
 
     void OnAborded(object sender, EventArgs e)
     {
-        foreach (var kvp in markerDict)
+        // 1. Clean up Blips
+        foreach (var blip in markerDict.Values)
         {
-            if (kvp.Value != null && kvp.Value.Exists())
-                kvp.Value.Delete();
+            if (blip != null && blip.Exists())
+            {
+                blip.Delete();
+            }
         }
 
-        foreach (var kvp in vehDict)
+        // 2. Clean up Vehicles
+        foreach (var vehicle in vehDict.Values)
         {
-            if (kvp.Value != null && kvp.Value.Exists())
-                kvp.Value.Delete();
-            vehDict[kvp.Key] = null;
+            if (vehicle != null && vehicle.Exists())
+            {
+                vehicle.Delete();
+            }
         }
+
+        // 3. Clear collections (Safe to do after loops are done)
+        markerDict.Clear();
+        vehDict.Clear();
     }
 
 
@@ -431,27 +667,63 @@ public class SpawnMP : Script
         // -----------------------------------------------------------
         // 3. RANDOM VISUALS (Replicated from your snippet)
         // -----------------------------------------------------------
-
-        // We loop through every possible mod type defined in the game
-        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+    
+        bool skipVisuals = false;
+        switch (id) //super and retro cars do not get random visuals
         {
-            // Skip Livery here (handled in Group Logic) and Performance mods (handled above)
-            if (modType == VehicleModType.Livery ||
-                modType == VehicleModType.Engine ||
-                modType == VehicleModType.Brakes ||
-                modType == VehicleModType.Transmission ||
-                modType == VehicleModType.Suspension ||
-                modType == VehicleModType.Armor ||
-                modType == VehicleModType.RearWheel ||
-                modType == VehicleModType.FrontWheel) continue;
+            case SpawnId.RetroSports1:
+            case SpawnId.RetroSports2:
+            case SpawnId.RetroSports3:
+            case SpawnId.RetroSports4:
+            case SpawnId.RetroSports5:
+            case SpawnId.RetroSports6:
+            case SpawnId.RetroSports7:
+            case SpawnId.RetroSports8:
+            case SpawnId.RetroSports9:
+            case SpawnId.RetroSports10:
+            case SpawnId.RetroSports11:
+            case SpawnId.RetroSports12:
+            case SpawnId.Super1:
+            case SpawnId.Super2:
+            case SpawnId.Super3:
+            case SpawnId.Super4:
+            case SpawnId.Super5:
+            case SpawnId.Super6:
+            case SpawnId.Super7:
+            case SpawnId.Super8:
+            case SpawnId.Super9:
+            case SpawnId.Super10:
+            case SpawnId.Super11:
+            case SpawnId.Super12:
+            case SpawnId.Super13:
+                skipVisuals = true; // Set flag to TRUE for these groups
+                break;
+        }
+        // We loop through every possible mod type defined in the game
 
-            int count = v.Mods[modType].Count;
-            if (count > 0)
+        if (!skipVisuals)
+        {
+            foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
             {
-                // Randomize between Stock (-1) and Max Index
-                v.Mods[modType].Index = rnd.Next(-1, count);
+                // Skip Livery here (handled in Group Logic) and Performance mods (handled above)
+                if (modType == VehicleModType.Livery ||
+                    modType == VehicleModType.Engine ||
+                    modType == VehicleModType.Brakes ||
+                    modType == VehicleModType.Transmission ||
+                    modType == VehicleModType.Suspension ||
+                    modType == VehicleModType.Armor ||
+                    modType == VehicleModType.RearWheel ||
+                    modType == VehicleModType.FrontWheel) continue;
+
+                int count = v.Mods[modType].Count;
+                if (count > 0)
+                {
+                    // Randomize between Stock (-1) and Max Index
+                    v.Mods[modType].Index = rnd.Next(-1, count);
+                }
             }
         }
+           
 
         // -----------------------------------------------------------
         // 4. GROUP SPECIFIC LOGIC (The core replication)
@@ -465,8 +737,14 @@ public class SpawnMP : Script
             case SpawnId.ArenaSpeed2:
             case SpawnId.ArenaOffroad1:
             case SpawnId.ArenaOffroad2:
-
-     
+            case SpawnId.Lowrider_1: 
+            case SpawnId.Lowrider_2:               
+            case SpawnId.Lowrider_3:                  
+            case SpawnId.Lowrider_4:                     
+            case SpawnId.Lowrider_5:
+            case SpawnId.Lowrider_6:
+            case SpawnId.Lowrider_7:
+            case SpawnId.Openwheel:
                     // Random Livery if available
                     int liveryCount = v.Mods[VehicleModType.Livery].Count;
                     if (liveryCount > 0) v.Mods[VehicleModType.Livery].Index = rnd.Next(0, liveryCount);
@@ -491,9 +769,7 @@ public class SpawnMP : Script
                     v.Mods.PearlescentColor = (VehicleColor)1;
                     v.Mods[VehicleModType.Livery].Index = 9; // Higgins livery
 
-                    // Fix physics for this specific spawn
-                    Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
-                    Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
+             
                 }
                 break;
 
@@ -513,6 +789,15 @@ public class SpawnMP : Script
             v.Mods.CustomPrimaryColor = Color.Black;
             v.Mods.CustomSecondaryColor = Color.Black;
             v.Mods[VehicleModType.Livery].Index = 5;
+        }
+        // -----------------------------------------------------------
+        // 6. GLOBAL HELICOPTER FIX (The New Logic)
+        // -----------------------------------------------------------
+        // This checks if the vehicle is strictly a helicopter class (ID 15)
+        if (v.ClassType == VehicleClass.Helicopters)
+        {
+            Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+            Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
         }
     }
 
