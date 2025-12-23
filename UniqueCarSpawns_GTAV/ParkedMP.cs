@@ -30,6 +30,7 @@ public class SpawnMP : Script
     private int debugging = 0;
     private int _canSpawn = 1;
     private string mod_version = "1.72";
+    private static Random random = new Random();
     Dictionary<SpawnId, Vehicle> vehDict = new Dictionary<SpawnId, Vehicle>();
     Dictionary<SpawnId, Blip> markerDict = new Dictionary<SpawnId, Blip>();
 
@@ -326,7 +327,7 @@ public class SpawnMP : Script
     {
         string model_name = null;
         bool isEmpty;
-        var random = new Random();
+
 
         // Ensure key exists
         if (!vehDict.ContainsKey(spawnId))
@@ -461,8 +462,8 @@ public class SpawnMP : Script
 
         if (comboCount > 0)
         {
-            Random rnd = new Random();
-            int randomCombo = rnd.Next(0, comboCount);
+         
+            int randomCombo = random.Next(0, comboCount);
             Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, car, randomCombo);
         }
 
@@ -646,7 +647,7 @@ public class SpawnMP : Script
     }
     private void ApplyVehicleMods(Vehicle v, SpawnId id, string modelName)
     {
-        Random rnd = new Random();
+    
 
         // -----------------------------------------------------------
         // 1. GLOBAL INITIALIZATION
@@ -719,7 +720,7 @@ public class SpawnMP : Script
                 if (count > 0)
                 {
                     // Randomize between Stock (-1) and Max Index
-                    v.Mods[modType].Index = rnd.Next(-1, count);
+                    v.Mods[modType].Index = random.Next(-1, count);
                 }
             }
         }
@@ -747,7 +748,7 @@ public class SpawnMP : Script
             case SpawnId.Openwheel:
                     // Random Livery if available
                     int liveryCount = v.Mods[VehicleModType.Livery].Count;
-                    if (liveryCount > 0) v.Mods[VehicleModType.Livery].Index = rnd.Next(0, liveryCount);
+                    if (liveryCount > 0) v.Mods[VehicleModType.Livery].Index = random.Next(0, liveryCount);
                 
                 break;
 
@@ -777,7 +778,7 @@ public class SpawnMP : Script
             case SpawnId.Helicopter:
             case SpawnId.Planes:
                 int airLiveryCount = v.Mods[VehicleModType.Livery].Count;
-                if (airLiveryCount > 0) v.Mods[VehicleModType.Livery].Index = rnd.Next(0, airLiveryCount);
+                if (airLiveryCount > 0) v.Mods[VehicleModType.Livery].Index = random.Next(0, airLiveryCount);
                 break;
         }
 
