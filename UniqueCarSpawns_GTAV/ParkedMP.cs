@@ -21,12 +21,9 @@ public class SpawnMP : Script
     private int[] mode_type = new int[5];
     private float[] angle = new float[1];
     private GTA.Vehicle car;
-    private int tuning_flag;
-    private int tuning_hsw_flag;
     private int blip_color;
     private int mod_plate;
     private int plate_id = -1;
-    private bool IsHSW = false;
     private Vehicle[] veh = new Vehicle[200];
     private Vehicle[] street_veh = new Vehicle[200];
     private List<Blip> marker = new List<Blip>();
@@ -59,8 +56,12 @@ public class SpawnMP : Script
         ArenaSpeed2,
         ArenaOffroad1,
         ArenaOffroad2,
+        Cult,
+        Higgins_Heli,
+        Helicopter,
+        Planes,
 
-   
+
     }
     Dictionary<SpawnId, SpawnPoint> Spawns = new Dictionary<SpawnId, SpawnPoint>()
     {
@@ -88,6 +89,22 @@ public class SpawnMP : Script
             new Vector3(1151.233f, 183.6329f, 80.23096f),
            -53.71473f
         ),
+        [SpawnId.Cult] = new SpawnPoint(
+            new Vector3(-719.9119f, 79.29325f, 55.13408f),
+           25.0975f
+        ),
+        [SpawnId.Higgins_Heli] = new SpawnPoint(
+           new Vector3(-746.4702f, -1469.937f, 6.87726f),
+            140.3646f
+        ),
+        [SpawnId.Helicopter] = new SpawnPoint(
+           new Vector3(-979.378f, -2996.868f, 13.945f),
+          331.180f
+        ),
+        [SpawnId.Planes] = new SpawnPoint(
+           new Vector3(-961.005f, -2963.593f, 13.945f),
+           147.589f
+        ),
     };
 
 
@@ -101,745 +118,36 @@ public class SpawnMP : Script
             GTA.UI.Notification.PostTicker($"~r~WARNING:\n~s~Your version of the game is out of date. ~g~All MP Vehicles in SP ~s~will not be able to load vehicles from new updates.\n\nRequired Game Version:\n{mod_version}\nYour Game Version: {onlineVersion}", true);
         }
 
+        // 2. Load Config (Only keep what you need)
         config = ScriptSettings.Load("Scripts\\UniqueCarSpawns.ini");
         _canSpawn = config.GetValue<int>("MAIN", "parking_lots_spawn", 1);
-        doors_config = config.GetValue<int>("MAIN", "doors", -1);
-        blip_config = config.GetValue<int>("MAIN", "blips", -1); 
-        tuning_flag = config.GetValue<int>("MAIN", "tuning", -1);
-        tuning_hsw_flag = config.GetValue<int>("MAIN", "tuning_hsw", -1);
-        mod_plate = config.GetValue<int>("MAIN", "new_license_plates", -1);
-        blip_color = config.GetValue<int>("MAIN", "blip_color", -1);
+        doors_config = config.GetValue<int>("MAIN", "doors", 1);
+        blip_config = config.GetValue<int>("MAIN", "blips", 1);
+        mod_plate = config.GetValue<int>("MAIN", "new_license_plates", 1); // Set default to 1 if you want plates
+        blip_color = config.GetValue<int>("MAIN", "blip_color", 3);
         debugging = config.GetValue<int>("MAIN", "show_errors", 0);
 
-        if (doors_config == -1) config.SetValue<int>("MAIN", "doors", 1);
-        if (blip_config == -1) config.SetValue<int>("MAIN", "blips", 1);
-        if (tuning_flag == -1) config.SetValue<int>("MAIN", "tuning", 1);
-        if (tuning_hsw_flag == -1) config.SetValue<int>("MAIN", "tuning_hsw", 1);
-        if (mod_plate == -1) config.SetValue<int>("MAIN", "doors", 0);
-        if (blip_color == -1) config.SetValue<int>("MAIN", "blip_color", 3);
+     
 
         config.Save();
 
-        char symbol = '#';
+
         string[] lines = File.ReadAllLines("Scripts\\mp_blacklist.txt");
         string[] lines_addon = File.ReadAllLines("Scripts\\NewVehiclesList.txt");
         List<string> blacklist_str = new List<string>();
         List<string> new_list_str = new List<string>();
 
-        foreach (string s in lines)
-        {
-            if (s.IndexOf(symbol) == -1)
-                blacklist_str.Add(s);
-        }
-
-        foreach (string s in lines_addon)
-        {
-            if (s.IndexOf(symbol) == -1 && s.Length > 0)
-            {
-                new_list_str.Add(s);
-            }
-        }
-
-        foreach (string line in new_list_str)
-        {
-            string[] veh_data = line.Split(',');
-            try
-            {
-                AddCustomVehicle(veh_data[0], veh_data[1]);
-            }
-            catch
-            {
-                //GTA.UI.Notification.Show("Error in loading the vehicle Add-On. Check if the entries in NewVehiclesList.txt are correct and try again.");
-                GTA.UI.Notification.PostTicker("Error in loading the vehicle Add-On. Check if the entries in NewVehiclesList.txt are correct and try again.", true);
-            }
-        }
-        
-        foreach (string hash in blacklist_str)
-        {
-            if (VehList.models_cult.Contains(hash))
-                VehList.models_cult.Remove(hash);
-
-            if (VehList.models_beach.Contains(hash))
-                VehList.models_beach.Remove(hash);
-
-            if (VehList.models_boats.Contains(hash))
-                VehList.models_boats.Remove(hash);
-
-            if (VehList.models_cemetery.Contains(hash))
-                VehList.models_cemetery.Remove(hash);
-
-            if (VehList.models_cheburek.Contains(hash))
-                VehList.models_cheburek.Remove(hash);
-
-            if (VehList.models_cinema.Contains(hash))
-                VehList.models_cinema.Remove(hash);
-
-            if (VehList.models_cluckin.Contains(hash))
-                VehList.models_cluckin.Remove(hash);
-
-            if (VehList.models_compacts.Contains(hash))
-                VehList.models_compacts.Remove(hash);
-
-            if (VehList.models_coupes.Contains(hash))
-                VehList.models_coupes.Remove(hash);
-
-
-            if (VehList.models_ghetto.Contains(hash))
-                VehList.models_ghetto.Remove(hash);
-
-            if (VehList.models_helicopter.Contains(hash))
-                VehList.models_helicopter.Remove(hash);
-
-            if (VehList.models_humanlabs.Contains(hash))
-                VehList.models_humanlabs.Remove(hash);
-
-            if (VehList.models_industrial.Contains(hash))
-                VehList.models_industrial.Remove(hash);
-
-            if (VehList.models_karting.Contains(hash))
-                VehList.models_karting.Remove(hash);
-
-            if (VehList.models_military_bikes.Contains(hash))
-                VehList.models_military_bikes.Remove(hash);
-
-            if (VehList.models_military_helicopters.Contains(hash))
-                VehList.models_military_helicopters.Remove(hash);
-
-            if (VehList.models_military_opressors.Contains(hash))
-                VehList.models_military_opressors.Remove(hash);
-
-            if (VehList.models_military_planes.Contains(hash))
-                VehList.models_military_planes.Remove(hash);
-
-            if (VehList.models_motorcycles.Contains(hash))
-                VehList.models_motorcycles.Remove(hash);
-
-            if (VehList.models_muscle.Contains(hash))
-                VehList.models_muscle.Remove(hash);
-
-            if (VehList.models_offroad.Contains(hash))
-                VehList.models_offroad.Remove(hash);
-
-            if (VehList.models_openwheel.Contains(hash))
-                VehList.models_openwheel.Remove(hash);
-
-            if (VehList.models_planes.Contains(hash))
-                VehList.models_planes.Remove(hash);
-
-            if (VehList.models_sedans.Contains(hash))
-                VehList.models_sedans.Remove(hash);
-
-
-
-            if (VehList.models_sportclassic.Contains(hash))
-                VehList.models_sportclassic.Remove(hash);
-
-            if (VehList.models_submarine.Contains(hash))
-                VehList.models_submarine.Remove(hash);
-
-            if (VehList.models_supers.Contains(hash))
-                VehList.models_supers.Remove(hash);
-
-            if (VehList.models_suvs.Contains(hash))
-                VehList.models_suvs.Remove(hash);
-
    
 
-            if (VehList.models_tuners.Contains(hash))
-                VehList.models_tuners.Remove(hash);
 
-            if (VehList.models_valentine.Contains(hash))
-                VehList.models_valentine.Remove(hash);
-
-            if (VehList.models_vans.Contains(hash))
-                VehList.models_vans.Remove(hash);
-
-            if (VehList.models_wastelander.Contains(hash))
-                VehList.models_wastelander.Remove(hash);
-
-            if (VehList.models_weaponboats.Contains(hash))
-                VehList.models_weaponboats.Remove(hash);
-
-            if (VehList.models_hsw.Contains(hash))
-                VehList.models_hsw.Remove(hash);
-
-            if (VehList.models_higgins.Contains(hash))
-                VehList.models_higgins.Remove(hash);
-
-            if (hash == "vivanite2") TrafficMP.disableTaxiFlag = 1;
-        }
-
+        
+      
         Tick += OnTick;
         Aborted += OnAborded;
     }
 
-    public enum Nodetype
-    {
-        AnyRoad,
-        Road,
-        Offroad,
-        Water
-    }
 
-    void AddCustomVehicle(string Model, string Class)
-    {
-        switch(Class)
-        {
-            case "boats":
-                VehList.models_boats.Add(Model);
-                break;
 
-            case "commercial":
-                VehList.models_industrial.Add(Model);
-                break;
-
-            case "compacts":
-                VehList.models_compacts.Add(Model);
-                break;
-
-            case "coupes":
-                VehList.models_coupes.Add(Model);
-                break;
-
-
-            case "emergency":
-                VehList.models_industrial.Add(Model);
-                break;
-
-            case "helicopters":
-                VehList.models_helicopter.Add(Model);
-                break;
-
-            case "industrial":
-                VehList.models_industrial.Add(Model);
-                break;
-
-            case "karting":
-                VehList.models_karting.Add(Model);
-                break;
-
-            case "motorcycles":
-                VehList.models_motorcycles.Add(Model);
-                break;
-
-            case "muscle":
-                VehList.models_muscle.Add(Model);
-                break;
-
-            case "openwheel":
-                VehList.models_openwheel.Add(Model);
-                break;
-
-            case "offroad":
-                VehList.models_offroad.Add(Model);
-                break;
-
-            case "planes":
-                VehList.models_planes.Add(Model);
-                break;
-
-            case "sedans":
-                VehList.models_sedans.Add(Model);
-                break;
-
-            case "service":
-                VehList.models_industrial.Add(Model);
-                break;
-
-            case "sports":
-                VehList.models_sportclassic.Add(Model);
-                break;
-
-            case "sportsclassics":
-                VehList.models_sportclassic.Add(Model);
-                break;
-
-            case "super":
-                VehList.models_supers.Add(Model);
-                break;
-
-            case "suvs":
-                VehList.models_suvs.Add(Model);
-                break;
-
-            case "vans":
-                VehList.models_vans.Add(Model);
-                break;
-        }
-    }
-
-    /*string GenerateVehicleModelName(int index_db, int type)
-   {
-       string model_name = null;
-       bool isEmpty;
-       var random = new Random();
-       switch (index_db)
-       {
-
-           case cult:
-               isEmpty = !VehList.models_cult.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_cult[random.Next(VehList.models_cult.Count)];
-               }
-               break;
-
-           case boats:
-               isEmpty = !VehList.models_boats.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_boats[random.Next(VehList.models_boats.Count)];
-               }
-               break;
-
-           case cemetery:
-               isEmpty = !VehList.models_cemetery.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_cemetery[random.Next(VehList.models_cemetery.Count)];
-               }
-               break;
-
-           case cheburek:
-               isEmpty = !VehList.models_cheburek.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_cheburek[random.Next(VehList.models_cheburek.Count)];
-                   plate_id = 8;
-               }
-               break;
-
-           case cinema:
-               isEmpty = !VehList.models_cinema.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_cinema[random.Next(VehList.models_cinema.Count)];
-                   plate_id = 6;
-               }
-               break;
-
-
-           case classics_1:
-           case classics_2:
-           case classics_3:
-           case classics_4:
-           case classics_5:
-           case classics_6:
-               isEmpty = !VehList.models_classics.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_classics[random.Next(VehList.models_classics.Count)];
-               }
-               break;
-           case hyper_1:
-           case hyper_2:
-           case hyper_3:
-           case hyper_4:
-           case hyper_5:
-               isEmpty = !VehList.models_supers.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_supers[random.Next(VehList.models_supers.Count)];
-               }
-               break;
-           case compacts_1:
-           case compacts_2:
-               isEmpty = !VehList.models_compacts.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_compacts[random.Next(VehList.models_compacts.Count)];
-               }
-               break;
-
-           case coupes_1:
-           case coupes_2:
-           case coupes_3:
-           case coupes_4:
-           case coupes_5:
-           case coupes_6:
-               isEmpty = !VehList.models_coupes.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_coupes[random.Next(VehList.models_coupes.Count)];
-               }
-               break;
-
-           case ghetto_1:
-           case ghetto_2:
-           case ghetto_3:
-           case ghetto_4:
-           case ghetto_5:
-           case ghetto_6:
-               isEmpty = !VehList.models_ghetto.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_ghetto[random.Next(VehList.models_ghetto.Count)];
-               }
-               break;
-
-           case helicopter:
-               isEmpty = !VehList.models_helicopter.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_helicopter[random.Next(VehList.models_helicopter.Count)];
-               }
-               break;
-
-           case humanlabs:
-               isEmpty = !VehList.models_humanlabs.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_humanlabs[random.Next(VehList.models_humanlabs.Count)];
-               }
-               break;
-
-           case industrial_1:
-           case industrial_2:
-           case industrial_3:
-           case industrial_4:
-               isEmpty = !VehList.models_industrial.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_industrial[random.Next(VehList.models_industrial.Count)];
-               }
-               break;
-
-           case karting:
-               isEmpty = !VehList.models_karting.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_karting[random.Next(VehList.models_karting.Count)];
-               }
-               break;
-
-
-           case thruster:
-               if (veh[index_db] == null && VehList.thruster_model != "Blocked")
-               {
-                   model_name = VehList.thruster_model;
-               }
-               break;
-
-
-
-
-           case military_planes_1:
-           case military_planes_2:
-               isEmpty = !VehList.models_military_planes.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_military_planes[random.Next(VehList.models_military_planes.Count)];
-               }
-               break;
-
-           case military_helicopters:
-               isEmpty = !VehList.models_military_helicopters.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_military_helicopters[random.Next(VehList.models_military_helicopters.Count)];
-               }
-               break;
-
-           case military_opressors:
-               isEmpty = !VehList.models_military_opressors.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_military_opressors[random.Next(VehList.models_military_opressors.Count)];
-               }
-               break;
-
-           case military_bikes:
-               isEmpty = !VehList.models_military_bikes.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_military_bikes[random.Next(VehList.models_military_bikes.Count)];
-               }
-               break;
-
-           case raiju:
-               if (veh[index_db] == null && VehList.raiju_model != "Blocked")
-               {
-                   model_name = VehList.raiju_model;
-               }
-               break;
-
-
-
-           case conada2:
-               if (veh[index_db] == null && VehList.conada2_model != "Blocked")
-               {
-                   model_name = VehList.conada2_model;
-               }
-               break;
-
-           case motorcycles_1:
-           case motorcycles_2:
-           case motorcycles_3:
-           case motorcycles_4:
-           case motorcycles_5:
-           case motorcycles_6:
-               isEmpty = !VehList.models_motorcycles.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_motorcycles[random.Next(VehList.models_motorcycles.Count)];
-               }
-               break;
-
-           case muscle_1:
-           case muscle_2:
-           case muscle_3:
-           case muscle_4:
-           case muscle_5:
-           case muscle_6:
-           case muscle_7:
-               isEmpty = !VehList.models_muscle.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_muscle[random.Next(VehList.models_muscle.Count)];
-               }
-               break;
-
-           case offroad_1:
-           case offroad_2:
-           case offroad_3:
-               isEmpty = !VehList.models_offroad.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_offroad[random.Next(VehList.models_offroad.Count)];
-               }
-               break;
-
-           case openwheel:
-               isEmpty = !VehList.models_openwheel.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_openwheel[random.Next(VehList.models_openwheel.Count)];
-               }
-               break;
-
-           case beach:
-               isEmpty = !VehList.models_beach.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_beach[random.Next(VehList.models_beach.Count)];
-               }
-               break;
-
-           case planes:
-               isEmpty = !VehList.models_planes.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_planes[random.Next(VehList.models_planes.Count)];
-               }
-               break;
-
-
-           case sedans_1:
-           case sedans_2:
-           case sedans_3:
-           case sedans_4:
-           case sedans_5:
-           case sedans_6:
-           case sedans_7:
-               isEmpty = !VehList.models_sedans.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_sedans[random.Next(VehList.models_sedans.Count)];
-               }
-               break;
-
-
-
-           case sportclassic_1:
-           case sportclassic_2:
-           case sportclassic_3:
-           case sportclassic_4:
-           case sportclassic_5:
-           case sportclassic_6:
-           case sportclassic_7:
-               isEmpty = !VehList.models_sportclassic.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_sportclassic[random.Next(VehList.models_sportclassic.Count)];
-                   plate_id = 7;
-               }
-               break;
-
-           case submarine:
-               isEmpty = !VehList.models_submarine.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_submarine[random.Next(VehList.models_submarine.Count)];
-               }
-               break;
-
-           case supers_1:
-           case supers_2:
-           case supers_3:
-           case supers_4:
-           case supers_5:
-           case supers_6:
-           case supers_7:
-               isEmpty = !VehList.models_supers.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_supers[random.Next(VehList.models_supers.Count)];
-               }
-               break;
-
-           case suvs_1:
-           case suvs_2:
-           case suvs_3:
-           case suvs_4:
-           case suvs_5:
-           case suvs_6:
-           case suvs_7:
-           case suvs_8:
-               isEmpty = !VehList.models_suvs.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_suvs[random.Next(VehList.models_suvs.Count)];
-               }
-               break;
-
-
-
-           case tuners_1:
-           case tuners_2:
-           case tuners_3:
-           case tuners_4:
-           case tuners_5:
-               isEmpty = !VehList.models_tuners.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_tuners[random.Next(VehList.models_tuners.Count)];
-               }
-               break;
-
-           case valentine:
-               isEmpty = !VehList.models_valentine.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_valentine[random.Next(VehList.models_valentine.Count)];
-               }
-               break;
-
-           case vans_1:
-           case vans_2:
-           case vans_3:
-           case vans_4:
-           case vans_5:
-           case vans_6:
-           case vans_7:
-           case vans_8:
-           case vans_9:
-           case vans_10:
-           case vans_11:
-           case vans_12:
-           case vans_13:
-               isEmpty = !VehList.models_vans.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_vans[random.Next(VehList.models_vans.Count)];
-               }
-               break;
-
-           case wastelander:
-               isEmpty = !VehList.models_wastelander.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_wastelander[random.Next(VehList.models_wastelander.Count)];
-               }
-               break;
-
-           case weaponboats:
-               isEmpty = !VehList.models_weaponboats.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_weaponboats[random.Next(VehList.models_weaponboats.Count)];
-               }
-               break;
-
-
-
-           case pizzaboy:
-               isEmpty = !VehList.models_pizza.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_pizza[random.Next(VehList.models_pizza.Count)];
-               }
-               break;
-
-
-
-           case plane_sandy:
-               isEmpty = !VehList.models_plane_sandy.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_plane_sandy[random.Next(VehList.models_plane_sandy.Count)];
-               }
-               break;
-
-           case heli_sandy:
-               isEmpty = !VehList.models_heli_sandy.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_heli_sandy[random.Next(VehList.models_heli_sandy.Count)];
-               }
-               break;
-
-
-
-           case hsw:
-               isEmpty = !VehList.models_hsw.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_hsw[random.Next(VehList.models_hsw.Count)];
-                   IsHSW = true;
-               }
-               break;
-
-           case heli_higgins:
-               isEmpty = !VehList.models_higgins.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_higgins[random.Next(VehList.models_higgins.Count)];
-               }
-
-
-               break;
-
-
-           case arena_hotring_1:
-           case arena_hotring_2:
-               // Check if the list has cars AND if the spot is currently empty
-               isEmpty = !VehList.models_arena_hotring.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_arena_hotring[random.Next(VehList.models_arena_hotring.Count)];
-               }
-               break;
-
-           case arena_speed_1:
-           case arena_speed_2:
-               isEmpty = !VehList.models_arena_speed.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_arena_speed[random.Next(VehList.models_arena_speed.Count)];
-               }
-               break;
-
-           case arena_offroad_1:
-           case arena_offroad_2:
-               isEmpty = !VehList.models_arena_offroad.Any();
-               if ((veh[index_db] == null && !isEmpty) || type == 1)
-               {
-                   model_name = VehList.models_arena_offroad[random.Next(VehList.models_arena_offroad.Count)];
-               }
-               break;
-       }
-       return model_name;
-   }*/
 
     string GenerateVehicleModelName(SpawnId spawnId, int type)
     {
@@ -872,6 +180,26 @@ public class SpawnMP : Script
                 isEmpty = !VehList.models_arena_offroad.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
                     model_name = VehList.models_arena_offroad[random.Next(VehList.models_arena_offroad.Count)];
+                break;
+            case SpawnId.Cult:
+                isEmpty = !VehList.models_cult.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_cult[random.Next(VehList.models_cult.Count)];
+                break;
+            case SpawnId.Higgins_Heli:
+                isEmpty = !VehList.models_higgins.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_higgins[random.Next(VehList.models_higgins.Count)];
+                break;
+            case SpawnId.Helicopter:
+                isEmpty = !VehList.models_helicopter.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_helicopter[random.Next(VehList.models_helicopter.Count)];
+                break;
+            case SpawnId.Planes:
+                isEmpty = !VehList.models_planes.Any();
+                if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
+                    model_name = VehList.models_planes[random.Next(VehList.models_planes.Count)];
                 break;
         }
 
@@ -1004,6 +332,7 @@ public class SpawnMP : Script
                                 // CreateMarkerAboveCar already adds it to markerDict
                                 CreateMarkerAboveCar(vehicle, spawnId);
                             }
+                            ApplyVehicleMods(vehicle, spawnId, model_name);
 
                             // Mark that we have vehicles spawned
                             vehicles_spawned = 1;
@@ -1077,6 +406,111 @@ public class SpawnMP : Script
                     vehDict[spawnId] = null;
                 }
             }
+        }
+    }
+    private void ApplyVehicleMods(Vehicle v, SpawnId id, string modelName)
+    {
+        Random rnd = new Random();
+
+        // -----------------------------------------------------------
+        // 1. GLOBAL INITIALIZATION
+        // -----------------------------------------------------------
+        v.Mods.InstallModKit(); // Required for everything below
+
+        // -----------------------------------------------------------
+        // 2. MANDATORY PERFORMANCE (Replicated from your snippet)
+        // -----------------------------------------------------------
+        v.Mods[VehicleModType.Engine].Index = 3;       // Lvl 4
+        v.Mods[VehicleModType.Brakes].Index = 2;       // Race Brakes
+        v.Mods[VehicleModType.Transmission].Index = 2; // Race Trans
+        v.Mods[VehicleModType.Suspension].Index = 3;   // Competition
+        v.Mods[VehicleModType.Armor].Index = 4;        // 100% Armor
+        v.Mods[VehicleToggleModType.Turbo].IsInstalled = true;
+        v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
+
+        // -----------------------------------------------------------
+        // 3. RANDOM VISUALS (Replicated from your snippet)
+        // -----------------------------------------------------------
+
+        // We loop through every possible mod type defined in the game
+        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+        {
+            // Skip Livery here (handled in Group Logic) and Performance mods (handled above)
+            if (modType == VehicleModType.Livery ||
+                modType == VehicleModType.Engine ||
+                modType == VehicleModType.Brakes ||
+                modType == VehicleModType.Transmission ||
+                modType == VehicleModType.Suspension ||
+                modType == VehicleModType.Armor) continue;
+
+            int count = v.Mods[modType].Count;
+            if (count > 0)
+            {
+                // Randomize between Stock (-1) and Max Index
+                v.Mods[modType].Index = rnd.Next(-1, count);
+            }
+        }
+
+        // -----------------------------------------------------------
+        // 4. GROUP SPECIFIC LOGIC (The core replication)
+        // -----------------------------------------------------------
+        switch (id)
+        {
+            // --- ARENA / GHETTO / STANDARD GROUPS ---
+            case SpawnId.ArenaHotring1:
+            case SpawnId.ArenaHotring2:
+            case SpawnId.ArenaSpeed1:
+            case SpawnId.ArenaSpeed2:
+            case SpawnId.ArenaOffroad1:
+            case SpawnId.ArenaOffroad2:
+
+     
+                    // Random Livery if available
+                    int liveryCount = v.Mods[VehicleModType.Livery].Count;
+                    if (liveryCount > 0) v.Mods[VehicleModType.Livery].Index = rnd.Next(0, liveryCount);
+                
+                break;
+
+            // --- CULT GROUP ---
+            case SpawnId.Cult:
+                // Fixed Epsilon Blue
+                v.Mods.PrimaryColor = (VehicleColor)157;
+                v.Mods.SecondaryColor = (VehicleColor)157;
+                //v.Mods.PearlescentColor = (VehicleColor)0;
+                v.Mods[VehicleModType.Livery].Index = -1; // Tacky for cult members
+                break;
+
+            // --- HIGGINS HELICOPTER ---
+            case SpawnId.Higgins_Heli:
+                if (modelName.ToLower() == "conada")
+                {
+                    v.Mods.PrimaryColor = (VehicleColor)89;
+                    v.Mods.SecondaryColor = (VehicleColor)6;
+                    v.Mods.PearlescentColor = (VehicleColor)1;
+                    v.Mods[VehicleModType.Livery].Index = 9; // Higgins livery
+
+                    // Fix physics for this specific spawn
+                    Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+                    Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
+                }
+                break;
+
+            // --- HELICOPTERS & PLANES ---
+            case SpawnId.Helicopter:
+            case SpawnId.Planes:
+                int airLiveryCount = v.Mods[VehicleModType.Livery].Count;
+                if (airLiveryCount > 0) v.Mods[VehicleModType.Livery].Index = rnd.Next(0, airLiveryCount);
+                break;
+        }
+
+        // -----------------------------------------------------------
+        // 5. SPECIFIC MODEL OVERRIDES (Brickade2 logic)
+        // -----------------------------------------------------------
+        if (modelName.ToLower() == "brickade2")
+        {
+            v.Mods.CustomPrimaryColor = Color.Black;
+            v.Mods.CustomSecondaryColor = Color.Black;
+            v.Mods[VehicleModType.Livery].Index = 5;
         }
     }
 
