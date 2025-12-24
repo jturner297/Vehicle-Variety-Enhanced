@@ -29,20 +29,25 @@ public class SpawnMP : Script
     private List<Blip> marker = new List<Blip>();
     private int debugging = 0;
     private int _canSpawn = 1;
+   
+    private int nextSpawnCheck = 0;
+
     private string mod_version = "1.72";
     private static Random random = new Random();
     // Change these definitions at the top of your class
     Dictionary<SpawnSpot, Vehicle> vehDict = new Dictionary<SpawnSpot, Vehicle>();
     Dictionary<SpawnSpot, Blip> markerDict = new Dictionary<SpawnSpot, Blip>();
-    Dictionary<SpawnSpot, string> spawnHistory = new Dictionary<SpawnSpot, string>();
+    // Tracks a "Bag" of upcoming cars for each spot
+    Dictionary<List<string>, Queue<string>> spawnQueues = new Dictionary<List<string>, Queue<string>>();
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
+    Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
 
 
 
 
 
-    
+
 
     public SpawnMP()
     {
@@ -83,7 +88,7 @@ public class SpawnMP : Script
     // --- Special Locations ---
     new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.NoVisuals),
     new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.Cult),
-    new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 16.775f, VehList.models_openwheel, SpawnBehavior.Standard),
+    new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.Standard),
 
     // --- Aircraft ---
     // Note: Higgins usually implies specific livery/colors, ensure you have logic for SpawnBehavior.Higgins or switch to Helicopter
@@ -235,6 +240,7 @@ public class SpawnMP : Script
         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
 
         // --- 1. FORCE CLEANUP (Mission/Cutscene) ---
+        // Run this every frame to ensure instant cleanup
         if (vehicles_spawned == 1 && isMissionActive)
         {
             foreach (var spot in vehDict.Keys.ToList())
@@ -242,10 +248,9 @@ public class SpawnMP : Script
                 var car = vehDict[spot];
                 if (car != null && car.Exists()) car.Delete();
 
-                if (markerDict.ContainsKey(spot))
+                if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
                 {
-                    if (markerDict[spot] != null && markerDict[spot].Exists())
-                        markerDict[spot].Delete();
+                    markerDict[spot].Delete();
                     markerDict[spot] = null;
                 }
                 vehDict[spot] = null;
@@ -253,92 +258,89 @@ public class SpawnMP : Script
             vehicles_spawned = 0;
         }
 
-        // --- 2. SPAWN LOGIC (Only if no mission) ---
         if (!isMissionActive)
         {
-            // Loop through your new LIST, not the old Dictionary
+            // --- 2. OPTIMIZED SPAWN LOOP (Runs twice per second) ---
+            if (Game.GameTime > nextSpawnCheck)
+            {
+                foreach (var spot in AllSpawns)
+                {
+                    // Use C# Vector3.Distance (Much faster than Function.Call)
+                    if (Vector3.Distance(spot.Position, playerPos) < 300f)
+                    {
+                        string model_name = GenerateVehicleModelName(spot, 0);
+
+                        if (model_name != null)
+                        {
+                            vehDict[spot] = CreateNewVehicle(model_name, spot.Position, spot.Heading, spot);
+                            var vehicle = vehDict[spot];
+
+                            if (vehicle != null)
+                            {
+                                SetNumberPlate(vehicle, mod_plate, plate_id);
+                                plate_id = -1;
+
+                                if (blip_config == 1) CreateMarkerAboveCar(vehicle, spot);
+
+                                ApplyVehicleMods(vehicle, spot, model_name);
+                                vehicles_spawned = 1;
+                            }
+                        }
+                    }
+                }
+                // Reset the timer to wait 500ms before checking spawns again
+                nextSpawnCheck = Game.GameTime + 500;
+            }
+
+            // --- 3. CLEANUP LOOP (Can also run on the timer, or keep here for responsiveness) ---
+            // We'll keep this separate so cleanup feels instant when driving away
             foreach (var spot in AllSpawns)
             {
-                if (Function.Call<float>(Hash.GET_DISTANCE_BETWEEN_COORDS,
-                    spot.Position.X, spot.Position.Y, spot.Position.Z,
-                    playerPos.X, playerPos.Y, playerPos.Z, 0) < 300)
+                // Simple optimization: Don't check distance if we know we don't have a car there
+                if (!vehDict.ContainsKey(spot) || vehDict[spot] == null) continue;
+
+                if (Vector3.Distance(spot.Position, playerPos) > 300f)
                 {
-                    // Pass 'spot' to the updated GenerateVehicleModelName
-                    string model_name = GenerateVehicleModelName(spot, 0);
-
-                    if (model_name != null)
+                    if (vehDict.TryGetValue(spot, out var vehicle))
                     {
-                        // Pass 'spot' to CreateNewVehicle
-                        vehDict[spot] = CreateNewVehicle(model_name, spot.Position, spot.Heading, spot);
-                        var vehicle = vehDict[spot];
-
-                        if (vehicle != null)
+                        if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
                         {
-                            SetNumberPlate(vehicle, mod_plate, plate_id);
-                            plate_id = -1;
-
-                            if (blip_config == 1)
-                            {
-                                CreateMarkerAboveCar(vehicle, spot);
-                            }
-
-                            // Pass 'spot' to ApplyVehicleMods
-                            ApplyVehicleMods(vehicle, spot, model_name);
-
-                            vehicles_spawned = 1;
+                            markerDict[spot].Delete();
+                            markerDict[spot] = null;
                         }
+
+                        if (vehicle != null && vehicle.Exists())
+                        {
+                            if (!Function.Call<bool>(Hash.IS_PED_SITTING_IN_VEHICLE, Game.Player.Character, vehicle))
+                            {
+                                vehicle.Delete();
+                            }
+                            else
+                            {
+                                vehicle.MarkAsNoLongerNeeded();
+                            }
+                        }
+                        vehDict[spot] = null;
                     }
                 }
             }
         }
 
-        // --- 3. PLAYER INTERACTION (Entered Vehicle) ---
+        // --- 4. PLAYER INTERACTION ---
+        // Safe to run every frame
         foreach (var spot in vehDict.Keys.ToList())
         {
             Vehicle car = vehDict[spot];
-
             if (car != null && car.Exists() && Function.Call<bool>(Hash.IS_PED_IN_VEHICLE, Game.Player.Character, car, false))
             {
-                if (markerDict.ContainsKey(spot))
+                if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
                 {
-                    if (markerDict[spot] != null && markerDict[spot].Exists())
-                        markerDict[spot].Delete();
-
+                    markerDict[spot].Delete();
                     markerDict[spot] = null;
                 }
                 car.MarkAsNoLongerNeeded();
-            }
-        }
-
-        // --- 4. DISTANCE CLEANUP ---
-        foreach (var spot in AllSpawns)
-        {
-            if (Function.Call<float>(Hash.GET_DISTANCE_BETWEEN_COORDS,
-                spot.Position.X, spot.Position.Y, spot.Position.Z,
-                playerPos.X, playerPos.Y, playerPos.Z, 0) > 300)
-            {
-                if (vehDict.TryGetValue(spot, out var vehicle))
-                {
-                    if (markerDict.ContainsKey(spot))
-                    {
-                        if (markerDict[spot] != null && markerDict[spot].Exists())
-                            markerDict[spot].Delete();
-                        markerDict[spot] = null;
-                    }
-
-                    if (vehicle != null && vehicle.Exists())
-                    {
-                        if (!Function.Call<bool>(Hash.IS_PED_SITTING_IN_VEHICLE, Game.Player.Character, vehicle))
-                        {
-                            vehicle.Delete();
-                        }
-                        else
-                        {
-                            vehicle.MarkAsNoLongerNeeded();
-                        }
-                    }
-                    vehDict[spot] = null;
-                }
+                // Remove from tracking so we don't delete it while driving
+                vehDict[spot] = null;
             }
         }
     }
@@ -392,9 +394,15 @@ public class SpawnMP : Script
                 break;
 
             case SpawnBehavior.Higgins:
-                // Example for Higgins behavior if you want specific colors
-                v.Mods.PrimaryColor = VehicleColor.MetallicTaxiYellow;
-                v.Mods.SecondaryColor = VehicleColor.MatteBlack;
+               if(modelName == "conada")
+                {
+                    //  for Higgins behavior if you want specific colors
+                    v.Mods.PrimaryColor = (VehicleColor)89;
+                    v.Mods.SecondaryColor = (VehicleColor)6;
+
+                    v.Mods[VehicleModType.Livery].Index = 9; // Higgins livery
+                }
+                v.Mods.PearlescentColor = VehicleColor.MetallicMidnightSilver;
                 Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
                 Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
                 break;
@@ -403,21 +411,38 @@ public class SpawnMP : Script
     string GetUniqueModel(List<string> list, SpawnSpot spot)
     {
         if (list == null || list.Count == 0) return null;
-        if (list.Count == 1) return list[0];
 
-        string candidate;
-        int safety = 0;
-
-        do
+        // Use the LIST as the key. This enables "Shared Decks."
+        if (!spawnQueues.ContainsKey(list) || spawnQueues[list].Count == 0)
         {
-            candidate = list[random.Next(list.Count)];
-            safety++;
-        }
-        // Check history using the spot object as the key
-        while (spawnHistory.ContainsKey(spot) && spawnHistory[spot] == candidate && safety < 10);
+            // 1. Create a fresh copy
+            List<string> freshBatch = new List<string>(list);
 
-        spawnHistory[spot] = candidate;
-        return candidate;
+            // 2. Shuffle it
+            freshBatch.Shuffle();
+
+            // 3. Bridge Protection (Prevents the new batch starting with the old batch's last car)
+            if (lastSpawnedDict.ContainsKey(list) && freshBatch.Count > 1)
+            {
+                if (freshBatch[0] == lastSpawnedDict[list])
+                {
+                    // Swap first and last to break the pattern
+                    string temp = freshBatch[0];
+                    freshBatch[0] = freshBatch[freshBatch.Count - 1];
+                    freshBatch[freshBatch.Count - 1] = temp;
+                }
+            }
+
+            spawnQueues[list] = new Queue<string>(freshBatch);
+        }
+
+        // Pull from the shared bag
+        string selection = spawnQueues[list].Dequeue();
+
+        // Record history for the group
+        lastSpawnedDict[list] = selection;
+
+        return selection;
     }
 
     private void RandomizeLivery(Vehicle v)
@@ -503,3 +528,20 @@ public enum SpawnBehavior
     Brickade    // Specific override
 }
 
+public static class ListExtensions
+{
+    private static Random rng = new Random();
+
+    public static void Shuffle<T>(this IList<T> list)
+    {
+        int n = list.Count;
+        while (n > 1)
+        {
+            n--;
+            int k = rng.Next(n + 1);
+            T value = list[k];
+            list[k] = list[n];
+            list[n] = value;
+        }
+    }
+}
