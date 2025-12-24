@@ -85,10 +85,21 @@ public class SpawnMP : Script
     new SpawnSpot("ArenaOffroad1", new Vector3(-192.949f, -1928.497f, 27.20675f), -151.296f, VehList.models_arena_offroad, SpawnBehavior.Standard),
     new SpawnSpot("ArenaOffroad2", new Vector3(1151.233f, 183.6329f, 80.23096f), -53.715f, VehList.models_arena_offroad, SpawnBehavior.Standard),
 
-    // --- Special Locations ---
+
+
+
+    new SpawnSpot("Boats", new Vector3(-926.119f, -1478.350f, -0.474f), 12.163f, VehList.models_boats, SpawnBehavior.Stock),
+    new SpawnSpot("Tuggy", new Vector3(-3092.066f, 3465.729f, -0.474f), 47.552f, VehList.models_weaponboats, SpawnBehavior.Stock),
+
+   // --- Special Locations ---
+    new SpawnSpot("Cemetery ", new Vector3(-1640.42f, -202.879f, 54.146f), 338.279f, VehList.models_cemetery, SpawnBehavior.NoVisuals),
+
     new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.NoVisuals),
     new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.Cult),
     new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.Standard),
+    new SpawnSpot("Sandy", new Vector3(1546.591f, 3781.791f, 33.06f), 26.557f, VehList.models_cheburek, SpawnBehavior.NoVisuals),
+       new SpawnSpot("Marriage", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.NoVisuals),
+           new SpawnSpot("Beach_Karts", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_karting, SpawnBehavior.Standard),
 
     // --- Aircraft ---
     // Note: Higgins usually implies specific livery/colors, ensure you have logic for SpawnBehavior.Higgins or switch to Helicopter
@@ -354,16 +365,24 @@ public class SpawnMP : Script
         v.Mods.InstallModKit(); // Required for everything below
 
         // -----------------------------------------------------------
-        // 2. MANDATORY PERFORMANCE (Replicated from your snippet)
+        // 2. TWEAK PERFORMANCE (Replicated from your snippet)
         // -----------------------------------------------------------
-        v.Mods[VehicleModType.Engine].Index = 3;       // Lvl 4
-        v.Mods[VehicleModType.Brakes].Index = 2;       // Race Brakes
-        v.Mods[VehicleModType.Transmission].Index = 2; // Race Trans
-        v.Mods[VehicleModType.Suspension].Index = 3;   // Competition
-        v.Mods[VehicleModType.Armor].Index = 4;        // 100% Armor
-        v.Mods[VehicleToggleModType.Turbo].IsInstalled = true;
-        v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
+        if(spot.Behavior != SpawnBehavior.Stock)
+        {
+            v.Mods[VehicleModType.Engine].Index = 3;       // Lvl 4
+            v.Mods[VehicleModType.Brakes].Index = 2;       // Race Brakes
+            v.Mods[VehicleModType.Transmission].Index = 2; // Race Trans
+            v.Mods[VehicleModType.Suspension].Index = 3;   // Competition
+            v.Mods[VehicleModType.Armor].Index = 4;        // 100% Armor
+            v.Mods[VehicleToggleModType.Turbo].IsInstalled = true;
+        }
 
+
+        if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports) //apply xenon lights to Super only
+        {
+            v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
+
+        }
 
         // Behavior Switch
         switch (spot.Behavior)
@@ -374,8 +393,9 @@ public class SpawnMP : Script
                 break;
 
             case SpawnBehavior.NoVisuals:
-                // Performance is already applied above! 
-                // We leave visuals stock for "Super" or "Retro" specific spawns.
+            case SpawnBehavior.Stock:
+                // We do NOTHING. 
+                // By doing nothing, the car keeps the factory parts it spawned with.
                 break;
 
             case SpawnBehavior.Cult:
@@ -525,6 +545,7 @@ public enum SpawnBehavior
     Higgins,    // Specific colors
     NoVisuals,  // Super/Retro cars (Performance only)
     Helicopter, // Special collision logic
+    Stock,       //Stock tuning 
     Brickade    // Specific override
 }
 
