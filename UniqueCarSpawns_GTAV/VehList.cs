@@ -433,8 +433,8 @@ public class VehList
        "entityxf",
        "vacca", 
         
-        //base game parked cars*/
-   "adder",
+        //base game parked cars
+   "adder", */
         
      /*   //traffic  cars
         "tempesta",

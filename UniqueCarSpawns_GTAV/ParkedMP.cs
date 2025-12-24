@@ -33,8 +33,8 @@ public class SpawnMP : Script
     private static Random random = new Random();
     Dictionary<SpawnId, Vehicle> vehDict = new Dictionary<SpawnId, Vehicle>();
     Dictionary<SpawnId, Blip> markerDict = new Dictionary<SpawnId, Blip>();
+    Dictionary<SpawnId, string> spawnHistory = new Dictionary<SpawnId, string>();
 
-  
 
 
     struct SpawnPoint
@@ -328,7 +328,6 @@ public class SpawnMP : Script
         string model_name = null;
         bool isEmpty;
 
-
         // Ensure key exists
         if (!vehDict.ContainsKey(spawnId))
             vehDict[spawnId] = null;
@@ -339,42 +338,47 @@ public class SpawnMP : Script
             case SpawnId.ArenaHotring2:
                 isEmpty = !VehList.models_arena_hotring.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_arena_hotring[random.Next(VehList.models_arena_hotring.Count)];
+                    model_name = GetUniqueModel(VehList.models_arena_hotring, spawnId);
                 break;
 
             case SpawnId.ArenaSpeed1:
             case SpawnId.ArenaSpeed2:
                 isEmpty = !VehList.models_arena_speed.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_arena_speed[random.Next(VehList.models_arena_speed.Count)];
+                    model_name = GetUniqueModel(VehList.models_arena_speed, spawnId);
                 break;
 
             case SpawnId.ArenaOffroad1:
             case SpawnId.ArenaOffroad2:
                 isEmpty = !VehList.models_arena_offroad.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_arena_offroad[random.Next(VehList.models_arena_offroad.Count)];
+                    model_name = GetUniqueModel(VehList.models_arena_offroad, spawnId);
                 break;
+
             case SpawnId.Cinema:
                 isEmpty = !VehList.models_cinema.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_cinema[random.Next(VehList.models_cinema.Count)];
+                    model_name = GetUniqueModel(VehList.models_cinema, spawnId);
                 break;
+
             case SpawnId.Cult:
                 isEmpty = !VehList.models_cult.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_cult[random.Next(VehList.models_cult.Count)];
+                    model_name = GetUniqueModel(VehList.models_cult, spawnId);
                 break;
+
             case SpawnId.Higgins_Heli:
                 isEmpty = !VehList.models_higgins.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_higgins[random.Next(VehList.models_higgins.Count)];
+                    model_name = GetUniqueModel(VehList.models_higgins, spawnId);
                 break;
+
             case SpawnId.Helicopter:
                 isEmpty = !VehList.models_helicopter.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_helicopter[random.Next(VehList.models_helicopter.Count)];
+                    model_name = GetUniqueModel(VehList.models_helicopter, spawnId);
                 break;
+
             case SpawnId.Lowrider_1:
             case SpawnId.Lowrider_2:
             case SpawnId.Lowrider_3:
@@ -384,18 +388,21 @@ public class SpawnMP : Script
             case SpawnId.Lowrider_7:
                 isEmpty = !VehList.models_ghetto.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_ghetto[random.Next(VehList.models_ghetto.Count)];
+                    model_name = GetUniqueModel(VehList.models_ghetto, spawnId);
                 break;
+
             case SpawnId.Openwheel:
                 isEmpty = !VehList.models_openwheel.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_openwheel[random.Next(VehList.models_openwheel.Count)];
+                    model_name = GetUniqueModel(VehList.models_openwheel, spawnId);
                 break;
+
             case SpawnId.Planes:
                 isEmpty = !VehList.models_planes.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_planes[random.Next(VehList.models_planes.Count)];
+                    model_name = GetUniqueModel(VehList.models_planes, spawnId);
                 break;
+
             case SpawnId.RetroSports1:
             case SpawnId.RetroSports2:
             case SpawnId.RetroSports3:
@@ -406,12 +413,13 @@ public class SpawnMP : Script
             case SpawnId.RetroSports8:
             case SpawnId.RetroSports9:
             case SpawnId.RetroSports10:
-                case SpawnId.RetroSports11:
-                case SpawnId.RetroSports12:
+            case SpawnId.RetroSports11:
+            case SpawnId.RetroSports12:
                 isEmpty = !VehList.models_classics.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_classics[random.Next(VehList.models_classics.Count)];
+                    model_name = GetUniqueModel(VehList.models_classics, spawnId);
                 break;
+
             case SpawnId.Super1:
             case SpawnId.Super2:
             case SpawnId.Super3:
@@ -424,10 +432,10 @@ public class SpawnMP : Script
             case SpawnId.Super10:
             case SpawnId.Super11:
             case SpawnId.Super12:
-                case SpawnId.Super13:
+            case SpawnId.Super13:
                 isEmpty = !VehList.models_supers.Any();
                 if ((vehDict[spawnId] == null && !isEmpty) || type == 1)
-                    model_name = VehList.models_supers[random.Next(VehList.models_supers.Count)];
+                    model_name = GetUniqueModel(VehList.models_supers, spawnId);
                 break;
         }
 
@@ -801,5 +809,34 @@ public class SpawnMP : Script
             Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
         }
     }
+    string GetUniqueModel(List<string> list, SpawnId id)
+    {
+        // Safety checks
+        if (list == null || list.Count == 0) return null;
+
+        // OPTIMIZATION: If there is only 1 car in the list, we MUST return it.
+        // This prevents the code from getting stuck looking for a "different" car that doesn't exist.
+        if (list.Count == 1) return list[0];
+
+        string candidate;
+        int safety = 0;
+
+        // Loop: Pick a random car, but check if it matches history
+        do
+        {
+            candidate = list[random.Next(list.Count)];
+            safety++;
+        }
+        // Conditions:
+        // 1. We have history for this spot
+        // 2. The candidate matches the history (it's a repeat)
+        // 3. Safety < 10 (Stop trying after 10 fails to prevent freezing)
+        while (spawnHistory.ContainsKey(id) && spawnHistory[id] == candidate && safety < 10);
+
+        // Save this choice to history for next time
+        spawnHistory[id] = candidate;
+        return candidate;
+    }
 
 }
+
