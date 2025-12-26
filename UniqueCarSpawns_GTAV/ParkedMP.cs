@@ -254,6 +254,126 @@ public class SpawnMP : Script
 
 
 
+    /* void OnTick(object sender, EventArgs e)
+     {
+         if (_canSpawn == 0) return;
+
+         var playerPos = Game.Player.Character.Position;
+         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
+
+         // --- 1. FORCE CLEANUP (Mission/Cutscene) ---
+         // Run this every frame to ensure instant cleanup
+         if (vehicles_spawned == 1 && isMissionActive)
+         {
+             foreach (var spot in vehDict.Keys.ToList())
+             {
+                 var car = vehDict[spot];
+                 if (car != null && car.Exists()) car.Delete();
+
+                 if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
+                 {
+                     markerDict[spot].Delete();
+                     markerDict[spot] = null;
+                 }
+                 vehDict[spot] = null;
+             }
+             vehicles_spawned = 0;
+         }
+
+         if (!isMissionActive)
+         {
+             // --- 2. OPTIMIZED SPAWN LOOP (Runs twice per second) ---
+             if (Game.GameTime > nextSpawnCheck)
+             {
+                 foreach (var spot in AllSpawns)
+                 {
+                     // Use C# Vector3.Distance (Much faster than Function.Call)
+                     if (Vector3.Distance(spot.Position, playerPos) < 300f)
+                     {
+                         string model_name = GenerateVehicleModelName(spot, 0);
+
+                         if (model_name != null)
+                         {
+                             vehDict[spot] = CreateNewVehicle(model_name, spot.Position, spot.Heading, spot);
+                             var vehicle = vehDict[spot];
+
+                             if (vehicle != null)
+                             {
+                                 SetNumberPlate(vehicle, mod_plate, plate_id);
+                                 plate_id = -1;
+
+                                 if (blip_config == 1) CreateMarkerAboveCar(vehicle, spot);
+
+                                 ApplyVehicleMods(vehicle, spot, model_name);
+                                 vehicles_spawned = 1;
+                             }
+                         }
+                     }
+                 }
+                 // Reset the timer to wait 500ms before checking spawns again
+                 nextSpawnCheck = Game.GameTime + 500;
+             }
+
+             // --- 3. CLEANUP LOOP (Can also run on the timer, or keep here for responsiveness) ---
+             // We'll keep this separate so cleanup feels instant when driving away
+             foreach (var spot in AllSpawns)
+             {
+                 // Simple optimization: Don't check distance if we know we don't have a car there
+                 if (!vehDict.ContainsKey(spot) || vehDict[spot] == null) continue;
+
+                 if (Vector3.Distance(spot.Position, playerPos) > 300f)
+                 {
+                     if (vehDict.TryGetValue(spot, out var vehicle))
+                     {
+                         if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
+                         {
+                             markerDict[spot].Delete();
+                             markerDict[spot] = null;
+                         }
+
+                         if (vehicle != null && vehicle.Exists())
+                         {
+                             if (!Function.Call<bool>(Hash.IS_PED_SITTING_IN_VEHICLE, Game.Player.Character, vehicle))
+                             {
+                                 vehicle.Delete();
+                             }
+                             else
+                             {
+                                 vehicle.MarkAsNoLongerNeeded();
+                             }
+                         }
+                         vehDict[spot] = null;
+                     }
+                 }
+             }
+         }
+
+         // --- 4. PLAYER INTERACTION ---
+         // Safe to run every frame
+         foreach (var spot in vehDict.Keys.ToList())
+         {
+             Vehicle car = vehDict[spot];
+
+             // Check if player entered the vehicle
+             if (car != null && car.Exists() && Function.Call<bool>(Hash.IS_PED_IN_VEHICLE, Game.Player.Character, car, false))
+             {
+                 // 1. Delete the blip (so the map is clean)
+                 if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
+                 {
+                     markerDict[spot].Delete();
+                     markerDict[spot] = null;
+                 }
+
+                 // 2. Tell the game engine we are using this car
+                 car.MarkAsNoLongerNeeded();
+
+                 // 3. DELETE THE LINE THAT WAS HERE! 
+                 // Do NOT set vehDict[spot] = null; 
+                 // We want the script to remember "This spot is taken" until we drive 300m away.
+             }
+         }
+     }*/
+
     void OnTick(object sender, EventArgs e)
     {
         if (_canSpawn == 0) return;
@@ -262,7 +382,6 @@ public class SpawnMP : Script
         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
 
         // --- 1. FORCE CLEANUP (Mission/Cutscene) ---
-        // Run this every frame to ensure instant cleanup
         if (vehicles_spawned == 1 && isMissionActive)
         {
             foreach (var spot in vehDict.Keys.ToList())
@@ -282,13 +401,16 @@ public class SpawnMP : Script
 
         if (!isMissionActive)
         {
-            // --- 2. OPTIMIZED SPAWN LOOP (Runs twice per second) ---
+            // --- 2. OPTIMIZED SPAWN LOOP ---
             if (Game.GameTime > nextSpawnCheck)
             {
                 foreach (var spot in AllSpawns)
                 {
-                    // Use C# Vector3.Distance (Much faster than Function.Call)
-                    if (Vector3.Distance(spot.Position, playerPos) < 300f)
+                    float distance = Vector3.Distance(spot.Position, playerPos);
+
+                    // LOGIC: Must be close enough to load (< 300m), 
+                    // BUT far enough so it doesn't pop in your face (> 20m)
+                    if (distance < 300f && distance > 150f)
                     {
                         string model_name = GenerateVehicleModelName(spot, 0);
 
@@ -310,15 +432,12 @@ public class SpawnMP : Script
                         }
                     }
                 }
-                // Reset the timer to wait 500ms before checking spawns again
                 nextSpawnCheck = Game.GameTime + 500;
             }
 
-            // --- 3. CLEANUP LOOP (Can also run on the timer, or keep here for responsiveness) ---
-            // We'll keep this separate so cleanup feels instant when driving away
+            // --- 3. CLEANUP LOOP (Unchanged) ---
             foreach (var spot in AllSpawns)
             {
-                // Simple optimization: Don't check distance if we know we don't have a car there
                 if (!vehDict.ContainsKey(spot) || vehDict[spot] == null) continue;
 
                 if (Vector3.Distance(spot.Position, playerPos) > 300f)
@@ -348,28 +467,20 @@ public class SpawnMP : Script
             }
         }
 
-        // --- 4. PLAYER INTERACTION ---
-        // Safe to run every frame
+        // --- 4. PLAYER INTERACTION (Unchanged) ---
         foreach (var spot in vehDict.Keys.ToList())
         {
             Vehicle car = vehDict[spot];
 
-            // Check if player entered the vehicle
             if (car != null && car.Exists() && Function.Call<bool>(Hash.IS_PED_IN_VEHICLE, Game.Player.Character, car, false))
             {
-                // 1. Delete the blip (so the map is clean)
                 if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
                 {
                     markerDict[spot].Delete();
                     markerDict[spot] = null;
                 }
 
-                // 2. Tell the game engine we are using this car
                 car.MarkAsNoLongerNeeded();
-
-                // 3. DELETE THE LINE THAT WAS HERE! 
-                // Do NOT set vehDict[spot] = null; 
-                // We want the script to remember "This spot is taken" until we drive 300m away.
             }
         }
     }
