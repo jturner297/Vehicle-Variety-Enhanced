@@ -75,50 +75,48 @@ public class SpawnMP : Script
     {
         // Format: ID, Position, Heading, Vehicle List, Behavior Type
         
-     // --- Arena War Group ---
+     // --- Racing Cars Group ---
     new SpawnSpot("ArenaHotring1", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.Standard),
     new SpawnSpot("ArenaHotring2", new Vector3(1189.208f, 304.6935f, 81.48812f), 146.908f, VehList.models_arena_hotring, SpawnBehavior.Standard),
-
+   
     new SpawnSpot("ArenaSpeed1", new Vector3(-176.5869f, -2019.529f, 27.14398f), 75.334f, VehList.models_arena_speed, SpawnBehavior.Standard),
     new SpawnSpot("ArenaSpeed2", new Vector3(1117.519f, 257.8285f, 80.31487f), -122.074f, VehList.models_arena_speed, SpawnBehavior.Standard),
-
+    
     new SpawnSpot("ArenaOffroad1", new Vector3(-192.949f, -1928.497f, 27.20675f), -151.296f, VehList.models_arena_offroad, SpawnBehavior.Standard),
     new SpawnSpot("ArenaOffroad2", new Vector3(1151.233f, 183.6329f, 80.23096f), -53.715f, VehList.models_arena_offroad, SpawnBehavior.Standard),
+   
+    new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.Standard),
 
 
-
-
-    new SpawnSpot("Boats", new Vector3(-926.119f, -1478.350f, -0.474f), 12.163f, VehList.models_boats, SpawnBehavior.Stock),
+    //new SpawnSpot("Boats", new Vector3(-926.119f, -1478.350f, -0.474f), 12.163f, VehList.models_boats, SpawnBehavior.Stock), unnecessary since they spawn regularly
     new SpawnSpot("Tuggy", new Vector3(-3092.066f, 3465.729f, -0.474f), 47.552f, VehList.models_weaponboats, SpawnBehavior.Stock),
 
    // --- Special Locations ---
     new SpawnSpot("Cemetery ", new Vector3(-1640.42f, -202.879f, 54.146f), 338.279f, VehList.models_cemetery, SpawnBehavior.NoVisuals),
 
-    new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.NoVisuals),
+    new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.Studio),
     new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.Cult),
-    new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.Standard),
+
     new SpawnSpot("Sandy", new Vector3(1546.591f, 3781.791f, 33.06f), 26.557f, VehList.models_cheburek, SpawnBehavior.NoVisuals),
-       new SpawnSpot("Marriage", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.NoVisuals),
-           new SpawnSpot("Beach_Karts", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_karting, SpawnBehavior.Standard),
+    new SpawnSpot("Marriage", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.NoVisuals),
+    new SpawnSpot("Beach_Karts1", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_karting, SpawnBehavior.Standard),
+     new SpawnSpot("Beach_Karts2", new Vector3(-1235.388f, -1647.45f, 3.512795f), 124.5176f, VehList.models_karting, SpawnBehavior.Standard),
 
     // --- Aircraft ---
-    // Note: Higgins usually implies specific livery/colors, ensure you have logic for SpawnBehavior.Higgins or switch to Helicopter
     new SpawnSpot("Higgins_Heli", new Vector3(-746.4702f, -1469.937f, 6.87726f), 140.365f, VehList.models_higgins, SpawnBehavior.Higgins),
     new SpawnSpot("Helicopter", new Vector3(-979.378f, -2996.868f, 13.945f), 331.180f, VehList.models_helicopter, SpawnBehavior.Helicopter),
     new SpawnSpot("Planes", new Vector3(-961.005f, -2963.593f, 13.945f), 147.589f, VehList.models_planes, SpawnBehavior.Standard),
 
     // --- Lowriders ---
-    // Mapped to models_ghetto based on your VehList content (Faction, Chino, etc.)
-    new SpawnSpot("Lowrider_1", new Vector3(-229.587f, -1483.44f, 30.352f), 146.244f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_2", new Vector3(-22.296f, -1851.58f, 24.108f), 141.262f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_3", new Vector3(321.798f, -1948.14f, 23.627f), 47.597f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_4", new Vector3(455.602f, -1695.26f, 28.289f), 138.808f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_5", new Vector3(1228.548f, -1605.65f, 50.736f), 33.185f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_6", new Vector3(298.2452f, -1241.624f, 28.75226f), -179.719f, VehList.models_ghetto, SpawnBehavior.Standard),
-    new SpawnSpot("Lowrider_7", new Vector3(264.0245f, -1512.3302f, 28.7877f), 268.336f, VehList.models_ghetto, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_1", new Vector3(-229.587f, -1483.44f, 30.352f), 146.244f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_2", new Vector3(-22.296f, -1851.58f, 24.108f), 141.262f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_3", new Vector3(321.798f, -1948.14f, 23.627f), 47.597f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_4", new Vector3(455.602f, -1695.26f, 28.289f), 138.808f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_5", new Vector3(1228.548f, -1605.65f, 50.736f), 33.185f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_6", new Vector3(298.2452f, -1241.624f, 28.75226f), -179.719f, VehList.models_lowriders, SpawnBehavior.Standard),
+    new SpawnSpot("Lowrider_7", new Vector3(264.0245f, -1512.3302f, 28.7877f), 268.336f, VehList.models_lowriders, SpawnBehavior.Standard),
 
     // --- Retro Sports (Classics) ---
-    // Mapped to models_classics (Stinger, Monroe, etc.) using NoVisuals (Performance only)
     new SpawnSpot("RetroSports1", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics, SpawnBehavior.NoVisuals),
     new SpawnSpot("RetroSports2", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics, SpawnBehavior.NoVisuals),
     new SpawnSpot("RetroSports3", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_classics, SpawnBehavior.NoVisuals),
@@ -130,7 +128,7 @@ public class SpawnMP : Script
     new SpawnSpot("RetroSports9", new Vector3(-3036.57f, 105.31f, 10.593f), 141.262f, VehList.models_classics, SpawnBehavior.NoVisuals),
     new SpawnSpot("RetroSports10", new Vector3(-205.516f, 281.035f, 91.818f), 165.351f, VehList.models_classics, SpawnBehavior.NoVisuals),
     new SpawnSpot("RetroSports11", new Vector3(-972.578f, -1464.27f, 4.013f), 294.730f, VehList.models_classics, SpawnBehavior.NoVisuals),
-    new SpawnSpot("RetroSports12", new Vector3(1309.942f, -530.154f, 70.312f), 341.133f, VehList.models_classics, SpawnBehavior.NoVisuals),
+      new SpawnSpot("RetroSports12", new Vector3(-489.2397f, -596.5908f, 30.56949f), 358.1453f, VehList.models_classics, SpawnBehavior.NoVisuals),
 
     // --- Super Cars ---
     // Using NoVisuals to keep them clean/stock looking but with performance upgrades
@@ -147,9 +145,22 @@ public class SpawnMP : Script
     new SpawnSpot("Super11", new Vector3(-1126.722f, -318.281f, 37.21f), -95.129f, VehList.models_supers, SpawnBehavior.NoVisuals),
     new SpawnSpot("Super12", new Vector3(-801.566f, -1313.92f, 4.0f), 169.408f, VehList.models_supers, SpawnBehavior.NoVisuals),
     new SpawnSpot("Super13", new Vector3(-504.323f, 424.21f, 96.287f), 313.167f, VehList.models_supers, SpawnBehavior.NoVisuals),
-    };
+    new SpawnSpot("Super14", new Vector3(-1979.25f, 586.078f, 116.479f), 185.087f, VehList.models_supers, SpawnBehavior.NoVisuals),
+    new SpawnSpot("Super15", new Vector3(-2340.907f, 295.8933f, 169.1187f), 294.0081f, VehList.models_supers, SpawnBehavior.NoVisuals),
 
-        // ... rest of init ...
+    new SpawnSpot("Armoured1", new Vector3(110.261f, -714.605f, 32.133f), 341.667f, VehList.models_armoured, SpawnBehavior.Armoured),
+    new SpawnSpot("Armoured2", new Vector3(-340.161f, -876.799f, 30.90968f), 347.7794f, VehList.models_armoured, SpawnBehavior.Armoured),
+      new SpawnSpot("Armoured3", new Vector3(-329.9433f, -700.7843f, 32.33982f), 88.68892f, VehList.models_armoured, SpawnBehavior.Armoured),
+
+      new SpawnSpot("OldSchool_1", new Vector3(124.0182f, -1472.58f, 28.6794f), 321.0109f, VehList.models_old_school, SpawnBehavior.Stock),
+      new SpawnSpot("OldSchool_2", new Vector3(393.4623f, -649.7198f, 27.92926f), 90.89349f, VehList.models_old_school, SpawnBehavior.Stock),
+            new SpawnSpot("OldSchool_3", new Vector3(31.46499f, -1706.062f, 28.6591f), 23.36283f, VehList.models_old_school, SpawnBehavior.Stock),
+          new SpawnSpot("OldSchool_4", new Vector3(1136.156f, -773.997f, 56.632f), 269.604f, VehList.models_old_school, SpawnBehavior.Stock),
+                new SpawnSpot("OldSchool_5", new Vector3(1309.942f, -530.154f, 70.312f), 341.133f, VehList.models_old_school, SpawnBehavior.Stock),
+          new SpawnSpot("OldSchool_6", new Vector3(-1528.733f, -427.0032f, 35.01511f), 48.3741f, VehList.models_old_school, SpawnBehavior.Stock),
+        };
+
+  
 
 
 
@@ -342,22 +353,28 @@ public class SpawnMP : Script
         foreach (var spot in vehDict.Keys.ToList())
         {
             Vehicle car = vehDict[spot];
+
+            // Check if player entered the vehicle
             if (car != null && car.Exists() && Function.Call<bool>(Hash.IS_PED_IN_VEHICLE, Game.Player.Character, car, false))
             {
+                // 1. Delete the blip (so the map is clean)
                 if (markerDict.ContainsKey(spot) && markerDict[spot] != null && markerDict[spot].Exists())
                 {
                     markerDict[spot].Delete();
                     markerDict[spot] = null;
                 }
+
+                // 2. Tell the game engine we are using this car
                 car.MarkAsNoLongerNeeded();
-                // Remove from tracking so we don't delete it while driving
-                vehDict[spot] = null;
+
+                // 3. DELETE THE LINE THAT WAS HERE! 
+                // Do NOT set vehDict[spot] = null; 
+                // We want the script to remember "This spot is taken" until we drive 300m away.
             }
         }
     }
     private void ApplyVehicleMods(Vehicle v, SpawnSpot spot, string modelName)
     {
-        v.Mods.InstallModKit();
         // ... (Your mandatory performance mods here: Engine, Brakes, etc.) ...
         // -----------------------------------------------------------
         // 1. GLOBAL INITIALIZATION
@@ -403,8 +420,8 @@ public class SpawnMP : Script
                 v.Mods.SecondaryColor = (VehicleColor)157;
                 v.Mods.PearlescentColor = (VehicleColor)1;
                 v.Mods[VehicleModType.Livery].Index = -1;
+                ApplyRandomVisuals(v);
 
-     
                 break;
 
             case SpawnBehavior.Helicopter:
@@ -426,6 +443,15 @@ public class SpawnMP : Script
                 Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
                 Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
                 break;
+            case SpawnBehavior.Armoured:
+                v.Mods.PrimaryColor = (VehicleColor)12;
+                v.Mods.SecondaryColor = (VehicleColor)12;
+                v.Mods.PearlescentColor = (VehicleColor)12;
+                break;
+            case SpawnBehavior.Studio:
+                v.Mods[VehicleModType.Roof].Index = 0;
+                break;
+
         }
     }
     string GetUniqueModel(List<string> list, SpawnSpot spot)
@@ -546,7 +572,9 @@ public enum SpawnBehavior
     NoVisuals,  // Super/Retro cars (Performance only)
     Helicopter, // Special collision logic
     Stock,       //Stock tuning 
-    Brickade    // Specific override
+    Armoured,
+    Brickade,    // Specific override
+    Studio       // Movie Studio
 }
 
 public static class ListExtensions

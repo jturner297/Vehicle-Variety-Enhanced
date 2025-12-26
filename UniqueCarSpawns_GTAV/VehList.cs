@@ -59,8 +59,9 @@ public class VehList
     public static List<string> models_cheburek = new List<string>() {
     "cheburek",
     "ratbike",
-    "slamvan3",
    "clique2",
+   "peyote2",
+   "weevil2"
     };
 
     public static List<string> models_cinema = new List<string>() {
@@ -103,7 +104,7 @@ public class VehList
 
 
 
-    public static List<string> models_ghetto = new List<string>() {
+    public static List<string> models_lowriders = new List<string>() {
     "eudora",
         "faction3",
         "Buccaneer2",
@@ -147,23 +148,12 @@ public class VehList
     "brickade2",
     };
 
-    public static List<string> models_industrial = new List<string>() {
-    "pounder2",
-    "mule4",
-    "phantom3",
-    "hauler2",
-    "phantom2",
-    "mule3",
-    "boxville4",
-    "flatbed2",
-    "stockade4",
-    "keitora",
-
-    };
 
     public static List<string> models_karting = new List<string>() {
     "veto",
     "veto2",
+     "locust",
+          "ruston",
     };
 
 
@@ -353,98 +343,32 @@ public class VehList
 
 
 
-    public static List<string> models_sportclassic = new List<string>() {
-    "sentinel4",
-    "cypher",
-    "sultan3",
-    "vectre",
-    "remus",
-    "rt3000",
-    "zr350",
-    "euros",
-    "futo2",
-    "penumbra2",
-    "sugoi",
-    "vstr",
-    "sultan2",
-    "komoda",
-    "jugular",
-    "zion3",
-    "locust",
-    "nebula",
-    "neo",
-    //"issi7",
-    "schlagen",
-    "italigto",
-    "swinger",
-    "jester3",
-    "michelli",
-    "comet5",
-    "z190",
-    "neon",
-    "revolter",
-    "gt500",
-    "viseris",
-    "savestra",
-    "sentinel3",
-    "raiden",
-    "pariah",
-    "rapidgt3",
-    "retinue",
-    "torero",
-    "cheetah2",
-    "turismo2",
-    "infernus2",
-    "ruston",
-    "specter2",
-    "specter",
-    "comet3",
-    "elegy",
-    "lynx",
-    "tropos",
-    "seven70",
-    "bestiagts",
-    "mamba",
-    "verlierer2",
-    "schafter3",
-    "schafter4",
-    "feltzer3",
-    "casco",
-    "kuruma",
-    "coquette5",
-    "niobe",
-    "banshee3",
-    "coquette6",
-    "s95",
-    "astrale",
-    "gt750",
-    "itali2",
-    };
+  
 
     public static List<string> models_submarine = new List<string>() {
     "avisa",
     };
 
     public static List<string> models_supers = new List<string>() {
-   /* //base game traffic cars 
+    //base game traffic cars 
        "zentorno",
        "turismor",
        "cheetah",
        "entityxf",
-       "vacca", 
+     //  "vacca", 
         
         //base game parked cars
-   "adder", */
+  // "adder", 
         
-     /*   //traffic  cars
+        //traffic  cars
         "tempesta",
-"italigtb",
-"sc1",
+//"italigtb",
+//"sc1",
 "reaper",
-"penetrator",*/
+//"penetrator",
         //parked  cars
         "t20",
-"pfister811",
+//"pfister811",
 "osiris",
 "gp1",
 "xa21",
@@ -454,33 +378,8 @@ public class VehList
 "nero",
 "nero2",
 "visione",
-"entity2",
-        /*
-    "lm87",
-    "s80",
-    "entity2",
-    "autarch",
-    "sc1",
-    "cyclone",
-    "visione",
-    "xa21",
-    "gp1",
-    "italigtb",
-    "italigtb2",
-    "nero",
-    "nero2",
-    "tempesta",
-    "penetrator",
-    "tyrus",
-    "le7b",
-    "sheava",
-    "pfister811",
-    "prototipo",
-    "reaper",
-    "fmj",
-    "t20",
-    "osiris",
-    "cyclone2",*/
+"sm722",
+
     };
 
     public static List<string> models_suvs = new List<string>() {
@@ -525,8 +424,8 @@ public class VehList
     public static List<string> models_valentine = new List<string>() {
     "btype3",
     "broadway",
-    "stafford"
-
+    "stafford",
+     "coquette5",
     };
 
     public static List<string> models_vans = new List<string>() {
@@ -555,16 +454,7 @@ public class VehList
     };
 
 
-
-    public static List<string> models_plane_sandy = new List<string>() {
-    "duster2",
-    };
-
-    public static List<string> models_heli_sandy = new List<string>() {
-    "cargobob5",
-    };
-
-
+/*
     public static List<string> models_hsw = new List<string>() {
     "s95",
     "astron2",
@@ -582,7 +472,7 @@ public class VehList
     "hakuchou2",
     "brioso",
     "feltzer3"
-    };
+    };*/
 
     public static List<string> models_higgins = new List<string>() {
     "maverick2",
@@ -623,6 +513,7 @@ public class VehList
     "bf400",
     "cliffhanger",
     "raptor",
+    "rrocket"
 };
     public static List<string> models_openwheel = new List<string>() {
     "openwheel1",
@@ -634,46 +525,35 @@ public class VehList
     public static List<string> models_armoured = new List<string>() {
         "baller5",
     "baller6",
-        "granger2",
-    "landstalker2",
-    "novak",
-    "toros",
     "xls2",
     "cognoscenti2",
         "cog552",
             "schafter5",
     "schafter6",
+    "paragon2"
     };
     public static List<string> models_classics = new List<string>() {
        
- 
-        //traffic classics
-/*
-         "casco",
          "cheetah2",
-         "comet3",
-         "coquette2",
-         "coquette3",
-         "coquette5",
          "feltzer3",
-         "issi3",
-         "michelli",
-         "rapidgt3",
-         "tropos",
-         "viseris",
-*/
-         //parked classic
              "infernus2",
             "gt500",
             "jb7002",
             "mamba",
             "monroe",
-            "stinger",
-            "stingergt",
             "swinger",
             "torero",
             "turismo2",
-
+    };
+    public static List<string> models_old_school = new List<string>() {
+       
+    
+         "issi3",
+          "dynasty",
+         "michelli",
+        "hustler",
+           "weevil",
+          
 
     };
 
