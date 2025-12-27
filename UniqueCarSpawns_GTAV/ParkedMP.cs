@@ -7,7 +7,15 @@ using System.Linq;
 
 public class SpawnMP : Script
 {
-    private bool ShowBlips = true;
+    // ==========================================
+    //              QUICK SETTINGS
+    // ==========================================
+    private bool ShowBlips = true;      // Set 'false' to hide map markers
+    private bool LockDoors = true;      // Set 'false' to leave cars unlocked
+    private float SpawnDistMax = 700f;  // Spawn/Cleanup range
+    private float SpawnDistMin = 200f;  // Minimum distance (prevents pop-in)
+    // ==========================================
+
     private int nextSpawnCheck = 0;
     private string mod_version = "1.72";
     private static Random random = new Random();
@@ -16,7 +24,7 @@ public class SpawnMP : Script
     private Dictionary<SpawnSpot, Vehicle> vehDict = new Dictionary<SpawnSpot, Vehicle>();
     private Dictionary<SpawnSpot, Blip> markerDict = new Dictionary<SpawnSpot, Blip>();
 
-    // Shuffle Logic Decks
+    // Shuffle Logic
     private Dictionary<List<string>, Queue<string>> spawnQueues = new Dictionary<List<string>, Queue<string>>();
     private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
 
@@ -24,17 +32,18 @@ public class SpawnMP : Script
 
     public SpawnMP()
     {
-        // 1. Version Check
+        // 1. Version Check (Kept purely for safety, can be removed if annoying)
         string onlineVersion = Function.Call<string>(Hash.GET_ONLINE_VERSION);
         if (onlineVersion != mod_version)
         {
-            GTA.UI.Notification.PostTicker($"~r~WARNING:\n~s~Game version mismatch. ~g~All MP Vehicles in SP ~s~may fail to load newer models.\n\nRequired: {mod_version}\nDetected: {onlineVersion}", true);
+            // You can comment this out if you don't want the warning
+            GTA.UI.Notification.PostTicker($"~r~WARNING: Game Version Mismatch.\nRequired: {mod_version}", true);
         }
 
         // 2. Initialize Spawn Locations
         AllSpawns = new List<SpawnSpot>()
         {
-            // Racing Groups
+            // Racing
             new SpawnSpot("ArenaHotring1", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.Standard),
             new SpawnSpot("ArenaHotring2", new Vector3(1189.208f, 304.6935f, 81.48812f), 146.908f, VehList.models_arena_hotring, SpawnBehavior.Standard),
             new SpawnSpot("ArenaSpeed1", new Vector3(-176.5869f, -2019.529f, 27.14398f), 75.334f, VehList.models_arena_speed, SpawnBehavior.Standard),
@@ -43,7 +52,7 @@ public class SpawnMP : Script
             new SpawnSpot("ArenaOffroad2", new Vector3(1151.233f, 183.6329f, 80.23096f), -53.715f, VehList.models_arena_offroad, SpawnBehavior.Standard),
             new SpawnSpot("Openwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.Standard),
 
-            // Special/Lore Locations
+            // Special
             new SpawnSpot("Tuggy", new Vector3(-3092.066f, 3465.729f, -0.474f), 47.552f, VehList.models_weaponboats, SpawnBehavior.Stock),
             new SpawnSpot("Cemetery", new Vector3(-1640.42f, -202.879f, 54.146f), 338.279f, VehList.models_cemetery, SpawnBehavior.NoVisuals),
             new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.Studio),
@@ -67,7 +76,7 @@ public class SpawnMP : Script
             new SpawnSpot("Lowrider_6", new Vector3(298.2452f, -1241.624f, 28.75226f), -179.719f, VehList.models_lowriders, SpawnBehavior.Standard),
             new SpawnSpot("Lowrider_7", new Vector3(264.0245f, -1512.3302f, 28.7877f), 268.336f, VehList.models_lowriders, SpawnBehavior.Standard),
 
-            // Classics (Retro Sports)
+            // Classics
             new SpawnSpot("RetroSports1", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics, SpawnBehavior.NoVisuals),
             new SpawnSpot("RetroSports2", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics, SpawnBehavior.NoVisuals),
             new SpawnSpot("RetroSports3", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_classics, SpawnBehavior.NoVisuals),
@@ -110,6 +119,13 @@ public class SpawnMP : Script
             new SpawnSpot("OldSchool_4", new Vector3(1136.156f, -773.997f, 56.632f), 269.604f, VehList.models_old_school, SpawnBehavior.Stock),
             new SpawnSpot("OldSchool_5", new Vector3(1309.942f, -530.154f, 70.312f), 341.133f, VehList.models_old_school, SpawnBehavior.Stock),
             new SpawnSpot("OldSchool_6", new Vector3(-1528.733f, -427.0032f, 35.01511f), 48.3741f, VehList.models_old_school, SpawnBehavior.Stock),
+      
+          // Military
+            new SpawnSpot("M_Planes_1", new Vector3(-1892.247f, 3082.933f, 32.810f), 147.141f, VehList.models_military_planes, SpawnBehavior.NoVisuals),
+            new SpawnSpot("M_Planes_2", new Vector3(-1934.867f, 3109.608f, 32.810f), 150.073f, VehList.models_military_planes, SpawnBehavior.NoVisuals),
+            new SpawnSpot("M_Helis", new Vector3(-1965.212f, 3101.532f, 32.810f), 236.324f, VehList.models_military_helicopters, SpawnBehavior.NoVisuals),
+
+
         };
 
         Tick += OnTick;
@@ -128,15 +144,14 @@ public class SpawnMP : Script
             return;
         }
 
-        // --- 2. SPAWN LOGIC (Twice per second) ---
+        // --- 2. SPAWN LOGIC ---
         if (Game.GameTime > nextSpawnCheck)
         {
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
 
-                // Spawn when nearby but not looking directly at it
-                if (distance < 300f && distance > 150f && !vehDict.ContainsKey(spot))
+                if (distance < SpawnDistMax && distance > SpawnDistMin && !vehDict.ContainsKey(spot))
                 {
                     string modelName = GetUniqueModel(spot.ModelList, spot);
                     if (modelName != null)
@@ -145,12 +160,8 @@ public class SpawnMP : Script
                         if (vehicle != null)
                         {
                             vehDict[spot] = vehicle;
-                            if (ShowBlips)
-                            {
-                                CreateMarkerAboveCar(vehicle, spot);
-                            }                        
+                            if (ShowBlips) CreateMarkerAboveCar(vehicle, spot);
                             ApplyVehicleMods(vehicle, spot, modelName);
-                            vehicle.Opacity = 255;
                         }
                     }
                 }
@@ -168,9 +179,9 @@ public class SpawnMP : Script
                 continue;
             }
 
-            if (Vector3.Distance(spot.Position, playerPos) > 300f)
+            if (Vector3.Distance(spot.Position, playerPos) > SpawnDistMax)
             {
-                // If player is in it, let the game handle it; otherwise delete
+                // If player is sitting in it, we do not delete
                 if (!Function.Call<bool>(Hash.IS_PED_SITTING_IN_VEHICLE, Game.Player.Character, car))
                 {
                     DeleteSpotResources(spot);
@@ -205,12 +216,13 @@ public class SpawnMP : Script
         while (!model.IsLoaded) Script.Wait(100);
         Vehicle car = World.CreateVehicle(model, pos, heading);
         model.MarkAsNoLongerNeeded();
-       
-        car.Opacity = 0;
-       
-        // Locked doors by default
-        Function.Call(Hash.SET_VEHICLE_DOORS_LOCKED, car, 7);
 
+   
+
+        // Lock Doors if toggle is on
+        if (LockDoors) Function.Call(Hash.SET_VEHICLE_DOORS_LOCKED, car, 7);
+
+        // Randomize Color Combo (matches original logic)
         int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, car);
         if (comboCount > 0)
         {
@@ -225,7 +237,10 @@ public class SpawnMP : Script
         mark.Sprite = BlipSprite.Standard;
         mark.Color = BlipColor.Blue;
         mark.Name = "Unique Vehicle";
-        Function.Call(GTA.Native.Hash.FLASH_MINIMAP_DISPLAY);
+
+        // RESTORED: This flashes the radar to alert you
+        Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
+
         markerDict[spot] = mark;
     }
 
@@ -233,7 +248,7 @@ public class SpawnMP : Script
     {
         v.Mods.InstallModKit();
 
-        // Performance Baseline
+        // RESTORED: Performance Logic
         if (spot.Behavior != SpawnBehavior.Stock)
         {
             v.Mods[VehicleModType.Engine].Index = 3;
@@ -255,17 +270,22 @@ public class SpawnMP : Script
                 ApplyRandomVisuals(v);
                 RandomizeLivery(v);
                 break;
+
             case SpawnBehavior.Cult:
                 v.Mods.PrimaryColor = (VehicleColor)157; // Epsilon Blue
                 v.Mods.SecondaryColor = (VehicleColor)157;
-                v.Mods[VehicleModType.Livery].Index = -1;
+                v.Mods.PearlescentColor = (VehicleColor)1; 
+                v.Mods[VehicleModType.Livery].Index = -1;  
                 ApplyRandomVisuals(v);
                 break;
+
             case SpawnBehavior.Helicopter:
+                // RESTORED: Critical physics flags to prevent falling through map
                 Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
-                Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
+              //  Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
                 RandomizeLivery(v);
                 break;
+
             case SpawnBehavior.Higgins:
                 if (modelName == "conada")
                 {
@@ -273,17 +293,24 @@ public class SpawnMP : Script
                     v.Mods.SecondaryColor = (VehicleColor)6;
                     v.Mods[VehicleModType.Livery].Index = 9;
                 }
-                Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
-                Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+                v.Mods.PearlescentColor = VehicleColor.MetallicMidnightSilver;
+                // RESTORED: Physics flags
+               // Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+                //Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
                 break;
+
             case SpawnBehavior.Armoured:
                 v.Mods.PrimaryColor = VehicleColor.MatteBlack;
                 v.Mods.SecondaryColor = VehicleColor.MatteBlack;
                 break;
+
             case SpawnBehavior.Studio:
                 v.Mods[VehicleModType.Roof].Index = 0;
                 break;
         }
+        Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
+        Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
+
     }
 
     private string GetUniqueModel(List<string> list, SpawnSpot spot)

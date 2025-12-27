@@ -15,15 +15,12 @@ using System.IO;
 public class VehList
 {
     public static List<string> models_cult = new List<string>() {
-    "entity2",
     "autarch",
     "sc1",
     "cyclone",
     "visione",
     "xa21",
     "gp1",
-    "italigtb",
-    "italigtb2",
     "nero",
     "nero2",
     "tempesta",
@@ -34,13 +31,9 @@ public class VehList
     "fmj",
     "t20",
     "osiris",
-    "cyclone2",
-        "granger2",
-    "astron",
-    "landstalker2",
     "rebla",
     "novak",
-    "toros",
+    "sm722"
     };
 
     public static List<string> models_boats = new List<string>() {
@@ -168,12 +161,11 @@ public class VehList
     "nokota",
     "pyro",
     "mogul",
-    "howard",
+       "raiju",
     "molotok",
     "tula",
     "rogue",
     "starling",
-    "alphaz1",
     "hydra",
     };
 
@@ -182,6 +174,7 @@ public class VehList
     "hunter",
     "valkyrie",
     "savage",
+     "conada2",
     };
 
     public static List<string> models_military_opressors = new List<string>() {
