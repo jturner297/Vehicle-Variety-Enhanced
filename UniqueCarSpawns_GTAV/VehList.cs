@@ -210,7 +210,7 @@ public class VehList
     "faggio",
     "faggio3",
     "defiler",
-    "chimera",
+    //"chimera",
     "avarus",
     "cliffhanger",
     "gargoyle",
@@ -389,10 +389,11 @@ public class VehList
     
          "issi3",
           "dynasty",
-         "michelli",
+        // "michelli",
         "hustler",
            "weevil",
-          
+              "hermes",
+
 
     };
 

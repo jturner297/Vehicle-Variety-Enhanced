@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Reflection;
 using System.Linq;
 using GTA;
 using GTA.Math;
@@ -9,263 +7,361 @@ using GTA.Native;
 
 public class TrafficMP : Script
 {
-    private Vehicle _spawnedVehicle;
-    private Ped _driver;
-    private Blip _trafficBlip;
+    // ==========================================
+    //              QUICK SETTINGS
+    // ==========================================
+    private bool ShowBlips = true;          // Set 'false' to hide map markers
+    private float SpawnDistance = 175.0f;   // Distance ahead of player to spawn
+    private float DespawnDistance = 200.0f; // Distance to delete the car
+    private int SpawnChance = 100;          // 1-100% chance to spawn when slot is open
 
-    private int _nextSpawnTime = 0;
-    private int _nextSearchTime = 0;
+    // Interval: 5 Seconds (Waits this long AFTER a car disappears before finding a new one)
+    private int CheckInterval = 5000;
+    // ==========================================
 
-    private float SpawnDistance = 300.0f;
-    private float DespawnDistance = 500.0f;
-    private int RespawnDelayMs = 3000;
-    private const int SearchIntervalMs = 500;
-
-    private int _blipColor;
-    private int _trafficBlipConfig;
-    private int _streetFlag;
-
+    // State Tracking
+    private Vehicle _activeVehicle;
+    private Ped _activeDriver;
+    private Blip _activeBlip;
+    private int _nextSpawnCheckTime = 0;
     private Random _rnd = new Random();
-    private HashSet<int> _dlcModelHashes = new HashSet<int>();
-    private int _lastPlayerVehicleHandle = 0;
 
-    // List of rich zones
+    // SMART SHUFFLE SYSTEMS
+    private Dictionary<List<string>, Queue<string>> spawnQueues = new Dictionary<List<string>, Queue<string>>();
+    private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
+
+    // ==========================================
+    //              ZONE DEFINITIONS
+    // ==========================================
+
+    // 0. BANNED ZONES
+    private HashSet<string> _bannedZones = new HashSet<string>
+    {
+        "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN",
+        "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL",
+        "EBURO", "CYPRE", "BANNIN", "TATAMO", "LMESA"
+    };
+
+    // 1. RICH / UPSCALE (Supers & Classics)
     private HashSet<string> _richZones = new HashSet<string>
     {
-        "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE",
-        "CHIL", "PBLUFF", "GOLF", "MORN", "OBSERV"
+        "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL",
+        "PBLUFF", "GOLF", "MORN", "OBSERV", "HAWICK", "BURTON", "DELPE", "GALFISH"
+    };
+
+    // 2. GHETTO / SOUTH CENTRAL (Lowriders & Old School)
+    private HashSet<string> _ghettoZones = new HashSet<string>
+    {
+        "CHAMH", "DAVIS", "RANCHO", "STRAW", "MURRI"
+    };
+
+    // 3. URBAN / CITY CENTER (Old School / Vintage)
+    private HashSet<string> _urbanZones = new HashSet<string>
+    {
+        "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT",
+        "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA"
+    };
+
+    // 4. RURAL / DESERT (Empty)
+    private HashSet<string> _ruralZones = new HashSet<string>
+    {
+        "ALAMO", "DESRT", "SANDY", "GRAPES", "HARMO", "SLAB", "MTCHIL",
+        "MTGORDO", "PALETO", "PALFOR", "CMSW", "ZANCUDO", "TONGVAH",
+        "TONGVAV", "BANHAMC", "BHAMCA", "CHU", "NCHU", "CCREAK",
+        "CALAFB", "BRADP", "BRADT", "WINDF"
     };
 
     public TrafficMP()
     {
         Tick += OnTick;
         Aborted += OnAborted;
-
-        ScriptSettings config = ScriptSettings.Load("Scripts\\UniqueCarSpawns.ini");
-        _blipColor = config.GetValue<int>("MAIN", "blip_color_traffic", 3);
-        _trafficBlipConfig = config.GetValue<int>("MAIN", "traffic_cars_blips", 0);
-        _streetFlag = config.GetValue<int>("MAIN", "spawn_traffic", 1);
-        RespawnDelayMs = config.GetValue<int>("MAIN", "time_traffic_gen", 3000);
-
-        SpawnDistance = config.GetValue<float>("ADVANCED", "SpawnDistance", 300.0f);
-        DespawnDistance = config.GetValue<float>("ADVANCED", "DespawnDistance", 500.0f);
-
-        BuildDlcCache();
-    }
-
-    private void BuildDlcCache()
-    {
-        try
-        {
-            FieldInfo[] fields = typeof(VehList).GetFields(BindingFlags.Public | BindingFlags.Static);
-            foreach (var field in fields)
-            {
-                if (field.FieldType == typeof(List<string>))
-                {
-                    List<string> list = (List<string>)field.GetValue(null);
-                    if (list != null)
-                        foreach (string modelName in list) _dlcModelHashes.Add(Game.GenerateHash(modelName));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            GTA.UI.Notification.Show($"~r~TrafficMP Cache Error:~w~ {ex.Message}");
-        }
     }
 
     private void OnTick(object sender, EventArgs e)
     {
-        if (_streetFlag == 0) return;
-
         Ped player = Game.Player.Character;
 
-        // 1. SAFETY CHECK: If the script thinks we have a car, but the game deleted it
-        if (_spawnedVehicle != null && !_spawnedVehicle.Exists())
+        // 1. THEFT CHECK
+        if (_activeVehicle != null && _activeVehicle.Exists())
         {
-            CleanUp();
-            _nextSpawnTime = Game.GameTime + 1000;
+            if (player.IsInVehicle(_activeVehicle))
+            {
+                ReleaseVehicleToPlayer();
+            }
         }
 
-        // Logic to prevent spamming spawns if player is already driving a DLC car
-        if (player.IsInVehicle())
+        // 2. CLEANUP MANAGER
+        ManageCleanup(player);
+
+        // 3. SPAWN MANAGER
+        if (_activeVehicle == null)
         {
-            Vehicle playerVeh = player.CurrentVehicle;
-            if (playerVeh.Handle != _lastPlayerVehicleHandle)
+            if (Game.GameTime > _nextSpawnCheckTime)
             {
-                if (IsDlcVehicle(playerVeh))
+                ManageSpawning(player);
+
+                // Set the next check time. If spawn fails, we wait.
+                // If spawn succeeds, this timer is ignored until the car is deleted.
+                _nextSpawnCheckTime = Game.GameTime + CheckInterval;
+            }
+        }
+    }
+
+    private void ReleaseVehicleToPlayer()
+    {
+        if (_activeBlip != null && _activeBlip.Exists()) _activeBlip.Delete();
+        if (_activeVehicle != null && _activeVehicle.Exists()) _activeVehicle.MarkAsNoLongerNeeded();
+        if (_activeDriver != null && _activeDriver.Exists()) _activeDriver.MarkAsNoLongerNeeded();
+
+        _activeVehicle = null;
+        _activeDriver = null;
+        _activeBlip = null;
+
+        // [CRITICAL FIX] Reset the timer so we don't spawn another car instantly
+        _nextSpawnCheckTime = Game.GameTime + CheckInterval;
+    }
+
+    private void ManageCleanup(Ped player)
+    {
+        // Case A: The game deleted the car (e.g. overflow or mission start)
+        if (_activeVehicle != null && !_activeVehicle.Exists())
+        {
+            RemoveResources();
+            return;
+        }
+
+        // Case B: The car is too far away
+        if (_activeVehicle != null && _activeVehicle.Exists())
+        {
+            if (player.Position.DistanceTo(_activeVehicle.Position) > DespawnDistance)
+            {
+                if (!player.IsInVehicle(_activeVehicle))
                 {
-                    if (_spawnedVehicle != null) CleanUp();
-                    _nextSpawnTime = Game.GameTime + RespawnDelayMs;
+                    RemoveResources();
                 }
-                _lastPlayerVehicleHandle = playerVeh.Handle;
-            }
-        }
-        else
-        {
-            _lastPlayerVehicleHandle = 0;
-        }
-
-        // 2. DESPAWN LOGIC: If car exists and is too far
-        if (_spawnedVehicle != null && _spawnedVehicle.Exists())
-        {
-            if (player.Position.DistanceTo(_spawnedVehicle.Position) > DespawnDistance)
-            {
-                CleanUp();
-                _nextSpawnTime = Game.GameTime + RespawnDelayMs;
-            }
-        }
-        // 3. SPAWN LOGIC: If no car exists, try to spawn one
-        else if (Game.GameTime >= _nextSpawnTime)
-        {
-            if (Game.GameTime >= _nextSearchTime)
-            {
-                AttemptSpawnOptimized();
-                _nextSearchTime = Game.GameTime + SearchIntervalMs;
             }
         }
     }
 
-    private bool IsDlcVehicle(Vehicle v)
+    private void ManageSpawning(Ped player)
     {
-        return _dlcModelHashes.Contains(v.Model.Hash);
-    }
+        if (_rnd.Next(1, 101) > SpawnChance) return;
 
-    private void AttemptSpawnOptimized()
-    {
-        Ped playerPed = Game.Player.Character;
-        Vector3 playerPos = playerPed.Position;
-        Vector3 playerForward = playerPed.ForwardVector;
+        if (IsZoneBanned(player.Position)) return;
 
-        // Look for a spawn point in front of the player
-        Vector3 targetSearchPos = playerPos + (playerForward * SpawnDistance);
+        Vector3 searchPos = player.Position + (player.ForwardVector * SpawnDistance);
 
         OutputArgument outPos = new OutputArgument();
         OutputArgument outHead = new OutputArgument();
 
-        // Find a valid road node
+        // Strict Node Search (0 = Main Roads Only)
         Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING,
-            targetSearchPos.X, targetSearchPos.Y, targetSearchPos.Z,
-            outPos, outHead, 1, 3.0f, 0);
+            searchPos.X, searchPos.Y, searchPos.Z,
+            outPos, outHead, 0, 3.0f, 0);
 
-        Vector3 spawnNodePos = outPos.GetResult<Vector3>();
-        float spawnNodeHeading = outHead.GetResult<float>();
+        Vector3 spawnPos = outPos.GetResult<Vector3>();
+        float spawnHeading = outHead.GetResult<float>();
 
-        if (spawnNodePos != Vector3.Zero)
+        if (spawnPos == Vector3.Zero) return;
+        if (player.Position.DistanceTo(spawnPos) < 100.0f) return;
+
+        if (IsZoneBanned(spawnPos)) return;
+
+        string modelName = GetModelForLocation(spawnPos);
+        if (string.IsNullOrEmpty(modelName)) return;
+
+        CreateTrafficEntity(modelName, spawnPos, spawnHeading);
+    }
+
+    private bool IsZoneBanned(Vector3 pos)
+    {
+        string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
+        return _bannedZones.Contains(zone);
+    }
+
+    private void CreateTrafficEntity(string modelName, Vector3 pos, float heading)
+    {
+        Model model = new Model(modelName);
+        if (!model.IsValid || !model.IsInCdImage) return;
+
+        model.Request(500);
+        if (!model.IsLoaded) return;
+
+        Function.Call(Hash.CLEAR_AREA_OF_VEHICLES, pos.X, pos.Y, pos.Z, 5.0f, false, false, false, false, false);
+
+        _activeVehicle = World.CreateVehicle(model, pos, heading);
+
+        if (_activeVehicle != null)
         {
-            // Ensure we don't spawn right on top of the player
-            if (playerPos.DistanceTo(spawnNodePos) > 60.0f)
-            {
-                string modelToSpawn = GetModelFromContext(spawnNodePos);
+            _activeVehicle.IsPersistent = true;
+            _activeVehicle.IsEngineRunning = true;
+            _activeVehicle.AreLightsOn = true;
 
-                if (!string.IsNullOrEmpty(modelToSpawn))
-                {
-                    SpawnTrafficVehicle(spawnNodePos, spawnNodeHeading, modelToSpawn);
-                }
+            ApplyTrafficMods(_activeVehicle, modelName);
+
+            _activeDriver = _activeVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
+            if (_activeDriver != null)
+            {
+                _activeDriver.BlockPermanentEvents = false;
+                _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f, DrivingStyle.Normal);
+            }
+
+            if (ShowBlips)
+            {
+                _activeBlip = _activeVehicle.AddBlip();
+                _activeBlip.Sprite = BlipSprite.PersonalVehicleCar;
+                _activeBlip.Color = BlipColor.Purple;
+                _activeBlip.Name = "Exotic Traffic";
+                Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
+            }
+        }
+
+        model.MarkAsNoLongerNeeded();
+    }
+
+    private void ApplyTrafficMods(Vehicle v, string modelName)
+    {
+        v.Mods.InstallModKit();
+
+        // 1. High-End Lights (Supers/Sports only)
+        if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
+        {
+            v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
+        }
+
+        // 2. Factory Colors (All Cars)
+        int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
+        if (comboCount > 0)
+        {
+            Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, v, _rnd.Next(0, comboCount));
+        }
+
+        // 3. LOWRIDERS ONLY: Apply Random Body Mods & Liveries
+        if (VehList.models_lowriders.Contains(modelName))
+        {
+            ApplyRandomVisuals(v);
+            RandomizeLivery(v);
+        }
+    }
+
+    private void ApplyRandomVisuals(Vehicle v)
+    {
+        var performanceTypes = new List<VehicleModType> {
+            VehicleModType.Engine,
+            VehicleModType.Brakes,
+            VehicleModType.Transmission,
+            VehicleModType.Suspension,
+            VehicleModType.Armor
+        };
+
+        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+        {
+            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns) continue;
+
+            int count = v.Mods[modType].Count;
+            if (count > 0)
+            {
+                v.Mods[modType].Index = _rnd.Next(0, count);
             }
         }
     }
 
-    private string GetModelFromContext(Vector3 position)
+    private void RandomizeLivery(Vehicle v)
     {
-        string zoneName = Function.Call<string>(Hash.GET_NAME_OF_ZONE, position.X, position.Y, position.Z);
-        bool isRichZone = _richZones.Contains(zoneName);
-
-        // --- TEST MODE: ONLY SUPERS AND CLASSICS ---
-
-        if (isRichZone)
-        {
-            // 1. RICH ZONES -> SUPERS
-            return GetRandomModel(VehList.models_supers);
-        }
-        else
-        {
-            // 2. EVERYWHERE ELSE -> CLASSICS
-            return GetRandomModel(VehList.models_classics);
-        }
+        int count = v.Mods.LiveryCount;
+        if (count > 0) v.Mods.Livery = _rnd.Next(0, count);
     }
 
-    private string GetRandomModel(List<string> list)
+    private string GetModelForLocation(Vector3 pos)
+    {
+        string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
+
+        if (_bannedZones.Contains(zone)) return null;
+
+        // 1. RICH ZONES: Supers & Classics
+        if (_richZones.Contains(zone))
+        {
+            if (_rnd.Next(0, 2) == 0) return GetUniqueModel(VehList.models_supers);
+            return GetUniqueModel(VehList.models_classics);
+        }
+
+        // 2. GHETTO ZONES: Lowriders & Old School (50/50 Split)
+        if (_ghettoZones.Contains(zone))
+        {
+            if (_rnd.Next(0, 2) == 0) return GetUniqueModel(VehList.models_lowriders);
+            return GetUniqueModel(VehList.models_old_school);
+        }
+
+        // 3. URBAN ZONES: Old School Only
+        if (_urbanZones.Contains(zone))
+        {
+            return GetUniqueModel(VehList.models_old_school);
+        }
+
+        return null;
+    }
+
+    // --- SMART SHUFFLE LOGIC ---
+    private string GetUniqueModel(List<string> list)
     {
         if (list == null || list.Count == 0) return null;
-        return list[_rnd.Next(list.Count)];
-    }
 
-    private void SpawnTrafficVehicle(Vector3 position, float heading, string modelName)
-    {
-        Model carModel = new Model(modelName);
-
-        if (!carModel.IsValid || !carModel.IsInCdImage) return;
-
-        carModel.Request(500);
-        if (!carModel.IsLoaded) return;
-
-        // Clear area slightly
-        Function.Call(Hash.CLEAR_AREA_OF_VEHICLES, position.X, position.Y, position.Z, 6.0f, false, false, false, false, false);
-
-        _spawnedVehicle = World.CreateVehicle(carModel, position, heading);
-
-        if (_spawnedVehicle != null)
+        if (!spawnQueues.ContainsKey(list) || spawnQueues[list].Count == 0)
         {
-            if (_trafficBlipConfig == 1) CreateMarkerAboveCar(_spawnedVehicle);
+            List<string> freshBatch = new List<string>(list);
 
-            _spawnedVehicle.IsPersistent = true; // IMPORTANT: Prevents game from deleting it instantly
-            _spawnedVehicle.IsEngineRunning = true;
-            _spawnedVehicle.AreLightsOn = true;
+            // Calls the PRIVATE static utility to avoid conflict with ParkedMP
+            TrafficUtils.Shuffle(freshBatch);
 
-            // Create visible driver
-            _driver = _spawnedVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
-
-            if (_driver != null)
+            if (lastSpawnedDict.ContainsKey(list) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[list])
             {
-                _driver.IsVisible = true;
-                _driver.CanBeTargetted = true;
-                _driver.BlockPermanentEvents = false;
-                _driver.Task.CruiseWithVehicle(_spawnedVehicle, 20.0f, DrivingStyle.Normal);
+                string temp = freshBatch[0];
+                freshBatch[0] = freshBatch[freshBatch.Count - 1];
+                freshBatch[freshBatch.Count - 1] = temp;
             }
+            spawnQueues[list] = new Queue<string>(freshBatch);
         }
 
-        carModel.MarkAsNoLongerNeeded();
+        string selection = spawnQueues[list].Dequeue();
+        lastSpawnedDict[list] = selection;
+        return selection;
     }
 
-    private void CleanUp()
+    private void RemoveResources()
     {
-        // 1. Force delete the Blip immediately
-        if (_trafficBlip != null && _trafficBlip.Exists())
-        {
-            _trafficBlip.Delete();
-        }
-        _trafficBlip = null;
+        if (_activeBlip != null && _activeBlip.Exists()) _activeBlip.Delete();
+        if (_activeDriver != null && _activeDriver.Exists()) _activeDriver.Delete();
+        if (_activeVehicle != null && _activeVehicle.Exists()) _activeVehicle.Delete();
 
-        // 2. Clean up driver
-        if (_driver != null && _driver.Exists())
-        {
-            _driver.Delete();
-        }
-        _driver = null;
+        _activeBlip = null;
+        _activeDriver = null;
+        _activeVehicle = null;
 
-        // 3. Clean up vehicle
-        if (_spawnedVehicle != null && _spawnedVehicle.Exists())
-        {
-            _spawnedVehicle.Delete();
-        }
-        // IMPORTANT: Set this to null so the script knows it's free to spawn a new one
-        _spawnedVehicle = null;
-    }
-
-    private void CreateMarkerAboveCar(Vehicle car)
-    {
-        if (_trafficBlip != null && _trafficBlip.Exists()) _trafficBlip.Delete();
-
-        _trafficBlip = Function.Call<Blip>(Hash.ADD_BLIP_FOR_ENTITY, car);
-        Function.Call(Hash.SET_BLIP_SPRITE, _trafficBlip, 1);
-        Function.Call(Hash.SET_BLIP_COLOUR, _trafficBlip, _blipColor);
-        Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
-        _trafficBlip.Name = "Unique vehicle";
+        // [CRITICAL FIX] Reset the timer so we don't spawn another car instantly
+        _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
     private void OnAborted(object sender, EventArgs e)
     {
-        CleanUp();
+        RemoveResources();
+    }
+}
+
+// PRIVATE UTILITY CLASS (Does not use 'this' extension method syntax to avoid conflicts)
+public static class TrafficUtils
+{
+    private static Random rng = new Random();
+
+    public static void Shuffle<T>(IList<T> list)
+    {
+        int n = list.Count;
+        while (n > 1)
+        {
+            n--;
+            int k = rng.Next(n + 1);
+            T value = list[k];
+            list[k] = list[n];
+            list[n] = value;
+        }
     }
 }
