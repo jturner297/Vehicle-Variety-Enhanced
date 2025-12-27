@@ -389,13 +389,28 @@ public class VehList
     
          "issi3",
           "dynasty",
-        // "michelli",
         "hustler",
            "weevil",
               "hermes",
-
-
+                    "eudora",
+                     "fagaloa",
+                          "clique",
+                             "coquette3",
     };
+    public static List<string> models_wacky = new List<string>() {
 
+
+         "dukes3",
+          "cheburek",
+        "comet4",
+           "hotknife",
+              "weevil2",
+              "patriot3",
+              "peyote2",
+              "ratloader2",
+               "ratloader",
+               "tornado6",
+        "winky"
+    };      
 
 }

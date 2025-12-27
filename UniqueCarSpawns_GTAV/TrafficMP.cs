@@ -31,6 +31,17 @@ public class TrafficMP : Script
     private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
 
     // ==========================================
+    //              EXCLUSION LIST (BLACKLIST)
+    // ==========================================
+    // Cars listed here will NEVER spawn in traffic.
+    private HashSet<string> _excludedModels = new HashSet<string>
+    {
+        "turismo2", //Banned from traffic
+         "sm722",
+           "prototipo"
+    };
+
+    // ==========================================
     //              ZONE DEFINITIONS
     // ==========================================
 
@@ -99,9 +110,6 @@ public class TrafficMP : Script
             if (Game.GameTime > _nextSpawnCheckTime)
             {
                 ManageSpawning(player);
-
-                // Set the next check time. If spawn fails, we wait.
-                // If spawn succeeds, this timer is ignored until the car is deleted.
                 _nextSpawnCheckTime = Game.GameTime + CheckInterval;
             }
         }
@@ -117,20 +125,17 @@ public class TrafficMP : Script
         _activeDriver = null;
         _activeBlip = null;
 
-        // [CRITICAL FIX] Reset the timer so we don't spawn another car instantly
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
     private void ManageCleanup(Ped player)
     {
-        // Case A: The game deleted the car (e.g. overflow or mission start)
         if (_activeVehicle != null && !_activeVehicle.Exists())
         {
             RemoveResources();
             return;
         }
 
-        // Case B: The car is too far away
         if (_activeVehicle != null && _activeVehicle.Exists())
         {
             if (player.Position.DistanceTo(_activeVehicle.Position) > DespawnDistance)
@@ -154,7 +159,6 @@ public class TrafficMP : Script
         OutputArgument outPos = new OutputArgument();
         OutputArgument outHead = new OutputArgument();
 
-        // Strict Node Search (0 = Main Roads Only)
         Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING,
             searchPos.X, searchPos.Y, searchPos.Z,
             outPos, outHead, 0, 3.0f, 0);
@@ -195,7 +199,7 @@ public class TrafficMP : Script
         {
             _activeVehicle.IsPersistent = true;
             _activeVehicle.IsEngineRunning = true;
-            _activeVehicle.AreLightsOn = true;
+            Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
 
             ApplyTrafficMods(_activeVehicle, modelName);
 
@@ -203,7 +207,12 @@ public class TrafficMP : Script
             if (_activeDriver != null)
             {
                 _activeDriver.BlockPermanentEvents = false;
-                _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f, DrivingStyle.Normal);
+
+                // [FIXED] Updated Flags: StopForVehicles & StopForPeds
+                _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f,
+                    VehicleDrivingFlags.StopAtTrafficLights |
+                    VehicleDrivingFlags.StopForVehicles |
+                    VehicleDrivingFlags.StopForPeds);
             }
 
             if (ShowBlips)
@@ -223,20 +232,17 @@ public class TrafficMP : Script
     {
         v.Mods.InstallModKit();
 
-        // 1. High-End Lights (Supers/Sports only)
         if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
             v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
         }
 
-        // 2. Factory Colors (All Cars)
         int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
         if (comboCount > 0)
         {
             Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, v, _rnd.Next(0, comboCount));
         }
 
-        // 3. LOWRIDERS ONLY: Apply Random Body Mods & Liveries
         if (VehList.models_lowriders.Contains(modelName))
         {
             ApplyRandomVisuals(v);
@@ -278,21 +284,18 @@ public class TrafficMP : Script
 
         if (_bannedZones.Contains(zone)) return null;
 
-        // 1. RICH ZONES: Supers & Classics
         if (_richZones.Contains(zone))
         {
             if (_rnd.Next(0, 2) == 0) return GetUniqueModel(VehList.models_supers);
             return GetUniqueModel(VehList.models_classics);
         }
 
-        // 2. GHETTO ZONES: Lowriders & Old School (50/50 Split)
         if (_ghettoZones.Contains(zone))
         {
             if (_rnd.Next(0, 2) == 0) return GetUniqueModel(VehList.models_lowriders);
             return GetUniqueModel(VehList.models_old_school);
         }
 
-        // 3. URBAN ZONES: Old School Only
         if (_urbanZones.Contains(zone))
         {
             return GetUniqueModel(VehList.models_old_school);
@@ -301,7 +304,6 @@ public class TrafficMP : Script
         return null;
     }
 
-    // --- SMART SHUFFLE LOGIC ---
     private string GetUniqueModel(List<string> list)
     {
         if (list == null || list.Count == 0) return null;
@@ -310,7 +312,10 @@ public class TrafficMP : Script
         {
             List<string> freshBatch = new List<string>(list);
 
-            // Calls the PRIVATE static utility to avoid conflict with ParkedMP
+            freshBatch.RemoveAll(x => _excludedModels.Contains(x));
+
+            if (freshBatch.Count == 0) return null;
+
             TrafficUtils.Shuffle(freshBatch);
 
             if (lastSpawnedDict.ContainsKey(list) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[list])
@@ -337,7 +342,6 @@ public class TrafficMP : Script
         _activeDriver = null;
         _activeVehicle = null;
 
-        // [CRITICAL FIX] Reset the timer so we don't spawn another car instantly
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
@@ -347,11 +351,9 @@ public class TrafficMP : Script
     }
 }
 
-// PRIVATE UTILITY CLASS (Does not use 'this' extension method syntax to avoid conflicts)
 public static class TrafficUtils
 {
     private static Random rng = new Random();
-
     public static void Shuffle<T>(IList<T> list)
     {
         int n = list.Count;

@@ -125,7 +125,9 @@ public class SpawnMP : Script
             new SpawnSpot("M_Planes_2", new Vector3(-1934.867f, 3109.608f, 32.810f), 150.073f, VehList.models_military_planes, SpawnBehavior.NoVisuals),
             new SpawnSpot("M_Helis", new Vector3(-1965.212f, 3101.532f, 32.810f), 236.324f, VehList.models_military_helicopters, SpawnBehavior.NoVisuals),
 
-
+            //Desert
+              new SpawnSpot("Wacky1", new Vector3(140.945f, 6606.513f, 30.845f), 0.239f, VehList.models_wacky, SpawnBehavior.Standard),
+              new SpawnSpot("Wacky2", new Vector3(1205.454f, 2658.357f, 36.824f), 223.627f, VehList.models_wacky, SpawnBehavior.Standard),
         };
 
         Tick += OnTick;
@@ -307,6 +309,11 @@ public class SpawnMP : Script
             case SpawnBehavior.Studio:
                 v.Mods[VehicleModType.Roof].Index = 0;
                 break;
+        }
+
+        if (modelName == "turismo2")
+        {
+            v.Mods[VehicleModType.Spoilers].Index = 3;
         }
         Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
         Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
