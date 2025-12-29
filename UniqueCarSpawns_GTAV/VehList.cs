@@ -287,8 +287,6 @@ public class VehList
 "prototipo",
 "nero",
 "nero2",
-"visione",
-"sm722",
 "banshee3",
 "deveste",
     };
@@ -304,7 +302,8 @@ public class VehList
        "penetrator",
        "pfister811",
        "cyclone",
-
+       "sm722",
+       "visione",
 
     };
 

@@ -13,10 +13,9 @@ public class SpawnMP : Script
     private bool ShowBlips = true;
     private bool LockDoors = true;
 
-    // CHANGED: Separate Spawn and Despawn ranges (Hysteresis)
+    // Hysteresis Settings (Prevents Flickering)
     private float SpawnDistance = 250f;
-    private float DespawnDistance = 500f; // Must be larger than SpawnDistance
-
+    private float DespawnDistance = 500f; // Buffer zone
     private float SpawnDistMin = 200f;
     // ==========================================
 
@@ -28,7 +27,7 @@ public class SpawnMP : Script
     private Dictionary<SpawnSpot, Vehicle> vehDict = new Dictionary<SpawnSpot, Vehicle>();
     private Dictionary<SpawnSpot, Blip> markerDict = new Dictionary<SpawnSpot, Blip>();
 
-    // NEW: Cooldown Tracking (Prevents pop-in after you steal a car)
+    // Cooldown Tracking (Prevents pop-in after you steal a car)
     private HashSet<SpawnSpot> cooldownSpots = new HashSet<SpawnSpot>();
 
     // Shuffle Logic
@@ -45,10 +44,41 @@ public class SpawnMP : Script
             GTA.UI.Notification.PostTicker($"~r~WARNING: Game Version Mismatch.\nRequired: {mod_version}", true);
         }
 
-        // [Your existing AllSpawns list remains here - compacted for brevity]
+        // INITIALIZE SPAWNS
         AllSpawns = new List<SpawnSpot>()
         {
-            // Racing
+            // --- SUPERS (Dual List: 85% Common, 15% Rare) ---
+            new SpawnSpot("Super1", new Vector3(-1873.6f, -343.933f, 48.26f), 225.300f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super2", new Vector3(-1297.2f, 252.495f, 61.813f), 3.035f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super3", new Vector3(-345.267f, 662.299f, 168.587f), 171.211f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super4", new Vector3(-72.605f, 902.579f, 234.631f), 291.351f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super5", new Vector3(-1451.92f, 533.495f, 118.177f), 73.674f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super6", new Vector3(443.542f, 253.197f, 102.21f), 245.845f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super7", new Vector3(-397.528f, 210.366f, 82.789f), 91.136f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super8", new Vector3(-220.102f, -590.273f, 33.264f), 341.667f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super9", new Vector3(-1535.044f, 890.5871f, 181.3348f), 19.505f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super10", new Vector3(-718.511f, -74.684f, 36.916f), 62.242f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super11", new Vector3(-1126.722f, -318.281f, 37.21f), -95.129f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super12", new Vector3(-801.566f, -1313.92f, 4.0f), 169.408f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super13", new Vector3(-504.323f, 424.21f, 96.287f), 313.167f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super14", new Vector3(-1979.25f, 586.078f, 116.479f), 185.087f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+            new SpawnSpot("Super15", new Vector3(-2340.907f, 295.8933f, 169.1187f), 294.0081f, VehList.models_supers_common, SpawnBehavior.NoVisuals, VehList.models_supers_rare, 15),
+
+            // --- CLASSICS (Dual List: 85% Common, 15% Rare) ---
+            new SpawnSpot("RetroSports1", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports2", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports3", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports4", new Vector3(-1886.25f, 2016.572f, 139.951f), 160.257f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports5", new Vector3(-817.325f, -1201.59f, 5.935f), 318.133f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports6", new Vector3(-1407.751f, -589.1447f, 29.65687f), 298.673f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports7", new Vector3(-552.673f, 309.154f, 82.191f), 260.340f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports8", new Vector3(339.481f, 159.143f, 102.146f), 71.345f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports9", new Vector3(-3036.57f, 105.31f, 10.593f), 141.262f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports10", new Vector3(-205.516f, 281.035f, 91.818f), 165.351f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports11", new Vector3(-972.578f, -1464.27f, 4.013f), 294.730f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+            new SpawnSpot("RetroSports12", new Vector3(-489.2397f, -596.5908f, 30.56949f), 358.1453f, VehList.models_classics_common, SpawnBehavior.NoVisuals, VehList.models_classics_rare, 15),
+
+            // Racing (Single List - No Changes)
             new SpawnSpot("ArenaHotring1", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.Standard),
             new SpawnSpot("ArenaHotring2", new Vector3(1189.208f, 304.6935f, 81.48812f), 146.908f, VehList.models_arena_hotring, SpawnBehavior.Standard),
             new SpawnSpot("ArenaSpeed1", new Vector3(-176.5869f, -2019.529f, 27.14398f), 75.334f, VehList.models_arena_speed, SpawnBehavior.Standard),
@@ -80,37 +110,6 @@ public class SpawnMP : Script
             new SpawnSpot("Lowrider_6", new Vector3(298.2452f, -1241.624f, 28.75226f), -179.719f, VehList.models_lowriders, SpawnBehavior.Standard),
             new SpawnSpot("Lowrider_7", new Vector3(264.0245f, -1512.3302f, 28.7877f), 268.336f, VehList.models_lowriders, SpawnBehavior.Standard),
 
-            // Classics
-            new SpawnSpot("RetroSports1", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports2", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports3", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports4", new Vector3(-1886.25f, 2016.572f, 139.951f), 160.257f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports5", new Vector3(-817.325f, -1201.59f, 5.935f), 318.133f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports6", new Vector3(-1407.751f, -589.1447f, 29.65687f), 298.673f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports7", new Vector3(-552.673f, 309.154f, 82.191f), 260.340f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports8", new Vector3(339.481f, 159.143f, 102.146f), 71.345f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports9", new Vector3(-3036.57f, 105.31f, 10.593f), 141.262f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports10", new Vector3(-205.516f, 281.035f, 91.818f), 165.351f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports11", new Vector3(-972.578f, -1464.27f, 4.013f), 294.730f, VehList.models_classics, SpawnBehavior.NoVisuals),
-            new SpawnSpot("RetroSports12", new Vector3(-489.2397f, -596.5908f, 30.56949f), 358.1453f, VehList.models_classics, SpawnBehavior.NoVisuals),
-
-            // Supers
-            new SpawnSpot("Super1", new Vector3(-1873.6f, -343.933f, 48.26f), 225.300f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super2", new Vector3(-1297.2f, 252.495f, 61.813f), 3.035f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super3", new Vector3(-345.267f, 662.299f, 168.587f), 171.211f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super4", new Vector3(-72.605f, 902.579f, 234.631f), 291.351f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super5", new Vector3(-1451.92f, 533.495f, 118.177f), 73.674f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super6", new Vector3(443.542f, 253.197f, 102.21f), 245.845f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super7", new Vector3(-397.528f, 210.366f, 82.789f), 91.136f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super8", new Vector3(-220.102f, -590.273f, 33.264f), 341.667f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super9", new Vector3(-1535.044f, 890.5871f, 181.3348f), 19.505f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super10", new Vector3(-718.511f, -74.684f, 36.916f), 62.242f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super11", new Vector3(-1126.722f, -318.281f, 37.21f), -95.129f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super12", new Vector3(-801.566f, -1313.92f, 4.0f), 169.408f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super13", new Vector3(-504.323f, 424.21f, 96.287f), 313.167f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super14", new Vector3(-1979.25f, 586.078f, 116.479f), 185.087f, VehList.models_supers, SpawnBehavior.NoVisuals),
-            new SpawnSpot("Super15", new Vector3(-2340.907f, 295.8933f, 169.1187f), 294.0081f, VehList.models_supers, SpawnBehavior.NoVisuals),
-
             // Armoured
             new SpawnSpot("Armoured1", new Vector3(110.261f, -714.605f, 32.133f), 341.667f, VehList.models_armoured, SpawnBehavior.Armoured),
             new SpawnSpot("Armoured2", new Vector3(-340.161f, -876.799f, 30.90968f), 347.7794f, VehList.models_armoured, SpawnBehavior.Armoured),
@@ -129,7 +128,7 @@ public class SpawnMP : Script
             new SpawnSpot("M_Planes_2", new Vector3(-1934.867f, 3109.608f, 32.810f), 150.073f, VehList.models_military_planes, SpawnBehavior.NoVisuals),
             new SpawnSpot("M_Helis", new Vector3(-1965.212f, 3101.532f, 32.810f), 236.324f, VehList.models_military_helicopters, SpawnBehavior.NoVisuals),
 
-            //Desert
+            // Desert
             new SpawnSpot("Wacky1", new Vector3(140.945f, 6606.513f, 30.845f), 0.239f, VehList.models_wacky, SpawnBehavior.Standard),
             new SpawnSpot("Wacky2", new Vector3(1205.454f, 2658.357f, 36.824f), 223.627f, VehList.models_wacky, SpawnBehavior.Standard),
         };
@@ -144,60 +143,50 @@ public class SpawnMP : Script
         var playerPos = player.Position;
         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
 
-        // --- 1. MISSION CLEANUP ---
         if (isMissionActive)
         {
             CleanupAll();
             return;
         }
 
-        // --- 2. PLAYER INTERACTION (OWNERSHIP TRANSFER) ---
-        // NEW: If player is inside the car, we "release" it so the script stops tracking it.
+        // --- OWNERSHIP TRANSFER ---
         foreach (var spot in vehDict.Keys.ToList())
         {
             Vehicle car = vehDict[spot];
 
-            // Safety check
             if (car == null || !car.Exists())
             {
                 vehDict.Remove(spot);
                 continue;
             }
 
-            // Simple Check: Are you inside?
             if (player.IsInVehicle(car))
             {
-                // Remove Blip
                 DeleteBlipForSpot(spot);
-
-                // Let the game handle cleanup naturally now
                 car.MarkAsNoLongerNeeded();
-
-                // Remove from our dictionary
                 vehDict.Remove(spot);
-
-                // Add to Cooldown so we don't spawn a clone instantly behind you
                 cooldownSpots.Add(spot);
             }
         }
 
-        // --- 3. SPAWN LOGIC ---
+        // --- SPAWN LOGIC ---
         if (Game.GameTime > nextSpawnCheck)
         {
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
 
-                // RESET COOLDOWN: If we are far enough away (outside Despawn range), reset the spot
+                // Reset Cooldown
                 if (distance > DespawnDistance && cooldownSpots.Contains(spot))
                 {
                     cooldownSpots.Remove(spot);
                 }
 
-                // SPAWN CHECK
                 if (distance < SpawnDistance && distance > SpawnDistMin && !vehDict.ContainsKey(spot) && !cooldownSpots.Contains(spot))
                 {
-                    string modelName = GetUniqueModel(spot.ModelList, spot);
+                    // CHANGED: Passing the whole 'spot' object to get the weighted choice
+                    string modelName = GetUniqueModel(spot);
+
                     if (modelName != null)
                     {
                         var vehicle = CreateNewVehicle(modelName, spot.Position, spot.Heading);
@@ -213,7 +202,7 @@ public class SpawnMP : Script
             nextSpawnCheck = Game.GameTime + 500;
         }
 
-        // --- 4. PROXIMITY CLEANUP ---
+        // --- CLEANUP LOGIC ---
         foreach (var spot in vehDict.Keys.ToList())
         {
             var car = vehDict[spot];
@@ -224,12 +213,48 @@ public class SpawnMP : Script
                 continue;
             }
 
-            // CHANGED: Uses 'DespawnDistance' to create the buffer zone
             if (Vector3.Distance(spot.Position, playerPos) > DespawnDistance)
             {
                 DeleteSpotResources(spot);
             }
         }
+    }
+
+    // CHANGED: Logic to select between Main and Rare lists
+    private string GetUniqueModel(SpawnSpot spot)
+    {
+        // 1. DEFAULT: Pick the main list (Online/Common)
+        List<string> targetList = spot.ModelList;
+
+        // 2. CHANCE CHECK: Do we switch to the Rare list?
+        if (spot.RareList != null && spot.RareList.Count > 0)
+        {
+            if (random.Next(0, 100) < spot.RareChance)
+            {
+                targetList = spot.RareList;
+            }
+        }
+
+        // 3. SHUFFLE LOGIC
+        if (targetList == null || targetList.Count == 0) return null;
+
+        if (!spawnQueues.ContainsKey(targetList) || spawnQueues[targetList].Count == 0)
+        {
+            List<string> freshBatch = new List<string>(targetList);
+            freshBatch.Shuffle();
+
+            if (lastSpawnedDict.ContainsKey(targetList) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[targetList])
+            {
+                string temp = freshBatch[0];
+                freshBatch[0] = freshBatch[freshBatch.Count - 1];
+                freshBatch[freshBatch.Count - 1] = temp;
+            }
+            spawnQueues[targetList] = new Queue<string>(freshBatch);
+        }
+
+        string selection = spawnQueues[targetList].Dequeue();
+        lastSpawnedDict[targetList] = selection;
+        return selection;
     }
 
     private Vehicle CreateNewVehicle(string hash, Vector3 pos, float heading)
@@ -329,29 +354,6 @@ public class SpawnMP : Script
         Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
     }
 
-    private string GetUniqueModel(List<string> list, SpawnSpot spot)
-    {
-        if (list == null || list.Count == 0) return null;
-
-        if (!spawnQueues.ContainsKey(list) || spawnQueues[list].Count == 0)
-        {
-            List<string> freshBatch = new List<string>(list);
-            freshBatch.Shuffle();
-
-            if (lastSpawnedDict.ContainsKey(list) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[list])
-            {
-                string temp = freshBatch[0];
-                freshBatch[0] = freshBatch[freshBatch.Count - 1];
-                freshBatch[freshBatch.Count - 1] = temp;
-            }
-            spawnQueues[list] = new Queue<string>(freshBatch);
-        }
-
-        string selection = spawnQueues[list].Dequeue();
-        lastSpawnedDict[list] = selection;
-        return selection;
-    }
-
     private void ApplyRandomVisuals(Vehicle v)
     {
         var performanceTypes = new List<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
@@ -405,17 +407,30 @@ public class SpawnMP : Script
     private void OnAborted(object sender, EventArgs e) => CleanupAll();
 }
 
+// CHANGED: Updated SpawnSpot Class to hold optional Rare List
 public class SpawnSpot
 {
     public string Id { get; set; }
     public Vector3 Position { get; set; }
     public float Heading { get; set; }
-    public List<string> ModelList { get; set; }
     public SpawnBehavior Behavior { get; set; }
 
-    public SpawnSpot(string id, Vector3 pos, float head, List<string> list, SpawnBehavior behavior)
+    // Primary List (Common)
+    public List<string> ModelList { get; set; }
+
+    // Secondary (Rare) List & Chance
+    public List<string> RareList { get; set; }
+    public int RareChance { get; set; }
+
+    public SpawnSpot(string id, Vector3 pos, float head, List<string> list, SpawnBehavior behavior, List<string> rareList = null, int rareChance = 0)
     {
-        Id = id; Position = pos; Heading = head; ModelList = list; Behavior = behavior;
+        Id = id;
+        Position = pos;
+        Heading = head;
+        ModelList = list;
+        Behavior = behavior;
+        RareList = rareList;
+        RareChance = rareChance;
     }
 }
 

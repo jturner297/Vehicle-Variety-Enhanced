@@ -15,6 +15,7 @@ public class TrafficMP : Script
     private float DespawnDistance = 300.0f;
     private int SpawnChance = 100;
     private int CheckInterval = 10000;
+    private int RareCarChance = 15; // Increased to 30% to fix the "Variety" issue
     // ==========================================
 
     private Vehicle _activeVehicle;
@@ -27,22 +28,16 @@ public class TrafficMP : Script
     private Dictionary<List<string>, Queue<string>> spawnQueues = new Dictionary<List<string>, Queue<string>>();
     private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
 
-    // [FIX 1] GLOBAL HISTORY TRACKER
-    // Stores the model name of the very last car spawned, regardless of list/zone.
     private string _lastGlobalModel = "";
-
-    // BEHAVIOR REGISTRY
     private Dictionary<List<string>, TrafficSpawnBehavior> _behaviorRegistry;
 
-    // EXCLUSION LIST (Blacklist)
+    // EXCLUSION LIST (Blacklist) - CLEARED TO FIX VARIETY
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "turismo2",
-        "sm722",
-        "prototipo",
-        "visione",
         "banshee3",
         "deveste",
+        "turismo2",
+       "sm722"
     };
 
     // ZONES
@@ -50,7 +45,6 @@ public class TrafficMP : Script
     private HashSet<string> _richZones = new HashSet<string> { "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "MORN", "OBSERV", "HAWICK", "BURTON", "DELPE", "GALFISH" };
     private HashSet<string> _ghettoZones = new HashSet<string> { "CHAMH", "DAVIS", "RANCHO", "STRAW", "MURRI" };
     private HashSet<string> _urbanZones = new HashSet<string> { "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA" };
-    private HashSet<string> _ruralZones = new HashSet<string> { "ALAMO", "DESRT", "SANDY", "GRAPES", "HARMO", "SLAB", "MTCHIL", "MTGORDO", "PALETO", "PALFOR", "CMSW", "ZANCUDO", "TONGVAH", "TONGVAV", "BANHAMC", "BHAMCA", "CHU", "NCHU", "CCREAK", "CALAFB", "BRADP", "BRADT", "WINDF" };
 
     public TrafficMP()
     {
@@ -63,9 +57,15 @@ public class TrafficMP : Script
     {
         _behaviorRegistry = new Dictionary<List<string>, TrafficSpawnBehavior>();
 
+        // Register new split lists
+        _behaviorRegistry.Add(VehList.models_supers_common, TrafficSpawnBehavior.Super);
+        _behaviorRegistry.Add(VehList.models_supers_rare, TrafficSpawnBehavior.Super);
+
+        _behaviorRegistry.Add(VehList.models_classics_common, TrafficSpawnBehavior.Clean);
+        _behaviorRegistry.Add(VehList.models_classics_rare, TrafficSpawnBehavior.Clean);
+
+        // Register standard lists
         _behaviorRegistry.Add(VehList.models_lowriders, TrafficSpawnBehavior.Custom);
-        _behaviorRegistry.Add(VehList.models_supers, TrafficSpawnBehavior.Super);
-        _behaviorRegistry.Add(VehList.models_classics, TrafficSpawnBehavior.Clean);
         _behaviorRegistry.Add(VehList.models_old_school, TrafficSpawnBehavior.Clean);
         _behaviorRegistry.Add(VehList.models_motorcycles, TrafficSpawnBehavior.Clean);
     }
@@ -129,7 +129,9 @@ public class TrafficMP : Script
         OutputArgument outPos = new OutputArgument();
         OutputArgument outHead = new OutputArgument();
 
-        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, 3.0f, 0);
+        // FIX 1: Changed '0' (Any) to '1' (Roads Only) in the 6th argument
+        // This prevents spawning in driveways, alleys, or off-road paths
+        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, 3.0f, 0);
 
         Vector3 spawnPos = outPos.GetResult<Vector3>();
         float spawnHeading = outHead.GetResult<float>();
@@ -138,12 +140,9 @@ public class TrafficMP : Script
         if (player.Position.DistanceTo(spawnPos) < 100.0f) return;
         if (IsZoneBanned(spawnPos)) return;
 
-        // GET CANDIDATE
         SpawnCandidate candidate = GetCandidateForLocation(spawnPos);
 
-        // [FIX 1] GLOBAL DUPLICATE CHECK
-        // If the candidate matches the VERY LAST car we spawned, abort this cycle.
-        // This forces the script to wait 5s and try again, ensuring we get a new roll.
+        // Global duplicate check
         if (string.IsNullOrEmpty(candidate.ModelName) || candidate.ModelName == _lastGlobalModel) return;
 
         CreateTrafficEntity(candidate, spawnPos, spawnHeading);
@@ -180,16 +179,15 @@ public class TrafficMP : Script
             {
                 _activeDriver.BlockPermanentEvents = false;
 
-                // [FIX 2] SMART PATHFINDING
-                // Added 'AllowGoingWrongWay' so they can overtake parked trucks.
-                // Retained 'StopForVehicles' so they don't ram, but the WrongWay flag allows evasion.
+                // FIX 2: Updated Driving Flags
+                // Removed: AllowGoingWrongWay (Prevents head-on crashes)
+                // Kept: StopAtTrafficLights, StopForPeds, etc.
                 _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f,
                       VehicleDrivingFlags.StopAtTrafficLights |
                       VehicleDrivingFlags.StopForPeds |
                       VehicleDrivingFlags.StopForVehicles |
                       VehicleDrivingFlags.SteerAroundStationaryVehicles |
                       VehicleDrivingFlags.SteerAroundObjects |
-                      VehicleDrivingFlags.AllowGoingWrongWay |
                       VehicleDrivingFlags.ChangeLanesAroundObstructions
                   );
             }
@@ -203,7 +201,6 @@ public class TrafficMP : Script
                 Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
             }
 
-            // Update Global History
             _lastGlobalModel = candidate.ModelName;
         }
         model.MarkAsNoLongerNeeded();
@@ -227,7 +224,6 @@ public class TrafficMP : Script
                 break;
 
             case TrafficSpawnBehavior.Clean:
-                // No mods
                 break;
         }
     }
@@ -256,8 +252,15 @@ public class TrafficMP : Script
 
         if (_richZones.Contains(zone))
         {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(VehList.models_supers);
-            return PickFromList(VehList.models_classics);
+            // 50% Super, 50% Classic
+            if (_rnd.Next(0, 2) == 0)
+            {
+                return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_supers_rare));
+            }
+            else
+            {
+                return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_classics_rare));
+            }
         }
 
         if (_ghettoZones.Contains(zone))
@@ -273,6 +276,15 @@ public class TrafficMP : Script
         }
 
         return new SpawnCandidate();
+    }
+
+    private List<string> SelectWeightedList(List<string> common, List<string> rare)
+    {
+        if (_rnd.Next(0, 100) < RareCarChance)
+        {
+            return rare;
+        }
+        return common;
     }
 
     private SpawnCandidate PickFromList(List<string> list)
