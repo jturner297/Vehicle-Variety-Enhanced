@@ -36,10 +36,6 @@ public class VehList
     "sm722"
     };
 
-    public static List<string> models_boats = new List<string>() {
-    "longfin",
-    "toro"
-    };
 
     public static List<string> models_cemetery = new List<string>() {
     "tornado6",
@@ -238,19 +234,10 @@ public class VehList
     "streamer216"
     };
 
- 
-
-
-
-
-
-
-  
-
     public static List<string> models_submarine = new List<string>() {
     "avisa",
     };
-
+    /*
     public static List<string> models_supers = new List<string>() {
     //base game traffic cars 
        "zentorno",
@@ -283,13 +270,45 @@ public class VehList
 "sm722",
 "banshee3",
 "deveste",
+    }; */
+
+    public static List<string> models_supers_common = new List<string>() {//these cars do not spawn in natural-popgroups traffic and dont have a dedicated rockstar spawn
+        "tempesta",
+
+"reaper",
+
+        "t20",
+
+"osiris",
+"gp1",
+"xa21",
+"fmj",
+
+"prototipo",
+"nero",
+"nero2",
+"visione",
+"sm722",
+"banshee3",
+"deveste",
     };
 
- 
+    public static List<string> models_supers_rare = new List<string>() { //these cars already spawn in traffic or have an in game location
+       "zentorno",
+       "turismor",
+       "cheetah",
+       "entityxf",
+       "vacca",     
+        "adder",     
+       "sc1",
+       "penetrator",
+       "pfister811",
+       "cyclone",
 
 
+    };
 
- 
+
 
     public static List<string> models_valentine = new List<string>() {
     "btype3",
@@ -372,6 +391,7 @@ public class VehList
     "schafter6",
     "paragon2"
     };
+    /*
     public static List<string> models_classics = new List<string>() {
        
          "cheetah2",
@@ -386,7 +406,28 @@ public class VehList
             "turismo2",
             "tropos",
               "stingergt"
+    };*/
+    public static List<string> models_classics_common = new List<string>() {
+
+         "cheetah2",
+         "feltzer3",
+             "infernus2",
+            "gt500",
+            "jb7002",
+            "swinger",
+            "torero",
+            "turismo2",
+            "tropos",
+
     };
+    public static List<string> models_classics_rare = new List<string>() {
+            "monroe",
+              "stingergt",
+               "mamba",
+    };
+
+
+
     public static List<string> models_old_school = new List<string>() {
        
     
