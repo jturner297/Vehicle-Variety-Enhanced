@@ -12,7 +12,7 @@ public class SpawnMP : Script
     // ==========================================
     private bool ShowBlips = true;      // Set 'false' to hide map markers
     private bool LockDoors = true;      // Set 'false' to leave cars unlocked
-    private float SpawnDistMax = 700f;  // Spawn/Cleanup range
+    private float SpawnDistMax = 450f;  // Spawn/Cleanup range
     private float SpawnDistMin = 200f;  // Minimum distance (prevents pop-in)
     // ==========================================
 
@@ -57,7 +57,6 @@ public class SpawnMP : Script
             new SpawnSpot("Cemetery", new Vector3(-1640.42f, -202.879f, 54.146f), 338.279f, VehList.models_cemetery, SpawnBehavior.NoVisuals),
             new SpawnSpot("Cinema", new Vector3(-1084.873f, -477.591f, 36.2069f), 27.922f, VehList.models_cinema, SpawnBehavior.Studio),
             new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.Cult),
-            new SpawnSpot("Sandy", new Vector3(1546.591f, 3781.791f, 33.06f), 26.557f, VehList.models_cheburek, SpawnBehavior.NoVisuals),
             new SpawnSpot("Marriage", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.NoVisuals),
             new SpawnSpot("Beach_Karts1", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_karting, SpawnBehavior.Standard),
             new SpawnSpot("Beach_Karts2", new Vector3(-1235.388f, -1647.45f, 3.512795f), 124.5176f, VehList.models_karting, SpawnBehavior.Standard),
@@ -311,7 +310,7 @@ public class SpawnMP : Script
                 break;
         }
 
-        if (modelName == "turismo2")
+        if (modelName == "turismo2" || modelName == "banshee3")
         {
             v.Mods[VehicleModType.Spoilers].Index = 3;
         }

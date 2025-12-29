@@ -193,7 +193,7 @@ public class VehList
     "manchez3",
     "shinobi",
     "manchez2",
-    "stryder",
+    //"stryder",
     "fcr2",
     "fcr",
     "diablous",
@@ -281,7 +281,8 @@ public class VehList
 "nero2",
 "visione",
 "sm722",
-
+"banshee3",
+"deveste",
     };
 
  
@@ -383,6 +384,8 @@ public class VehList
             "swinger",
             "torero",
             "turismo2",
+            "tropos",
+              "stingergt"
     };
     public static List<string> models_old_school = new List<string>() {
        
@@ -390,12 +393,8 @@ public class VehList
          "issi3",
           "dynasty",
         "hustler",
-           "weevil",
               "hermes",
-                    "eudora",
-                     "fagaloa",
-                          "clique",
-                             "coquette3",
+        "coquette3",
     };
     public static List<string> models_wacky = new List<string>() {
 
