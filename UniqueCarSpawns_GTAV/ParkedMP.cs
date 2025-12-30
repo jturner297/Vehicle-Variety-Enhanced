@@ -16,7 +16,7 @@ public class SpawnMP : Script
     // Hysteresis Settings (Prevents Flickering)
     private float SpawnDistance = 250f;
     private float DespawnDistance = 500f; // Buffer zone
-    private float SpawnDistMin = 200f;
+    private float SpawnDistMin = 200f; //min distance the player has to be for point to spawn in (prevents it from popping in right in front of them)
     // ==========================================
 
     private int nextSpawnCheck = 0;

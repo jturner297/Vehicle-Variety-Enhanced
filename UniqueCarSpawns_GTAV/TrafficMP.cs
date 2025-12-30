@@ -72,6 +72,15 @@ public class TrafficMP : Script
 
     private void OnTick(object sender, EventArgs e)
     {
+        // Mission/Cutscene Cleanup
+        // If a mission starts or time skips via cutscene, delete everything immediately.
+        bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
+        if (isMissionActive)
+        {
+            RemoveResources();
+            return;
+        }
+
         Ped player = Game.Player.Character;
 
         if (_activeVehicle != null && _activeVehicle.Exists())
@@ -131,7 +140,7 @@ public class TrafficMP : Script
 
         // FIX 1: Changed '0' (Any) to '1' (Roads Only) in the 6th argument
         // This prevents spawning in driveways, alleys, or off-road paths
-        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, 3.0f, 0);
+        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, 3.0f, 0);
 
         Vector3 spawnPos = outPos.GetResult<Vector3>();
         float spawnHeading = outHead.GetResult<float>();
@@ -179,17 +188,16 @@ public class TrafficMP : Script
             {
                 _activeDriver.BlockPermanentEvents = false;
 
-                // FIX 2: Updated Driving Flags
-                // Removed: AllowGoingWrongWay (Prevents head-on crashes)
-                // Kept: StopAtTrafficLights, StopForPeds, etc.
+                //Updated Driving Flags
                 _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f,
-                      VehicleDrivingFlags.StopAtTrafficLights |
-                      VehicleDrivingFlags.StopForPeds |
-                      VehicleDrivingFlags.StopForVehicles |
-                      VehicleDrivingFlags.SteerAroundStationaryVehicles |
-                      VehicleDrivingFlags.SteerAroundObjects |
-                      VehicleDrivingFlags.ChangeLanesAroundObstructions
-                  );
+               VehicleDrivingFlags.StopAtTrafficLights |
+               VehicleDrivingFlags.StopForPeds |
+               VehicleDrivingFlags.StopForVehicles |
+               VehicleDrivingFlags.SteerAroundStationaryVehicles |
+               VehicleDrivingFlags.SteerAroundObjects |
+               VehicleDrivingFlags.AllowGoingWrongWay |  // <--- This is the key "aggressive" flag
+               VehicleDrivingFlags.ChangeLanesAroundObstructions
+           );
             }
 
             if (ShowBlips)
