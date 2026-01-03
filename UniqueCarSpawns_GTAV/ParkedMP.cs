@@ -331,27 +331,24 @@ public class SpawnMP : Script
     {
         v.Mods.InstallModKit();
 
+        // 1. Performance Mods
         if (spot.Behavior != SpawnBehavior.Stock)
         {
-            v.CanTiresBurst = false;
-            v.Mods[VehicleModType.Engine].Index = 3;
-            v.Mods[VehicleModType.Brakes].Index = 2;
-            v.Mods[VehicleModType.Transmission].Index = 2;
-            v.Mods[VehicleModType.Suspension].Index = 3;
-            v.Mods[VehicleModType.Armor].Index = 4;
-            v.Mods[VehicleToggleModType.Turbo].IsInstalled = true;
+            CarMod.ApplyPerformance(v);
         }
 
+        // 2. Global Defaults
         if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
             v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
         }
 
+        // 3. Behavior Specifics
         switch (spot.Behavior)
         {
             case SpawnBehavior.Standard:
-                ApplyRandomVisuals(v);
-                RandomizeLivery(v);
+                CarMod.ApplyRandomVisuals(v);
+                CarMod.RandomizeLivery(v);
                 break;
 
             case SpawnBehavior.Cult:
@@ -359,12 +356,12 @@ public class SpawnMP : Script
                 v.Mods.SecondaryColor = (VehicleColor)157;
                 v.Mods.PearlescentColor = (VehicleColor)1;
                 v.Mods[VehicleModType.Livery].Index = -1;
-                ApplyRandomVisuals(v);
+                CarMod.ApplyRandomVisuals(v);
                 break;
 
             case SpawnBehavior.Helicopter:
                 Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
-                RandomizeLivery(v);
+                CarMod.RandomizeLivery(v);
                 break;
 
             case SpawnBehavior.Higgins:
@@ -383,291 +380,22 @@ public class SpawnMP : Script
                 break;
 
             case SpawnBehavior.Special:
-                ApplySpecialCustomizations(v, modelName);
+                // Use the new shared class for Hero/Special cars
+                CarMod.ApplySpecs(v, modelName);
                 break;
         }
 
-        if (modelName == "turismo2" || modelName == "banshee3")
-        {
-            v.Mods[VehicleModType.Spoilers].Index = 3;
-        }
+        // 4. Apply Global Fixes (Turismo/Banshee Spoilers)
+        CarMod.ApplyModelFixes(v, modelName);
+
         Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
         Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, v);
     }
 
-    private void ApplyRandomVisuals(Vehicle v)
-    {
-        var performanceTypes = new List<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
-
-        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
-        {
-            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns) continue;
-
-            int count = v.Mods[modType].Count;
-            if (count > 0)
-            {
-                v.Mods[modType].Index = random.Next(0, count);
-            }
-        }
-    }
-
-    private void RandomizeLivery(Vehicle v)
-    {
-        int count = v.Mods.LiveryCount;
-        if (count > 0) v.Mods.Livery = random.Next(0, count);
-    }
-
-
-    private void ApplySpecialCustomizations(Vehicle v, string modelName)
-    {
-
-        switch (modelName.ToLower())
-        {
-            // --- SPEED RACER (Mach 5) ---
-            case "scramjet":
-               
-                v.Mods[VehicleModType.Roof].Index = 0;
-                v.Mods.WheelType = VehicleWheelType.Track;
-                v.Mods[VehicleModType.FrontWheel].Index = 17;
-                v.Mods[VehicleModType.Suspension].Index = -1; // Stock Height
-
-                if (random.Next(0, 2) == 0)
-                {
-                    // VARIANT A: Classic
-                    SetColors(v, 111, 111, 111, 12); // MetallicFrostWhite IDs
-                    v.Mods[VehicleModType.Livery].Index = 4;
-                }
-                else
-                {
-                    // VARIANT B: Red Racer
-                    SetColors(v, 43, 111, 135, 12); // TorinoRed, White, PinkPearl
-                    v.Mods[VehicleModType.Livery].Index = 2;
-                }
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            // --- BATMOBILE ---
-            case "vigilante":
-                v.Mods[VehicleModType.Roof].Index = 0;
-                SetColors(v, 12, 12, 0, 12); // MatteBlack, MetallicBlack Rim
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            // --- JAMES BOND ---
-            case "jb7002":
-                v.Mods[VehicleModType.Roof].Index = 0;
-                SetColors(v, 5, 5, 5, 5); // BlueSilver
-                break;
-
-            // --- DELOREAN ---
-            case "deluxo":
-                v.Mods[VehicleModType.Roof].Index = 0;
-                SetColors(v, 17, 18, 5, 0); // SteelGray, StoneSilver, BlueSilver Pearl
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            case "stromberg":
-                SetColors(v, 111, 111, 111, 0); // FrostWhite
-                break;
-
-            // --- STREET HAWK (Oppressor Mk1) ---
-            case "oppressor":
-                v.Mods[VehicleModType.Roof].Index = 0;
-                SetColors(v, 0, 117, 10, 27); // Black, BrushedSteel, GunMetal, Red Rim
-
-                v.Mods.WheelType = VehicleWheelType.BikeWheels;
-                v.Mods[VehicleModType.FrontWheel].Index = 31;
-                v.Mods[VehicleModType.RearWheel].Index = 31;
-
-                v.Mods[VehicleModType.Spoilers].Index = 0;
-                v.Mods[VehicleModType.FrontBumper].Index = 0;
-                v.Mods[VehicleModType.RearBumper].Index = 0;
-                v.Mods[VehicleModType.Frame].Index = 0;
-                v.Mods[VehicleModType.Hood].Index = 0;
-                v.Mods[VehicleModType.Fender].Index = 0;
-
-                v.Mods[VehicleModType.Suspension].Index = -1;
-                
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            // --- OPPRESSOR MKII ---
-            case "oppressor2":
-                SetColors(v, 0, 118, 10, 112); // Black, BlackSteel, GunMetal, White Rim
-
-                v.Mods[VehicleModType.Roof].Index = 1;      // MKII rockets
-
-                // DISABLES (Global script enables these by default, so we must force false)
-                v.Mods[VehicleToggleModType.Turbo].IsInstalled = false;
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = false;
-
-                v.Mods[VehicleModType.Suspension].Index = -1;
-
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            // --- INSURGENT REGULAR ---
-            case "insurgent2":
-                SetColors(v, 154, 153, 0, 0); // Tan, TanVariant, Black
-
-                v.Mods.WheelType = VehicleWheelType.SUV;
-                v.Mods[VehicleModType.FrontWheel].Index = -1;
-
-                break;
-
-            // --- INSURGENT PICKUP CUSTOM ---
-            case "insurgent3":
-                SetColors(v, 154, 153, 0, 0); // Tan, TanVariant, Black
-
-                v.Mods.WheelType = VehicleWheelType.Offroad;
-                v.Mods[VehicleModType.FrontWheel].Index = 22;
-
-                v.Mods[VehicleModType.RightFender].Index = 0;
-                v.Mods[VehicleModType.Roof].Index = 0;
-                v.Mods[VehicleModType.Livery].Index = 12;
-
-                // Note: Turbo is TRUE in XML, but 'ApplyVehicleMods' already set it to True.
-                // Redundant line removed.
-
-                // Extras
-                if (v.ExtraExists(1)) v.ToggleExtra(1, true);
-
-                v.Mods[VehicleModType.Suspension].Index = -1;
-
-
-                break;
-
-            // --- THRUSTER ---
-            case "thruster":
-                SetColors(v, 2, 12, 2, 158); // Black, MatteBlack, Gold Rim
-
-                v.Mods[VehicleModType.Exhaust].Index = 0;
-                v.Mods[VehicleModType.Roof].Index = 1;
-
-                // Extras
-                if (v.ExtraExists(1)) v.ToggleExtra(1, true);
-                if (v.ExtraExists(2)) v.ToggleExtra(2, true);
-                if (v.ExtraExists(15)) v.ToggleExtra(15, true);
-                if (v.ExtraExists(16)) v.ToggleExtra(16, true);
-
-                v.Mods[VehicleModType.Suspension].Index = -1;
-                break;
-
-            // --- NIGHTSHARK ---
-            case "nightshark":
-                SetColors(v, 154, 154, 0, 0);
-
-                v.Mods.WheelType = VehicleWheelType.SUV;
-                v.Mods[VehicleModType.FrontWheel].Index = -1;
-
-                v.Mods[VehicleModType.Exhaust].Index = 1;
-                v.Mods[VehicleModType.Grille].Index = 2;
-                v.Mods[VehicleModType.Hood].Index = 7;
-                v.Mods[VehicleModType.Fender].Index = 0;
-                v.Mods[VehicleModType.Livery].Index = 12;
-
-                break;
-            case "pyro":
-                v.Mods[VehicleModType.Roof].Index = 0;
-
-                if (random.Next(0, 2) == 0)
-                {
-                    SetColors(v, 5, 4, 112, 0); // BlueSilver, Silver, White Pearl
-                }
-                else
-                {
-                    SetColors(v, 60, 117, 0, 111);
-                    v.Mods[VehicleModType.Livery].Index = 7;
-                }
-                break;
-
-            // --- MOGUL ---
-            case "mogul":
-                SetColors(v, 5, 4, 3, 154); // BlueSilver, Silver, Grey Pearl, Tan Rim
-
-                v.Mods[VehicleModType.Exhaust].Index = 0;
-                v.Mods[VehicleModType.Frame].Index = 0;
-                v.Mods[VehicleModType.RightFender].Index = 0;
-                v.Mods[VehicleModType.Roof].Index = 0;
-
-
-                v.Mods[VehicleModType.Suspension].Index = -1;
 
 
 
-                if (random.Next(0, 2) == 0)
-                {
-                    v.Mods[VehicleModType.Livery].Index = -1;
-                }
-                else
-                {
-                    v.Mods[VehicleModType.Livery].Index = 3;
-                }
-                break;
-            case "molotok":
-                SetColors(v, 111, 111, 3, 154); // BlueSilver, Silver, Grey Pearl, Tan Rim
-                v.Mods[VehicleModType.Roof].Index = 0;
-                v.Mods[VehicleModType.SideSkirt].Index = 0;
 
-                if (random.Next(0, 2) == 0)
-                {
-                    v.Mods[VehicleModType.Livery].Index = -1;
-                }
-                else
-                {
-                    v.Mods[VehicleModType.Livery].Index = 1;
-                }
-                break;
-            case "starling":
-                // Common Body Mods (Identical in both XMLs)
-                v.Mods[VehicleModType.Exhaust].Index = 0;     // XML _4: 0
-                v.Mods[VehicleModType.RightFender].Index = 0; // XML _9: 0
-                v.Mods[VehicleModType.Roof].Index = 0;        // XML _10: 0
-
-                // 50/50 Chance for Variant A or B
-                if (random.Next(0, 2) == 0)
-                {
-                    // VARIANT A: Military Olive (from mogul.xml)
-                    SetColors(v, 152, 25, 3, 154); // Olive Drab, Silver, Grey Pearl, Tan Rim
-                    v.Mods[VehicleModType.Livery].Index = 4;
-                }
-                else
-                {
-                    // VARIANT B: Cream/White (from nightshark.xml)
-                    SetColors(v, 121, 25, 7, 111); // Off White, Silver, Shadow Silver, White Rim
-                    v.Mods[VehicleModType.Livery].Index = 0;
-                }
-                break;
-            // --- NOKOTA ---
-            case "nokota":
-                // Colors (Identical in both XMLs)
-                SetColors(v, 4, 43, 111, 119); // Silver, Olive Green, White Pearl, Gun Metal Rim
-
-                // Body Mods
-                v.Mods[VehicleModType.SideSkirt].Index = 0; 
-                v.Mods[VehicleModType.Roof].Index = 0;    
-
-
-                // 50/50 Chance for Livery Variant
-                if (random.Next(0, 2) == 0)
-                {
-                    v.Mods[VehicleModType.Livery].Index = -1; // Clean (from pyro.xml)
-                }
-                else
-                {
-                    v.Mods[VehicleModType.Livery].Index = 3;  // Livery (from nokota.xml)
-                }
-                break;
-        }
-    }
-
-    private void SetColors(Vehicle v, int pri, int sec, int pearl, int rim)
-    {
-        v.Mods.PrimaryColor = (VehicleColor)pri;
-        v.Mods.SecondaryColor = (VehicleColor)sec;
-        v.Mods.PearlescentColor = (VehicleColor)pearl;
-        v.Mods.RimColor = (VehicleColor)rim;
-    }
 
     private void DeleteSpotResources(SpawnSpot spot)
     {
@@ -777,6 +505,7 @@ public enum SpawnBehavior { Standard, Cult, Higgins, NoVisuals, Helicopter, Stoc
 
 public static class ListExtensions
 {
+
     private static Random rng = new Random();
     public static void Shuffle<T>(this IList<T> list)
     {

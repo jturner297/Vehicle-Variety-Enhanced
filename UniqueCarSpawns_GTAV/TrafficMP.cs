@@ -34,9 +34,9 @@ public class TrafficMP : Script
     // EXCLUSION LIST (Blacklist) - CLEARED TO FIX VARIETY
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "banshee3",
+      //  "banshee3",
         "deveste",
-        "turismo2",
+      //  "turismo2",
        "sm722",
        "prototipo"
     };
@@ -183,7 +183,7 @@ public class TrafficMP : Script
             _activeVehicle.IsEngineRunning = true;
            // Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
 
-            ApplyTrafficMods(_activeVehicle, candidate.Behavior);
+            ApplyTrafficMods(_activeVehicle, candidate.Behavior, candidate.ModelName);
 
             _activeDriver = _activeVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
             if (_activeDriver != null)
@@ -216,7 +216,7 @@ public class TrafficMP : Script
         model.MarkAsNoLongerNeeded();
     }
 
-    private void ApplyTrafficMods(Vehicle v, TrafficSpawnBehavior behavior)
+    private void ApplyTrafficMods(Vehicle v, TrafficSpawnBehavior behavior, string modelName)
     {
         v.Mods.InstallModKit();
         int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
@@ -225,34 +225,24 @@ public class TrafficMP : Script
         switch (behavior)
         {
             case TrafficSpawnBehavior.Super:
+                CarMod.ApplyPerformance(v); // Apply max performance
                 v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
                 break;
 
             case TrafficSpawnBehavior.Custom:
-                ApplyRandomVisuals(v);
-                RandomizeLivery(v);
+                CarMod.ApplyPerformance(v); // Apply max performance
+                CarMod.ApplyRandomVisuals(v);
+                CarMod.RandomizeLivery(v);
                 break;
 
             case TrafficSpawnBehavior.Clean:
+                // Stock performance
                 break;
         }
-    }
 
-    private void ApplyRandomVisuals(Vehicle v)
-    {
-        var performanceTypes = new List<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
-        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
-        {
-            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns) continue;
-            int count = v.Mods[modType].Count;
-            if (count > 0) v.Mods[modType].Index = _rnd.Next(0, count);
-        }
-    }
-
-    private void RandomizeLivery(Vehicle v)
-    {
-        int count = v.Mods.LiveryCount;
-        if (count > 0) v.Mods.Livery = _rnd.Next(0, count);
+   
+        // Apply Global Fixes (Spoilers etc.)
+        CarMod.ApplyModelFixes(v, modelName);
     }
 
     private SpawnCandidate GetCandidateForLocation(Vector3 pos)

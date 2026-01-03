@@ -410,7 +410,7 @@ public class VehList
         "stingergt",
         "mamba",
         "commet3",
-        "jb7002",
+        //"jb7002",
     };
 
 
