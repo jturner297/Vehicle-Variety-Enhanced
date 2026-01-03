@@ -11,10 +11,10 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-    private float SpawnDistance = 250.0f;
-    private float DespawnDistance = 300.0f;
+   private float SpawnDistance = 175.0f;
+    private float DespawnDistance = 250.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 10000;
+    private int CheckInterval = 15000;
     private int RareCarChance = 15; // Increased to 30% to fix the "Variety" issue
     // ==========================================
 
@@ -37,7 +37,8 @@ public class TrafficMP : Script
         "banshee3",
         "deveste",
         "turismo2",
-       "sm722"
+       "sm722",
+       "prototipo"
     };
 
     // ZONES
@@ -67,7 +68,7 @@ public class TrafficMP : Script
         // Register standard lists
         _behaviorRegistry.Add(VehList.models_lowriders, TrafficSpawnBehavior.Custom);
         _behaviorRegistry.Add(VehList.models_old_school, TrafficSpawnBehavior.Clean);
-        _behaviorRegistry.Add(VehList.models_motorcycles, TrafficSpawnBehavior.Clean);
+        _behaviorRegistry.Add(VehList.models_motorcycles, TrafficSpawnBehavior.Custom);
     }
 
     private void OnTick(object sender, EventArgs e)
@@ -149,6 +150,7 @@ public class TrafficMP : Script
         if (player.Position.DistanceTo(spawnPos) < 100.0f) return;
         if (IsZoneBanned(spawnPos)) return;
 
+
         SpawnCandidate candidate = GetCandidateForLocation(spawnPos);
 
         // Global duplicate check
@@ -179,7 +181,7 @@ public class TrafficMP : Script
         {
             _activeVehicle.IsPersistent = true;
             _activeVehicle.IsEngineRunning = true;
-            Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
+           // Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
 
             ApplyTrafficMods(_activeVehicle, candidate.Behavior);
 

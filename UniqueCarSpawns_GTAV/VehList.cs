@@ -53,17 +53,19 @@ public class VehList
    "weevil2"
     };
 
-    public static List<string> models_cinema = new List<string>() {
-    "scramjet",
-    "vigilante",
-    "voltic2",
-    "toreador",
-    "jb7002",
-    "deluxo",
-    "stromberg",
-    "rrocket",
-    "shotaro",
-    "dune5"
+    public static List<string> models_studio = new List<string>() {
+    "scramjet", //speedracer
+    "vigilante", //batmobile
+    "voltic2", //rocket voltic
+    "toreador",//submarine car #2
+    "jb7002",//bond car
+    "deluxo",//delorean
+    "stromberg",//submarine car
+    "rrocket",//rampant rocket
+    "shotaro",//tron
+    "dune5",//rampbuggy
+    "ruiner2", //nightrider
+    "oppressor" //streethawk
     };
 
     public static List<string> models_cluckin = new List<string>() {
@@ -141,16 +143,54 @@ public class VehList
     public static List<string> models_karting = new List<string>() {
     "veto",
     "veto2",
-     "locust",
+         "locust",
           "ruston",
+          "raptor",
+          "stryder",
+          "dubsta3",
+          "everon",
+          "brawler",
+          "kamacho",
+          "monstrociti",
+          "vagrant",
+          "outlaw"
     };
 
+    /*public static List<string> models_beach_cars = new List<string>() {
+     "locust",
+          "ruston",
+          "raptor",
+          "stryder",
+          "dubsta3",
+          "everon",
+          "brawler",
+          "kamacho",
+          "monstrociti",
+          "vagrant",
+          "outlaw"
+
+    };*/
 
 
-    public static string thruster_model = "thruster";
+
     public static string apc_model = "apc";
     public static string raiju_model = "raiju";
     public static string conada2_model = "conada2";
+
+
+    public static List<string> models_insurgents = new List<string>() {
+    "insurgent2",
+    "insurgent3",
+    "nightshark",
+    };
+
+
+    public static List<string> models_thruster = new List<string>() {
+     "thruster"
+    };
+    public static List<string> models_oppressor2 = new List<string>() {
+     "oppressor2"
+    };
 
     public static List<string> models_military_planes = new List<string>() {
     "strikeforce",
@@ -160,7 +200,6 @@ public class VehList
        "raiju",
     "molotok",
     "tula",
-    "rogue",
     "starling",
     "hydra",
     };
@@ -237,58 +276,21 @@ public class VehList
     public static List<string> models_submarine = new List<string>() {
     "avisa",
     };
-    /*
-    public static List<string> models_supers = new List<string>() {
-    //base game traffic cars 
-       "zentorno",
-       "turismor",
-       "cheetah",
-       "entityxf",
-     //  "vacca", 
-        
-        //base game parked cars
-  // "adder", 
-        
-        //traffic  cars
-        "tempesta",
-//"italigtb",
-//"sc1",
-"reaper",
-//"penetrator",
-        //parked  cars
-        "t20",
-//"pfister811",
-"osiris",
-"gp1",
-"xa21",
-"fmj",
-//"cyclone",
-"prototipo",
-"nero",
-"nero2",
-"visione",
-"sm722",
-"banshee3",
-"deveste",
-    }; */
+
 
     public static List<string> models_supers_common = new List<string>() {//these cars do not spawn in natural-popgroups traffic and dont have a dedicated rockstar spawn
         "tempesta",
-
-"reaper",
-
+        "reaper",
         "t20",
-
-"osiris",
-"gp1",
-"xa21",
-"fmj",
-
-"prototipo",
-"nero",
-"nero2",
-"banshee3",
-"deveste",
+        "osiris",
+        "gp1",
+        "xa21",
+        "fmj",  
+        "prototipo",
+        "nero",
+        "nero2",
+        "banshee3",
+        "deveste",
     };
 
     public static List<string> models_supers_rare = new List<string>() { //these cars already spawn in traffic or have an in game location
@@ -374,81 +376,64 @@ public class VehList
     "rrocket"
 };
     public static List<string> models_openwheel = new List<string>() {
-    "openwheel1",
-    "openwheel2",
-    "formula",
-    "formula2",
+        "openwheel1",
+        "openwheel2",
+        "formula",
+        "formula2",
     };
 
     public static List<string> models_armoured = new List<string>() {
         "baller5",
-    "baller6",
-    "xls2",
-    "cognoscenti2",
+        "baller6",
+        "xls2",
+        "cognoscenti2",
         "cog552",
-            "schafter5",
-    "schafter6",
-    "paragon2"
+        "schafter5",
+        "schafter6",
+        "paragon2"
     };
-    /*
-    public static List<string> models_classics = new List<string>() {
-       
-         "cheetah2",
-         "feltzer3",
-             "infernus2",
-            "gt500",
-            "jb7002",
-            "mamba",
-            "monroe",
-            "swinger",
-            "torero",
-            "turismo2",
-            "tropos",
-              "stingergt"
-    };*/
+
     public static List<string> models_classics_common = new List<string>() {
 
          "cheetah2",
          "feltzer3",
-             "infernus2",
-            "gt500",
-            "jb7002",
-            "swinger",
-            "torero",
-            "turismo2",
-            "tropos",
+         "infernus2",
+         "gt500",
+         "swinger",
+         "torero",
+         "turismo2",
+         "tropos",
 
     };
     public static List<string> models_classics_rare = new List<string>() {
-            "monroe",
-              "stingergt",
-               "mamba",
+        "monroe",
+        "stingergt",
+        "mamba",
+        "commet3",
+        "jb7002",
     };
 
 
 
-    public static List<string> models_old_school = new List<string>() {
-       
-    
-         "issi3",
-          "dynasty",
+    public static List<string> models_old_school = new List<string>() { 
+        "issi3",
+        "dynasty",
         "hustler",
-              "hermes",
+        "hermes",
         "coquette3",
     };
     public static List<string> models_wacky = new List<string>() {
-
-
-         "dukes3",
-          "cheburek",
+        "dukes3",
+        "cheburek",
         "comet4",
-           "hotknife",
-              "weevil2",
-              "patriot3",
-              "peyote2",
-              "ratloader2",
-               "ratloader",
-               "tornado6",
+        "hotknife",
+        "weevil2",
+        "patriot3",
+        "peyote2",
+        "ratbike",
+        "ratloader2",
+        "ratloader",
+        "tornado6",
         "winky"
     };      
 
