@@ -290,7 +290,6 @@ public class VehList
         "nero",
         "nero2",
         "banshee3",
-        "deveste",
     };
 
     public static List<string> models_supers_rare = new List<string>() { //these cars already spawn in traffic or have an in game location
@@ -306,6 +305,7 @@ public class VehList
        "cyclone",
        "sm722",
        "visione",
+       "deveste",
 
     };
 
@@ -373,7 +373,6 @@ public class VehList
     "bf400",
     "cliffhanger",
     "raptor",
-    "rrocket"
 };
     public static List<string> models_openwheel = new List<string>() {
         "openwheel1",
@@ -399,6 +398,7 @@ public class VehList
          "feltzer3",
          "infernus2",
          "gt500",
+         "rapidgt3",
          "swinger",
          "torero",
          "turismo2",
@@ -410,18 +410,19 @@ public class VehList
         "stingergt",
         "mamba",
         "commet3",
+        // "casco",
         //"jb7002",
     };
 
 
-
+/*
     public static List<string> models_old_school = new List<string>() { 
         "issi3",
         "dynasty",
         "hustler",
         "hermes",
         "coquette3",
-    };
+    };*/
     public static List<string> models_wacky = new List<string>() {
         "dukes3",
         "cheburek",
@@ -435,6 +436,266 @@ public class VehList
         "ratloader",
         "tornado6",
         "winky"
-    };      
+    };
+
+   /* public static List<string> models_city_rich = new List<string>() {
+        "banshee2",
+        "bestiagts",
+        "brioso",
+        "cinquemila",
+      //  "cog55",
+      //  "cognoscenti",
+        "comet5",
+        "coquette6",
+        "cypher",
+        "drafter",
+        "fr36",
+        "growler",
+        "italigtb",
+        "italigto",
+        "jugular",
+        "khamelion",
+        "komoda",
+        "lynx",
+        "neon",
+        "novak",
+        "panthere",
+        "paragon",
+        "pariah",
+        "raiden",
+        "rebla",
+        "revolter",
+        "schlagen",
+        "seven70",
+        "specter",
+        "s95",
+        "vectre",
+        "verlierer2",
+        "vstr",
+        "windsor",
+        "windsor2",
+        "xls"
+    };*/
+
+
+    public static List<string> models_city_mid = new List<string>() {  //my favorite low end cars i like seeing and would like to see in the city
+        "brioso",
+        "seven70",
+        "lynx",
+        "xls",
+        "specter",
+        "schlagen",
+        "revolter",
+        "paragon",
+        "panthere",
+        "pariah",
+        "raiden",
+        "neo",
+        "italigto",
+        "italigtb",
+    };
+
+    public static List<string> models_city_low = new List<string>() {  //my favorite low end cars i like seeing and would like to see in the city
+        "asbo",
+        "kanjo",
+        "calico",
+        "xls",
+        "specter",
+        "schlagen",
+        "revolter",
+        "paragon",
+        "panthere",
+        "pariah",
+        "raiden",
+        "neo",
+        "italigto",
+        "italigtb",
+    };
+
+
+    public static List<string> models_choppers = new List<string>() {
+ //   "shinobi",
+  //  "manchez2",
+  //  "stryder", 3 wheeler trike
+ //   "fcr2",
+ //   "fcr",
+  //  "diablous", sports
+   // "diablous2", sports
+  //  "esskey", //sports and dirt bike hybrid
+   // "vortex", //sports bike
+    "daemon2",
+    "zombieb",
+    "nightblade",
+   // "manchez", //dirt bike
+  //  "hakuchou2", //sports bike
+   // "faggio", //faggio sport
+    "faggio3", //faggio mod
+   // "defiler", //spots bike
+    "chimera",
+    "avarus",
+    "cliffhanger",
+    "gargoyle",
+  //  "bf400", //dirt bike
+ //   "vindicator",  //sports bike
+ //   "lectro",  //sports bike
+  //  "enduro", //dirt bike
+    };
+    public static List<string> models_bikes = new List<string>() {
+
+    "stryder",
+    "fcr2",
+    "fcr",
+    "diablous2", 
+    "esskey", //sports and dirt bike hybrid
+    "vortex", //sports bike
+    "manchez", //dirt bike
+
+
+
+    "bf400", //dirt bike
+   "vindicator",  //sports bike
+    "lectro",  //sports bike
+    "enduro", //dirt bike
+    };
+
+    public static List<string> models_general_rare = new List<string>() {//these spawn everywhere desert and city
+
+        "asterope2",
+
+
+        "chavosv6",
+        "z190",
+
+
+        "fr36",
+        "futo2", //futo gtx
+        "hellion",
+
+        "kanjosj",
+        "khamelion",
+        "moonbeam",
+        "nebula",
+
+        "retinue",
+
+        "seminole2",
+
+        "sultan2",
+
+        "vstr",
+
+        "zr350",
+        "youga2", //youga classic
+   
+        "hakuchou2", //sports bike
+            "wolfsbane",
+                "zombiea",
+         "hermes",
+
+
+    };
+    public static List<string> models_general_common = new List<string>() {//these spawn everywhere desert and city
+         "asbo",
+                 "kanjo",
+                         "brioso",
+        "calico",
+        "club",
+        "dominator7", //dominator gtx
+        "dominator8", //dominator gtt
+        "dominator3", //dominator asp
+                "eudora",
+        "faction",
+                "impaler",
+        "jester3", //jester classic
+              "kuruma",
+                "nightshade",
+        "previon",
+        "remus",
+                "rt3000",
+                "sentinel3", //sentinel classic
+        "slamvan",
+                "tulip",
+        "virgo",
+                "zion3", //zion classic
+             "penumbra2", //penumbraff
+                            "issi3",
+        "dynasty",
+        "hustler",
+                "yosemite",
+    };
+
+
+    public static List<string> models_city = new List<string>() {//these will spawn in most urban areas, more prevalent in rich zones (city only)
+        "banshee2",
+        "bestiagts",
+     //   "brioso",
+        "cinquemila",
+        "cog55",
+        "cognoscenti",
+        "comet5",
+      //  "coquette6",
+        "cypher",
+        "drafter",
+                "euros",
+     //   "fr36",
+        "growler",
+        "italigtb",
+        "italigto",
+        "jugular",
+        "komoda",
+        "lynx",
+        "neon",
+        "novak",
+        "panthere",
+        "paragon",
+        "pariah",
+        "raiden",
+        "rebla",
+        "revolter",
+        "schlagen",
+        "seven70",
+        "specter",
+        "s95",
+        "vectre",
+        "verlierer2",
+      //  "vstr",
+        "windsor",
+        "windsor2",
+        "xls",
+        "diablous",
+         "shinobi",
+            "faggio", //faggio sport
+                "defiler", //spots bike
+                        "coquette3",
+    };
+
+    public static List<string> models_rural = new List<string>() {//these will spawn in rural areas, more prevalent in rich zones (desert only)
+        "boor",
+        "brawler",
+        "cheburek",
+        "clique2",
+        "dominator10", //fx
+        "dorado",
+        "esskey",
+        "firebolt",
+        "gauntlet5", //gauntlet classic custom
+        "journey2",
+        "kamacho",
+        "monstrociti",
+        "retinue2",
+        "riata",
+        "rumpo3",
+        "savestra",
+        "seminole2",
+        "vamos",
+        "yosemite3",
+        "youga3",
+        "enduro",
+        "gargoyle",
+        "manchez2",
+        "sovereign",
+        "bf400",
+
+    };
 
 }

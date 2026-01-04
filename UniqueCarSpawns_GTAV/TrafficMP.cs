@@ -11,7 +11,7 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-   private float SpawnDistance = 175.0f;
+    private float SpawnDistance = 175.0f;
     private float DespawnDistance = 250.0f;
     private int SpawnChance = 100;
     private int CheckInterval = 15000;
@@ -29,9 +29,10 @@ public class TrafficMP : Script
     private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
 
     private string _lastGlobalModel = "";
-    private Dictionary<List<string>, TrafficSpawnBehavior> _behaviorRegistry;
 
-    // EXCLUSION LIST (Blacklist) - CLEARED TO FIX VARIETY
+    // Updated: Uses Shared Enum
+    private Dictionary<List<string>, SpawnBehavior> _behaviorRegistry;
+
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
       //  "banshee3",
@@ -56,25 +57,28 @@ public class TrafficMP : Script
 
     private void InitializeRegistry()
     {
-        _behaviorRegistry = new Dictionary<List<string>, TrafficSpawnBehavior>();
+        _behaviorRegistry = new Dictionary<List<string>, SpawnBehavior>();
 
-        // Register new split lists
-        _behaviorRegistry.Add(VehList.models_supers_common, TrafficSpawnBehavior.Super);
-        _behaviorRegistry.Add(VehList.models_supers_rare, TrafficSpawnBehavior.Super);
+        // Supers -> Spec
+        _behaviorRegistry.Add(VehList.models_supers_common, SpawnBehavior.Spec);
+        _behaviorRegistry.Add(VehList.models_supers_rare, SpawnBehavior.Spec);
+        _behaviorRegistry.Add(VehList.models_city, SpawnBehavior.Spec);
 
-        _behaviorRegistry.Add(VehList.models_classics_common, TrafficSpawnBehavior.Clean);
-        _behaviorRegistry.Add(VehList.models_classics_rare, TrafficSpawnBehavior.Clean);
+        // Classics -> Stock
+        _behaviorRegistry.Add(VehList.models_classics_common, SpawnBehavior.Spec);
+        _behaviorRegistry.Add(VehList.models_classics_rare, SpawnBehavior.Spec);
 
-        // Register standard lists
-        _behaviorRegistry.Add(VehList.models_lowriders, TrafficSpawnBehavior.Custom);
-        _behaviorRegistry.Add(VehList.models_old_school, TrafficSpawnBehavior.Clean);
-        _behaviorRegistry.Add(VehList.models_motorcycles, TrafficSpawnBehavior.Custom);
+        // Lowriders/Bikes -> RandomSpec
+        _behaviorRegistry.Add(VehList.models_lowriders, SpawnBehavior.RandomSpec);
+
+
+        // General Models -> Stock
+        _behaviorRegistry.Add(VehList.models_general_common, SpawnBehavior.Spec);
+        _behaviorRegistry.Add(VehList.models_general_rare, SpawnBehavior.Stock);
     }
 
     private void OnTick(object sender, EventArgs e)
     {
-        // Mission/Cutscene Cleanup
-        // If a mission starts or time skips via cutscene, delete everything immediately.
         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
         if (isMissionActive)
         {
@@ -139,8 +143,7 @@ public class TrafficMP : Script
         OutputArgument outPos = new OutputArgument();
         OutputArgument outHead = new OutputArgument();
 
-        // FIX 1: Changed '0' (Any) to '1' (Roads Only) in the 6th argument
-        // This prevents spawning in driveways, alleys, or off-road paths
+        // REVERTED: Changed 6th arg back to 0 (Any path) as per original file
         Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, 3.0f, 0);
 
         Vector3 spawnPos = outPos.GetResult<Vector3>();
@@ -153,7 +156,6 @@ public class TrafficMP : Script
 
         SpawnCandidate candidate = GetCandidateForLocation(spawnPos);
 
-        // Global duplicate check
         if (string.IsNullOrEmpty(candidate.ModelName) || candidate.ModelName == _lastGlobalModel) return;
 
         CreateTrafficEntity(candidate, spawnPos, spawnHeading);
@@ -181,26 +183,33 @@ public class TrafficMP : Script
         {
             _activeVehicle.IsPersistent = true;
             _activeVehicle.IsEngineRunning = true;
-           // Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
+            // Function.Call(Hash.SET_VEHICLE_LIGHTS, _activeVehicle, 2);
 
-            ApplyTrafficMods(_activeVehicle, candidate.Behavior, candidate.ModelName);
+            // INSERTED: Color Combination Logic (User Request)
+            int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, _activeVehicle);
+            if (comboCount > 0)
+            {
+                Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, _activeVehicle, _rnd.Next(0, comboCount));
+            }
+
+            // Apply Style
+            CarMod.ApplyStyle(_activeVehicle, candidate.Behavior, candidate.ModelName);
 
             _activeDriver = _activeVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
-            if (_activeDriver != null)
-            {
-                _activeDriver.BlockPermanentEvents = false;
+             if (_activeDriver != null)
+             {
+                 _activeDriver.BlockPermanentEvents = false;
+                 _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f,
+                VehicleDrivingFlags.StopAtTrafficLights |
+                VehicleDrivingFlags.StopForPeds |
+                VehicleDrivingFlags.StopForVehicles |
+                VehicleDrivingFlags.SteerAroundStationaryVehicles |
+                VehicleDrivingFlags.SteerAroundObjects |
+                VehicleDrivingFlags.AllowGoingWrongWay |  // <--- This is the key "aggressive" flag
+                VehicleDrivingFlags.ChangeLanesAroundObstructions
+            );
+             }
 
-                //Updated Driving Flags
-                _activeDriver.Task.CruiseWithVehicle(_activeVehicle, 20.0f,
-               VehicleDrivingFlags.StopAtTrafficLights |
-               VehicleDrivingFlags.StopForPeds |
-               VehicleDrivingFlags.StopForVehicles |
-               VehicleDrivingFlags.SteerAroundStationaryVehicles |
-               VehicleDrivingFlags.SteerAroundObjects |
-               VehicleDrivingFlags.AllowGoingWrongWay |  // <--- This is the key "aggressive" flag
-               VehicleDrivingFlags.ChangeLanesAroundObstructions
-           );
-            }
 
             if (ShowBlips)
             {
@@ -216,35 +225,6 @@ public class TrafficMP : Script
         model.MarkAsNoLongerNeeded();
     }
 
-    private void ApplyTrafficMods(Vehicle v, TrafficSpawnBehavior behavior, string modelName)
-    {
-        v.Mods.InstallModKit();
-        int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
-        if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, v, _rnd.Next(0, comboCount));
-
-        switch (behavior)
-        {
-            case TrafficSpawnBehavior.Super:
-                CarMod.ApplyPerformance(v); // Apply max performance
-                v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
-                break;
-
-            case TrafficSpawnBehavior.Custom:
-                CarMod.ApplyPerformance(v); // Apply max performance
-                CarMod.ApplyRandomVisuals(v);
-                CarMod.RandomizeLivery(v);
-                break;
-
-            case TrafficSpawnBehavior.Clean:
-                // Stock performance
-                break;
-        }
-
-   
-        // Apply Global Fixes (Spoilers etc.)
-        CarMod.ApplyModelFixes(v, modelName);
-    }
-
     private SpawnCandidate GetCandidateForLocation(Vector3 pos)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
@@ -252,27 +232,20 @@ public class TrafficMP : Script
 
         if (_richZones.Contains(zone))
         {
-            // 50% Super, 50% Classic
-            if (_rnd.Next(0, 2) == 0)
-            {
-                return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_supers_rare));
-            }
-            else
-            {
-                return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_classics_rare));
-            }
+            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_supers_rare));
+            else return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_classics_rare));
         }
 
         if (_ghettoZones.Contains(zone))
         {
             if (_rnd.Next(0, 2) == 0) return PickFromList(VehList.models_lowriders);
-            return PickFromList(VehList.models_old_school);
+            return PickFromList(SelectWeightedList(VehList.models_general_common, VehList.models_general_rare));
         }
 
         if (_urbanZones.Contains(zone))
         {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(VehList.models_old_school);
-            return PickFromList(VehList.models_motorcycles);
+            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_general_common, VehList.models_general_rare));
+            return PickFromList(VehList.models_city);
         }
 
         return new SpawnCandidate();
@@ -280,11 +253,7 @@ public class TrafficMP : Script
 
     private List<string> SelectWeightedList(List<string> common, List<string> rare)
     {
-        if (_rnd.Next(0, 100) < RareCarChance)
-        {
-            return rare;
-        }
-        return common;
+        return (_rnd.Next(0, 100) < RareCarChance) ? rare : common;
     }
 
     private SpawnCandidate PickFromList(List<string> list)
@@ -297,7 +266,7 @@ public class TrafficMP : Script
             return new SpawnCandidate { ModelName = modelName, Behavior = _behaviorRegistry[list] };
         }
 
-        return new SpawnCandidate { ModelName = modelName, Behavior = TrafficSpawnBehavior.Clean };
+        return new SpawnCandidate { ModelName = modelName, Behavior = SpawnBehavior.Stock };
     }
 
     private string GetUniqueModel(List<string> list)
@@ -338,27 +307,13 @@ public class TrafficMP : Script
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
-    private void OnAborted(object sender, EventArgs e)
-    {
-        RemoveResources();
-    }
-}
-
-// ==========================================
-//          HELPER CLASSES & ENUMS
-// ==========================================
-
-public enum TrafficSpawnBehavior
-{
-    Clean,
-    Super,
-    Custom,
+    private void OnAborted(object sender, EventArgs e) => RemoveResources();
 }
 
 public struct SpawnCandidate
 {
     public string ModelName;
-    public TrafficSpawnBehavior Behavior;
+    public SpawnBehavior Behavior;
 }
 
 public static class TrafficUtils
