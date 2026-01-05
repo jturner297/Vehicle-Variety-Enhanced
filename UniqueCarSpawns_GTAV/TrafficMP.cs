@@ -14,7 +14,7 @@ public class TrafficMP : Script
     private float SpawnDistance = 175.0f;
     private float DespawnDistance = 250.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 1000;
+    private int CheckInterval = 15000;
     private int RareCarChance = 15; // Increased to 30% to fix the "Variety" issue
     // ==========================================
 
@@ -23,15 +23,17 @@ public class TrafficMP : Script
     private Blip _activeBlip;
     private int _nextSpawnCheckTime = 0;
     private Random _rnd = new Random();
+   
+    private bool _isInMissionMode = false;
 
     // SMART SHUFFLE SYSTEMS
-    private Dictionary<List<string>, Queue<string>> spawnQueues = new Dictionary<List<string>, Queue<string>>();
-    private Dictionary<List<string>, string> lastSpawnedDict = new Dictionary<List<string>, string>();
+    private Dictionary<HashSet<string>, Queue<string>> spawnQueues = new Dictionary<HashSet<string>, Queue<string>>();
+    private Dictionary<HashSet<string>, string> lastSpawnedDict = new Dictionary<HashSet<string>, string>();
 
     private string _lastGlobalModel = "";
 
     // Updated: Uses Shared Enum
-    private Dictionary<List<string>, SpawnBehavior> _behaviorRegistry;
+    private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
 
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -43,9 +45,9 @@ public class TrafficMP : Script
     };
 
     // ZONES
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "EBURO", "CYPRE", "BANNIN", "TATAMO", "LMESA" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "EBURO", "CYPRE", "BANNIN", "TATAMO", "LMESA", "MURRI" };
     private HashSet<string> _richZones = new HashSet<string> { "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "MORN", "OBSERV", "HAWICK", "BURTON", "DELPE", "GALFISH" };
-    private HashSet<string> _ghettoZones = new HashSet<string> { "CHAMH", "DAVIS", "RANCHO", "STRAW", "MURRI" };
+    private HashSet<string> _ghettoZones = new HashSet<string> { "CHAMH", "DAVIS", "RANCHO", "STRAW" };
     private HashSet<string> _urbanZones = new HashSet<string> { "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA" };
 
     public TrafficMP()
@@ -57,7 +59,7 @@ public class TrafficMP : Script
 
     private void InitializeRegistry()
     {
-        _behaviorRegistry = new Dictionary<List<string>, SpawnBehavior>();
+        _behaviorRegistry = new Dictionary<HashSet<string>, SpawnBehavior>();
 
         // Supers -> Spec
         _behaviorRegistry.Add(VehList.models_supers_common, SpawnBehavior.Spec);
@@ -81,10 +83,29 @@ public class TrafficMP : Script
     private void OnTick(object sender, EventArgs e)
     {
         bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
-        if (isMissionActive)
+
+        /*if (isMissionActive)
         {
             RemoveResources();
             return;
+        }*/
+       
+        if (isMissionActive)
+        {
+            if (!_isInMissionMode)
+            {
+                ReleaseResourcesToGame();
+                _isInMissionMode = true;
+            }
+            return;
+        }
+        else
+        {
+            if (_isInMissionMode)
+            {
+                _isInMissionMode = false;
+                _nextSpawnCheckTime = Game.GameTime + 2000; // Small delay before restarting traffic
+            }
         }
 
         Ped player = Game.Player.Character;
@@ -253,12 +274,12 @@ public class TrafficMP : Script
         return new SpawnCandidate();
     }
 
-    private List<string> SelectWeightedList(List<string> common, List<string> rare)
+    private HashSet<string> SelectWeightedList(HashSet<string> common, HashSet<string> rare)
     {
         return (_rnd.Next(0, 100) < RareCarChance) ? rare : common;
     }
 
-    private SpawnCandidate PickFromList(List<string> list)
+    private SpawnCandidate PickFromList(HashSet<string> list)
     {
         string modelName = GetUniqueModel(list);
         if (string.IsNullOrEmpty(modelName)) return new SpawnCandidate();
@@ -271,7 +292,7 @@ public class TrafficMP : Script
         return new SpawnCandidate { ModelName = modelName, Behavior = SpawnBehavior.Stock };
     }
 
-    private string GetUniqueModel(List<string> list)
+    private string GetUniqueModel(HashSet<string> list)
     {
         if (list == null || list.Count == 0) return null;
 
@@ -309,6 +330,22 @@ public class TrafficMP : Script
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
+    private void ReleaseResourcesToGame()
+    {
+        // 1. Delete the blip (UI cleanup)
+        if (_activeBlip != null && _activeBlip.Exists()) _activeBlip.Delete();
+
+        // 2. Release the car and driver
+        // They will continue driving their last path (Cruising) until the game cleans them up.
+        if (_activeVehicle != null && _activeVehicle.Exists()) _activeVehicle.MarkAsNoLongerNeeded();
+        if (_activeDriver != null && _activeDriver.Exists()) _activeDriver.MarkAsNoLongerNeeded();
+
+        // 3. Reset script variables
+        _activeBlip = null;
+        _activeDriver = null;
+        _activeVehicle = null;
+        _nextSpawnCheckTime = Game.GameTime + CheckInterval;
+    }
     private void OnAborted(object sender, EventArgs e) => RemoveResources();
 }
 

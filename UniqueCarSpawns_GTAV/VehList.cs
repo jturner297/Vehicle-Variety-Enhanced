@@ -14,7 +14,7 @@ using System.IO;
 
 public class VehList
 {
-    public static List<string> models_cult = new List<string>() {
+    public static HashSet<string> models_cult = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "autarch",
     "sc1",
     "cyclone",
@@ -37,7 +37,7 @@ public class VehList
     };
 
 
-    public static List<string> models_cemetery = new List<string>() {
+    public static HashSet<string> models_cemetery = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "tornado6",
     "btype2",
     "sanctus",
@@ -45,7 +45,7 @@ public class VehList
     "brigham",
     };
 
-    public static List<string> models_cheburek = new List<string>() {
+    public static HashSet<string> models_cheburek = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "cheburek",
     "ratbike",
    "clique2",
@@ -53,7 +53,7 @@ public class VehList
    "weevil2"
     };
 
-    public static List<string> models_studio = new List<string>() {
+    public static HashSet<string> models_studio = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "scramjet", //speedracer
     "vigilante", //batmobile
     "voltic2", //rocket voltic
@@ -68,11 +68,11 @@ public class VehList
     "oppressor" //streethawk
     };
 
-    public static List<string> models_cluckin = new List<string>() {
+    public static HashSet<string> models_cluckin = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "benson2"
     };
 
-    public static List<string> models_compacts = new List<string>() {
+    public static HashSet<string> models_compacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "brioso",
     "brioso2",
     "brioso3",
@@ -83,7 +83,7 @@ public class VehList
     "issi3"
     };
 
-    public static List<string> models_coupes = new List<string>() {
+    public static HashSet<string> models_coupes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "kanjosj",
     "postlude",
     "previon",
@@ -95,7 +95,7 @@ public class VehList
 
 
 
-    public static List<string> models_lowriders = new List<string>() {
+    public static HashSet<string> models_lowriders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "eudora",
         "faction3",
         "Buccaneer2",
@@ -115,7 +115,7 @@ public class VehList
      "SabreGT2",
         "virgo2"
     };
-    public static List<string> models_poor = new List<string>() {
+    public static HashSet<string> models_poor = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
         "greenwood",
         "retinue2",
     "dynasty",
@@ -124,7 +124,7 @@ public class VehList
     "greenwood",
     };
 
-    public static List<string> models_helicopter = new List<string>() {
+    public static HashSet<string> models_helicopter = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "conada",
     "swift2",
     "Havok",
@@ -135,12 +135,12 @@ public class VehList
     "Swift2"
     };
 
-    public static List<string> models_humanlabs = new List<string>() {
+    public static HashSet<string> models_humanlabs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "brickade2",
     };
 
 
-    public static List<string> models_karting = new List<string>() {
+    public static HashSet<string> models_karting = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "veto",
     "veto2",
          "locust",
@@ -156,7 +156,7 @@ public class VehList
           "outlaw"
     };
 
-    /*public static List<string> models_beach_cars = new List<string>() {
+    /*public static HashSet<string> models_beach_cars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
      "locust",
           "ruston",
           "raptor",
@@ -178,21 +178,26 @@ public class VehList
     public static string conada2_model = "conada2";
 
 
-    public static List<string> models_insurgents = new List<string>() {
+
+    public static HashSet<string> models_kuruma = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+     "kuruma2"
+    };
+
+    public static HashSet<string> models_insurgents = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "insurgent2",
     "insurgent3",
     "nightshark",
     };
 
 
-    public static List<string> models_thruster = new List<string>() {
+    public static HashSet<string> models_thruster = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
      "thruster"
     };
-    public static List<string> models_oppressor2 = new List<string>() {
+    public static HashSet<string> models_oppressor2 = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
      "oppressor2"
     };
 
-    public static List<string> models_military_planes = new List<string>() {
+    public static HashSet<string> models_military_planes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "strikeforce",
     "nokota",
     "pyro",
@@ -204,7 +209,7 @@ public class VehList
     "hydra",
     };
 
-    public static List<string> models_military_helicopters = new List<string>() {
+    public static HashSet<string> models_military_helicopters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "annihilator2",
     "hunter",
     "valkyrie",
@@ -212,19 +217,19 @@ public class VehList
      "conada2",
     };
 
-    public static List<string> models_military_opressors = new List<string>() {
+    public static HashSet<string> models_military_opressors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "oppressor",
     "oppressor2",
     };
 
-    public static List<string> models_military_bikes = new List<string>() {
+    public static HashSet<string> models_military_bikes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "squaddie",
     "manchez2",
     "winky",
     "insurgent3",
     };
 
-    public static List<string> models_motorcycles = new List<string>() {
+    public static HashSet<string> models_motorcycles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "manchez3",
     "shinobi",
     "manchez2",
@@ -257,11 +262,11 @@ public class VehList
 
 
 
-    public static List<string> models_beach = new List<string>() {
+    public static HashSet<string> models_beach = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "pbus2",
     };
 
-    public static List<string> models_planes = new List<string>() {
+    public static HashSet<string> models_planes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "Nimbus",
     "Luxor2",
     "Velum2",
@@ -273,12 +278,12 @@ public class VehList
     "streamer216"
     };
 
-    public static List<string> models_submarine = new List<string>() {
+    public static HashSet<string> models_submarine = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "avisa",
     };
 
 
-    public static List<string> models_supers_common = new List<string>() {//these cars do not spawn in natural-popgroups traffic and dont have a dedicated rockstar spawn
+    public static HashSet<string> models_supers_common = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these cars do not spawn in natural-popgroups traffic and dont have a dedicated rockstar spawn
         "tempesta",
         "reaper",
         "t20",
@@ -296,7 +301,7 @@ public class VehList
     };
 
     /*
-    public static List<string> models_supers_rare = new List<string>() { //these cars already spawn in traffic or have an in game location
+    public static HashSet<string> models_supers_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { //these cars already spawn in traffic or have an in game location
        "zentorno",
        "turismor",
        "cheetah",
@@ -313,7 +318,7 @@ public class VehList
 
 
 
-    public static List<string> models_valentine = new List<string>() {
+    public static HashSet<string> models_valentine = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "btype3",
     "broadway",
     "stafford",
@@ -321,22 +326,22 @@ public class VehList
     };
 
 
-    public static List<string> models_wastelander = new List<string>() {
+    public static HashSet<string> models_wastelander = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "wastelander",
     };
 
-    public static List<string> models_weaponboats = new List<string>() {
+    public static HashSet<string> models_weaponboats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "tug",
     };
 
 
 
-    public static List<string> models_pizza = new List<string>() {
+    public static HashSet<string> models_pizza = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "pizzaboy",
     };
 
 
-    public static List<string> models_higgins = new List<string>() {
+    public static HashSet<string> models_higgins = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "maverick2",
     "conada",
     };
@@ -345,7 +350,7 @@ public class VehList
 
 
 
-    public static List<string> models_arena_speed = new List<string>() {
+    public static HashSet<string> models_arena_speed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "sheava",
     "tyrus",
     "le7b",
@@ -356,7 +361,7 @@ public class VehList
     "s80",
 };
 
-    public static List<string> models_arena_hotring = new List<string>() {
+    public static HashSet<string> models_arena_hotring = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "tampa2",
     "gauntlet6",
     "hotring",
@@ -366,7 +371,7 @@ public class VehList
     "omnis",
 };
 
-    public static List<string> models_arena_offroad = new List<string>() { 
+    public static HashSet<string> models_arena_offroad = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { 
     "ratel",
     "monstrociti",
     "hellion",
@@ -376,14 +381,14 @@ public class VehList
     "cliffhanger",
     "raptor",
 };
-    public static List<string> models_openwheel = new List<string>() {
+    public static HashSet<string> models_openwheel = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
         "openwheel1",
         "openwheel2",
         "formula",
         "formula2",
     };
 
-    public static List<string> models_armoured = new List<string>() {
+    public static HashSet<string> models_armoured = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
         "baller5",
         "baller6",
         "xls2",
@@ -394,7 +399,7 @@ public class VehList
         "paragon2"
     };
    
-    public static List<string> models_classics_common = new List<string>() {
+    public static HashSet<string> models_classics_common = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
 
          "cheetah2",
          "feltzer3",
@@ -409,7 +414,7 @@ public class VehList
     };
 
     /*
-   public static List<string> models_classics_rare = new List<string>() {
+   public static HashSet<string> models_classics_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
        "monroe",
        "stingergt",
        "mamba",
@@ -419,7 +424,7 @@ public class VehList
    }; */
 
 
-    public static List<string> models_wacky = new List<string>() {
+    public static HashSet<string> models_wacky = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
         "dukes3",
         "cheburek",
         "comet4",
@@ -436,7 +441,7 @@ public class VehList
 
 
 
-    public static List<string> models_choppers = new List<string>() {
+    public static HashSet<string> models_choppers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
  //   "shinobi",
   //  "manchez2",
   //  "stryder", 3 wheeler trike
@@ -463,7 +468,7 @@ public class VehList
  //   "lectro",  //sports bike
   //  "enduro", //dirt bike
     };
-    public static List<string> models_bikes = new List<string>() {
+    public static HashSet<string> models_bikes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
 
     "stryder",
     "fcr2",
@@ -481,7 +486,7 @@ public class VehList
     "enduro", //dirt bike
     };
 
-    public static List<string> models_general_rare = new List<string>() {//these spawn everywhere desert and city
+    public static HashSet<string> models_general_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these spawn everywhere desert and city
 
         "asterope2",
 
@@ -517,7 +522,7 @@ public class VehList
 
 
     };
-    public static List<string> models_general_common = new List<string>() {//these spawn everywhere desert and city
+    public static HashSet<string> models_general_common = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these spawn everywhere desert and city
          "asbo",
                  "kanjo",
                          "brioso",
@@ -548,7 +553,7 @@ public class VehList
     };
 
 
-    public static List<string> models_city = new List<string>() {//these will spawn in most urban areas, more prevalent in rich zones (city only)
+    public static HashSet<string> models_city = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in most urban areas, more prevalent in rich zones (city only)
         "banshee2",
         "bestiagts",
      //   "brioso",
@@ -609,7 +614,7 @@ public class VehList
        "cyclone",
     };
 
-    public static List<string> models_rural = new List<string>() {//these will spawn in rural areas, more prevalent in rich zones (desert only)
+    public static HashSet<string> models_rural = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
         "boor",
         "brawler",
         "cheburek",
