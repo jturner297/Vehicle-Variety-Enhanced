@@ -49,8 +49,19 @@ public static class CarMod
             }
             else
             {
-                ApplyRandomVisuals(v);
-                RandomizeLivery(v);
+                if (v.ClassType == VehicleClass.Helicopters || v.ClassType == VehicleClass.Planes)//if model is a heli or plane 
+                {
+                    RandomizeLivery(v); //only randomize livery
+                }
+                else //model is a car/bike
+                {
+                    // Cars get full body mods + livery
+                    ApplyRandomVisuals(v);
+                    RandomizeLivery(v);
+                }
+
+
+ 
             }
         }
         // 5. SPEC LOGIC (Hard Defined or Group Themes)

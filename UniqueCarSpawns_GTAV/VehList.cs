@@ -290,8 +290,12 @@ public class VehList
         "nero",
         "nero2",
         "banshee3",
+             "sm722",
+       "visione",
+       "deveste",
     };
 
+    /*
     public static List<string> models_supers_rare = new List<string>() { //these cars already spawn in traffic or have an in game location
        "zentorno",
        "turismor",
@@ -303,11 +307,9 @@ public class VehList
        "penetrator",
        "pfister811",
        "cyclone",
-       "sm722",
-       "visione",
-       "deveste",
+  
 
-    };
+    };*/
 
 
 
@@ -391,7 +393,7 @@ public class VehList
         "schafter6",
         "paragon2"
     };
-
+   
     public static List<string> models_classics_common = new List<string>() {
 
          "cheetah2",
@@ -405,24 +407,18 @@ public class VehList
          "tropos",
 
     };
-    public static List<string> models_classics_rare = new List<string>() {
-        "monroe",
-        "stingergt",
-        "mamba",
-        "commet3",
-        // "casco",
-        //"jb7002",
-    };
+
+    /*
+   public static List<string> models_classics_rare = new List<string>() {
+       "monroe",
+       "stingergt",
+       "mamba",
+       "commet3",
+       "casco",
+      "jb7002",
+   }; */
 
 
-/*
-    public static List<string> models_old_school = new List<string>() { 
-        "issi3",
-        "dynasty",
-        "hustler",
-        "hermes",
-        "coquette3",
-    };*/
     public static List<string> models_wacky = new List<string>() {
         "dukes3",
         "cheburek",
@@ -438,79 +434,6 @@ public class VehList
         "winky"
     };
 
-   /* public static List<string> models_city_rich = new List<string>() {
-        "banshee2",
-        "bestiagts",
-        "brioso",
-        "cinquemila",
-      //  "cog55",
-      //  "cognoscenti",
-        "comet5",
-        "coquette6",
-        "cypher",
-        "drafter",
-        "fr36",
-        "growler",
-        "italigtb",
-        "italigto",
-        "jugular",
-        "khamelion",
-        "komoda",
-        "lynx",
-        "neon",
-        "novak",
-        "panthere",
-        "paragon",
-        "pariah",
-        "raiden",
-        "rebla",
-        "revolter",
-        "schlagen",
-        "seven70",
-        "specter",
-        "s95",
-        "vectre",
-        "verlierer2",
-        "vstr",
-        "windsor",
-        "windsor2",
-        "xls"
-    };*/
-
-
-    public static List<string> models_city_mid = new List<string>() {  //my favorite low end cars i like seeing and would like to see in the city
-        "brioso",
-        "seven70",
-        "lynx",
-        "xls",
-        "specter",
-        "schlagen",
-        "revolter",
-        "paragon",
-        "panthere",
-        "pariah",
-        "raiden",
-        "neo",
-        "italigto",
-        "italigtb",
-    };
-
-    public static List<string> models_city_low = new List<string>() {  //my favorite low end cars i like seeing and would like to see in the city
-        "asbo",
-        "kanjo",
-        "calico",
-        "xls",
-        "specter",
-        "schlagen",
-        "revolter",
-        "paragon",
-        "panthere",
-        "pariah",
-        "raiden",
-        "neo",
-        "italigto",
-        "italigtb",
-    };
 
 
     public static List<string> models_choppers = new List<string>() {
@@ -633,7 +556,7 @@ public class VehList
         "cog55",
         "cognoscenti",
         "comet5",
-      //  "coquette6",
+        "coquette6",
         "cypher",
         "drafter",
                 "euros",
@@ -667,6 +590,23 @@ public class VehList
             "faggio", //faggio sport
                 "defiler", //spots bike
                         "coquette3",
+                        //new stuff from classics and super rare
+                               "monroe",
+       "stingergt",
+       "mamba",
+       "commet3",
+       "casco",
+      "jb7002",
+             "zentorno",
+       "turismor",
+       "cheetah",
+       "entityxf",
+       "vacca",
+        "adder",
+       "sc1",
+       "penetrator",
+       "pfister811",
+       "cyclone",
     };
 
     public static List<string> models_rural = new List<string>() {//these will spawn in rural areas, more prevalent in rich zones (desert only)

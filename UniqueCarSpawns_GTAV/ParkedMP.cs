@@ -46,37 +46,40 @@ public class SpawnMP : Script
         AllSpawns = new List<SpawnSpot>()
         {
             // --- SUPERS (Spec) ---
-            new SpawnSpot("PacificBluffsHotel", new Vector3(-1873.6f, -343.933f, 48.26f), 225.300f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("PacificBluffsYachtClub", new Vector3(-1535.044f, 890.5871f, 181.3348f), 19.505f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("RichmanHotel", new Vector3(-1297.2f, 252.495f, 61.813f), 3.035f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("VinewoodHills_1", new Vector3(-345.267f, 662.299f, 168.587f), 171.211f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("VinewoodHills_2", new Vector3(-504.323f, 424.21f, 96.287f), 313.167f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("LakeVinewoodEstate", new Vector3(-72.605f, 902.579f, 234.631f), 291.351f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("VinewoodHotel", new Vector3(443.542f, 253.197f, 102.21f), 245.845f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("EclipseStripClub", new Vector3(-397.528f, 210.366f, 82.789f), 91.136f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("ArcadiusCenter", new Vector3(-220.102f, -590.273f, 33.264f), 341.667f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("RodeoDriveParking", new Vector3(-718.511f, -74.684f, 36.916f), 62.242f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("RodeoDrive", new Vector3(-703.480f, -192.036f, 36.161f), 28.986f, VehList.models_supers_common, SpawnBehavior.Spec,  VehList.models_supers_rare, 15),
-            new SpawnSpot("RockfordHotel", new Vector3(-1126.722f, -318.281f, 37.21f), -95.129f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 5),
-            new SpawnSpot("VespucciYachtClub", new Vector3(-801.566f, -1313.92f, 4.0f), 169.408f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("WesrVinewoodHills_1", new Vector3(-1979.25f, 586.078f, 116.479f), 185.087f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("WesrVinewoodHills_2", new Vector3(-1451.92f, 533.495f, 118.177f), 73.674f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
-            new SpawnSpot("KortzCenter", new Vector3(-2340.907f, 295.8933f, 169.1187f), 294.0081f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_rare, 15),
+            new SpawnSpot("PacificBluffsHotel", new Vector3(-1873.6f, -343.933f, 48.26f), 225.300f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("PacificBluffsYachtClub", new Vector3(-1535.044f, 890.5871f, 181.3348f), 19.505f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RichmanHotel", new Vector3(-1297.2f, 252.495f, 61.813f), 3.035f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("VinewoodHills_1", new Vector3(-345.267f, 662.299f, 168.587f), 171.211f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("VinewoodHills_2", new Vector3(-504.323f, 424.21f, 96.287f), 313.167f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("LakeVinewoodEstate", new Vector3(-72.605f, 902.579f, 234.631f), 291.351f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("VinewoodHotel", new Vector3(443.542f, 253.197f, 102.21f), 245.845f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("EclipseStripClub", new Vector3(-397.528f, 210.366f, 82.789f), 91.136f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("ArcadiusCenter", new Vector3(-220.102f, -590.273f, 33.264f), 341.667f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RodeoDriveParking", new Vector3(-718.511f, -74.684f, 36.916f), 62.242f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RodeoDrive", new Vector3(-703.480f, -192.036f, 36.161f), 28.986f, VehList.models_supers_common, SpawnBehavior.Spec,  VehList.models_supers_common, 15),
+            new SpawnSpot("RockfordHotel", new Vector3(-1126.722f, -318.281f, 37.21f), -95.129f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 5),
+            new SpawnSpot("VespucciYachtClub", new Vector3(-801.566f, -1313.92f, 4.0f), 169.408f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("WesrVinewoodHills_1", new Vector3(-1979.25f, 586.078f, 116.479f), 185.087f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("WesrVinewoodHills_2", new Vector3(-1451.92f, 533.495f, 118.177f), 73.674f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("KortzCenter", new Vector3(-2340.907f, 295.8933f, 169.1187f), 294.0081f, VehList.models_supers_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
 
 
             // --- CLASSICS (Spec) ---
-            new SpawnSpot("VinewoodHills_3", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("GolfClub", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("RetroSports4", new Vector3(-1886.25f, 2016.572f, 139.951f), 160.257f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("VespucciViceroyHotel", new Vector3(-817.325f, -1201.59f, 5.935f), 318.133f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("Tequi-la-la", new Vector3(-552.673f, 309.154f, 82.191f), 260.340f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("VinewoodCinema", new Vector3(339.481f, 159.143f, 102.146f), 71.345f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("RetroSports9", new Vector3(-3036.57f, 105.31f, 10.593f), 141.262f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("Beverly", new Vector3(-205.516f, 281.035f, 91.818f), 165.351f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("RetroSports11", new Vector3(-972.578f, -1464.27f, 4.013f), 294.730f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("ModernArtMuesuem", new Vector3(-489.2397f, -596.5908f, 30.56949f), 358.1453f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("VespucciApartment", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_classics_rare, 15),
-            new SpawnSpot("BahamaMamas", new Vector3(-1407.751f, -589.1447f, 29.65687f), 298.673f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 30),
+            new SpawnSpot("VinewoodHills_3", new Vector3(-1114.1f, 479.205f, 81.161f), 169.13f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("GolfClub", new Vector3(-1405.12f, 81.983f, 52.099f), 58.178f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RetroSports4", new Vector3(-1886.25f, 2016.572f, 139.951f), 160.257f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("VespucciViceroyHotel", new Vector3(-817.325f, -1201.59f, 5.935f), 318.133f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("Tequi-la-la", new Vector3(-552.673f, 309.154f, 82.191f), 260.340f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("VinewoodCinema", new Vector3(339.481f, 159.143f, 102.146f), 71.345f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RetroSports9", new Vector3(-3036.57f, 105.31f, 10.593f), 141.262f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("Beverly", new Vector3(-205.516f, 281.035f, 91.818f), 165.351f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("RetroSports11", new Vector3(-972.578f, -1464.27f, 4.013f), 294.730f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("ModernArtMuesuem", new Vector3(-489.2397f, -596.5908f, 30.56949f), 358.1453f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            new SpawnSpot("BahamaMamas", new Vector3(-1407.751f, -589.1447f, 29.65687f), 298.673f, VehList.models_classics_common, SpawnBehavior.Spec, VehList.models_supers_common, 15),
+            
+            // Special Cases
+            new SpawnSpot("VespucciApartment", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_city, SpawnBehavior.Spec, VehList.models_classics_common, 15),    
+     
            
             // --- RACING / ARENA (RandomSpec) ---
             new SpawnSpot("ArenaHotring", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.RandomSpec),
@@ -102,7 +105,7 @@ public class SpawnMP : Script
             // Higgins = Spec (Logic in CarMod detects Higgins List)
             new SpawnSpot("Higgins_Heli", new Vector3(-746.4702f, -1469.937f, 6.87726f), 140.365f, VehList.models_higgins, SpawnBehavior.Spec, null, 0, 550f),
             // Heli = Spec (Logic in CarMod detects Heli list)
-            new SpawnSpot("LSIA_Helicopter", new Vector3(-979.378f, -2996.868f, 13.945f), 331.180f, VehList.models_helicopter, SpawnBehavior.Spec, null, 0, 650f),
+            new SpawnSpot("LSIA_Helicopter", new Vector3(-979.378f, -2996.868f, 13.945f), 331.180f, VehList.models_helicopter, SpawnBehavior.RandomSpec, null, 0, 650f),
             new SpawnSpot("LSIA_Planes_1", new Vector3(-961.005f, -2963.593f, 13.945f), 147.589f, VehList.models_planes, SpawnBehavior.RandomSpec, null, 0, 650f),
 
             // Lowriders (RandomSpec)
@@ -125,6 +128,7 @@ public class SpawnMP : Script
             new SpawnSpot("C_CityHallParking", new Vector3(283.791f, -342.399f, 44.538f), 70.666f, VehList.models_city,  SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("C_Casino", new Vector3(870.7411f, -75.28734f, 78.10686f), 147.4842f, VehList.models_city,  SpawnBehavior.Spec, VehList.models_armoured, 5),
 
+
             // Ambient Population - Primary Spawn is general 
             new SpawnSpot("G_RockfordPlazza_2", new Vector3(-174.280f, -180.751f, 43.235f), 340.784f, VehList.models_general_common,  SpawnBehavior.Spec, VehList.models_general_rare, 10),
             new SpawnSpot("G_VinewoodAmmo", new Vector3(238.2489f, -34.84402f, 69.18212f), 340.165f, VehList.models_general_common, SpawnBehavior.Spec,   VehList.models_general_rare, 10),
@@ -134,7 +138,10 @@ public class SpawnMP : Script
             new SpawnSpot("G_MirrorParkBodyShop", new Vector3(1136.156f, -773.997f, 56.632f), 269.604f, VehList.models_general_common, SpawnBehavior.Spec,  VehList.models_general_rare, 10),
             new SpawnSpot("G_MirrorParkHouse", new Vector3(1309.942f, -530.154f, 70.312f), 341.133f, VehList.models_general_common, SpawnBehavior.Spec,  VehList.models_general_rare, 10),
             new SpawnSpot("G_MorningWood", new Vector3(-1528.733f, -427.0032f, 35.01511f), 48.3741f, VehList.models_general_common, SpawnBehavior.Spec,  VehList.models_general_rare, 10),
-      
+            new SpawnSpot("C_KoreanRestaurant",new Vector3(-604.9778f, -1218.401f, 13.92473f), 133.0528f, VehList.models_general_common,  SpawnBehavior.Spec, VehList.models_general_rare, 10),
+            new SpawnSpot("C_LpSeoul", new Vector3(-582.6653f, -859.2297f, 25.49919f),358.6906f, VehList.models_general_common,  SpawnBehavior.Spec, VehList.models_general_rare, 10),
+
+
             // --- MILITARY SPAWNS (Spec) ---
             new SpawnSpot("M_Planes_1", new Vector3(-1892.247f, 3082.933f, 32.810f), 147.141f, VehList.models_military_planes, SpawnBehavior.Spec, null, 0, 800f),
             new SpawnSpot("M_Planes_2", new Vector3(-1934.867f, 3109.608f, 32.810f), 150.073f, VehList.models_military_planes, SpawnBehavior.Spec, null, 0, 800f),

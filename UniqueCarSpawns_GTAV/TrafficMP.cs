@@ -14,7 +14,7 @@ public class TrafficMP : Script
     private float SpawnDistance = 175.0f;
     private float DespawnDistance = 250.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 15000;
+    private int CheckInterval = 1000;
     private int RareCarChance = 15; // Increased to 30% to fix the "Variety" issue
     // ==========================================
 
@@ -61,14 +61,15 @@ public class TrafficMP : Script
 
         // Supers -> Spec
         _behaviorRegistry.Add(VehList.models_supers_common, SpawnBehavior.Spec);
-        _behaviorRegistry.Add(VehList.models_supers_rare, SpawnBehavior.Spec);
+        
+        // City -> Spec (general upper class cars)
         _behaviorRegistry.Add(VehList.models_city, SpawnBehavior.Spec);
 
         // Classics -> Stock
         _behaviorRegistry.Add(VehList.models_classics_common, SpawnBehavior.Spec);
-        _behaviorRegistry.Add(VehList.models_classics_rare, SpawnBehavior.Spec);
 
-        // Lowriders/Bikes -> RandomSpec
+
+        // Lowriders -> RandomSpec
         _behaviorRegistry.Add(VehList.models_lowriders, SpawnBehavior.RandomSpec);
 
 
@@ -232,8 +233,9 @@ public class TrafficMP : Script
 
         if (_richZones.Contains(zone))
         {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_supers_rare));
-            else return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_classics_rare));
+            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_city));
+            else return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_city));
+
         }
 
         if (_ghettoZones.Contains(zone))
