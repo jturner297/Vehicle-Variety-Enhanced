@@ -28,8 +28,7 @@ public class SpawnMP : Script
     private Dictionary<SpawnSpot, Blip> markerDict = new Dictionary<SpawnSpot, Blip>();
     private HashSet<SpawnSpot> cooldownSpots = new HashSet<SpawnSpot>();
 
-    private Dictionary<HashSet<string>, Queue<string>> spawnQueues = new Dictionary<HashSet<string>, Queue<string>>();
-    private Dictionary<HashSet<string>, string> lastSpawnedDict = new Dictionary<HashSet<string>, string>();
+
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
@@ -188,6 +187,7 @@ public class SpawnMP : Script
     {
         HashSet<string> targetList = spot.ModelList;
 
+        // 1. Decide which list to use (Rare vs Common)
         if (spot.RareList != null && spot.RareList.Count > 0)
         {
             if (random.Next(0, 100) < spot.RareChance)
@@ -196,25 +196,9 @@ public class SpawnMP : Script
             }
         }
 
-        if (targetList == null || targetList.Count == 0) return null;
-
-        if (!spawnQueues.ContainsKey(targetList) || spawnQueues[targetList].Count == 0)
-        {
-            List<string> freshBatch = new List<string>(targetList);
-            freshBatch.Shuffle();
-
-            if (lastSpawnedDict.ContainsKey(targetList) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[targetList])
-            {
-                string temp = freshBatch[0];
-                freshBatch[0] = freshBatch[freshBatch.Count - 1];
-                freshBatch[freshBatch.Count - 1] = temp;
-            }
-            spawnQueues[targetList] = new Queue<string>(freshBatch);
-        }
-
-        string selection = spawnQueues[targetList].Dequeue();
-        lastSpawnedDict[targetList] = selection;
-        return selection;
+        // 2. Ask VehicleSelector for the next car
+        // (Pass null for exclusions because ParkedMP doesn't use a blacklist)
+        return VehicleSelector.GetNext(targetList, null);
     }
 
     private Vehicle CreateNewVehicle(string hash, Vector3 pos, float heading, SpawnSpot spot)
@@ -416,20 +400,3 @@ public class SpawnSpot
     }
 }
 
-public static class ListExtensions
-{
-
-    private static Random rng = new Random();
-    public static void Shuffle<T>(this IList<T> list)
-    {
-        int n = list.Count;
-        while (n > 1)
-        {
-            n--;
-            int k = rng.Next(n + 1);
-            T value = list[k];
-            list[k] = list[n];
-            list[n] = value;
-        }
-    }
-}

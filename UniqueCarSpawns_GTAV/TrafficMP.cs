@@ -25,12 +25,8 @@ public class TrafficMP : Script
     private Random _rnd = new Random();
    
     private bool _isInMissionMode = false;
-
-    // SMART SHUFFLE SYSTEMS
-    private Dictionary<HashSet<string>, Queue<string>> spawnQueues = new Dictionary<HashSet<string>, Queue<string>>();
-    private Dictionary<HashSet<string>, string> lastSpawnedDict = new Dictionary<HashSet<string>, string>();
-
     private string _lastGlobalModel = "";
+
 
     // Updated: Uses Shared Enum
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
@@ -281,7 +277,7 @@ public class TrafficMP : Script
 
     private SpawnCandidate PickFromList(HashSet<string> list)
     {
-        string modelName = GetUniqueModel(list);
+        string modelName = VehicleSelector.GetNext(list, _excludedModels);
         if (string.IsNullOrEmpty(modelName)) return new SpawnCandidate();
 
         if (_behaviorRegistry.ContainsKey(list))
@@ -292,31 +288,7 @@ public class TrafficMP : Script
         return new SpawnCandidate { ModelName = modelName, Behavior = SpawnBehavior.Stock };
     }
 
-    private string GetUniqueModel(HashSet<string> list)
-    {
-        if (list == null || list.Count == 0) return null;
 
-        if (!spawnQueues.ContainsKey(list) || spawnQueues[list].Count == 0)
-        {
-            List<string> freshBatch = new List<string>(list);
-            freshBatch.RemoveAll(x => _excludedModels.Contains(x));
-            if (freshBatch.Count == 0) return null;
-
-            TrafficUtils.Shuffle(freshBatch);
-
-            if (lastSpawnedDict.ContainsKey(list) && freshBatch.Count > 1 && freshBatch[0] == lastSpawnedDict[list])
-            {
-                string temp = freshBatch[0];
-                freshBatch[0] = freshBatch[freshBatch.Count - 1];
-                freshBatch[freshBatch.Count - 1] = temp;
-            }
-            spawnQueues[list] = new Queue<string>(freshBatch);
-        }
-
-        string selection = spawnQueues[list].Dequeue();
-        lastSpawnedDict[list] = selection;
-        return selection;
-    }
 
     private void RemoveResources()
     {
@@ -355,19 +327,3 @@ public struct SpawnCandidate
     public SpawnBehavior Behavior;
 }
 
-public static class TrafficUtils
-{
-    private static Random rng = new Random();
-    public static void Shuffle<T>(IList<T> list)
-    {
-        int n = list.Count;
-        while (n > 1)
-        {
-            n--;
-            int k = rng.Next(n + 1);
-            T value = list[k];
-            list[k] = list[n];
-            list[n] = value;
-        }
-    }
-}

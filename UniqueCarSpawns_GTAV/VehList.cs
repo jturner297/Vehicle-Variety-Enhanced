@@ -300,21 +300,10 @@ public class VehList
        "deveste",
     };
 
-    /*
-    public static HashSet<string> models_supers_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { //these cars already spawn in traffic or have an in game location
-       "zentorno",
-       "turismor",
-       "cheetah",
-       "entityxf",
-       "vacca",     
-        "adder",     
-       "sc1",
-       "penetrator",
-       "pfister811",
-       "cyclone",
-  
-
-    };*/
+    
+    public static HashSet<string> models_doomsday = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { //these cars already spawn in traffic or have an in game location
+       "tampa3",
+    };
 
 
 

@@ -40,6 +40,23 @@ public static class CarMod
             }
         }},
 
+        // --- WEAPONIZED TAMPA (User Custom) ---
+        { "tampa3", v => {
+            SetColors(v, 93, 0, 4, 0); // Primary: Olive, Sec/Rim: Black, Pearl: Silver
+            SetWheels(v, VehicleWheelType.Offroad, 1); // Specific Offroad Wheel
+            
+            // Body Mods from XML
+            v.Mods[VehicleModType.FrontBumper].Index = 0;
+            v.Mods[VehicleModType.RearBumper].Index = 0;
+            v.Mods[VehicleModType.Frame].Index = 2; // Chassis Upgrade
+            v.Mods[VehicleModType.Hood].Index = 2;
+            v.Mods[VehicleModType.Roof].Index = 0; // Weapon/Roof Mount
+            
+            // Clean up
+            v.Mods[VehicleModType.Livery].Index = -1;
+            v.Mods.WindowTint = VehicleWindowTint.None;
+        }},
+
         // --- BATMOBILE ---
         { "vigilante", v => {
             v.Mods[VehicleModType.Roof].Index = 0;
