@@ -11,10 +11,10 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-    private float SpawnDistance = 175.0f;
-    private float DespawnDistance = 250.0f;
+    private float SpawnDistance = 200.0f;
+    private float DespawnDistance = 220.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 15000;
+    private int CheckInterval = 1500;
     private int RareCarChance = 15; // Increased to 30% to fix the "Variety" issue
     // ==========================================
 
@@ -41,14 +41,13 @@ public class TrafficMP : Script
     };
 
     // ZONES
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "EBURO", "CYPRE", "BANNIN", "TATAMO", "LMESA", "MURRI" };
-    private HashSet<string> _richZones = new HashSet<string> { "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "MORN", "OBSERV", "HAWICK", "BURTON", "DELPE", "GALFISH" };
-    private HashSet<string> _ghettoZones = new HashSet<string> { "CHAMH", "DAVIS", "RANCHO", "STRAW" };
-    private HashSet<string> _urbanZones = new HashSet<string> { "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO" };
+    private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
     public TrafficMP()
     {
         InitializeRegistry();
+        InitializeZones();
         Tick += OnTick;
         Aborted += OnAborted;
     }
@@ -74,6 +73,65 @@ public class TrafficMP : Script
         // General Models -> Stock
         _behaviorRegistry.Add(VehList.models_general_common, SpawnBehavior.Spec);
         _behaviorRegistry.Add(VehList.models_general_rare, SpawnBehavior.Stock);
+    }
+
+    private void InitializeZones()
+    {
+        // 1. DEFINE PROFILES -----------------------------------------
+
+        // RURAL PROFILE (Your specific request)
+        ZoneProfile ruralProfile = new ZoneProfile();
+        ruralProfile.AddIngredient(VehList.models_rural, 50);          
+        ruralProfile.AddIngredient(VehList.models_general_common, 30);
+        ruralProfile.AddIngredient(VehList.models_general_rare, 10);
+        ruralProfile.AddIngredient(VehList.models_wacky, 10);          
+
+        // RICH PROFILE
+        ZoneProfile richProfile = new ZoneProfile();
+        richProfile.AddIngredient(VehList.models_supers_common, 40);
+        richProfile.AddIngredient(VehList.models_classics_common, 40); 
+        richProfile.AddIngredient(VehList.models_city, 20);            
+
+        // GHETTO PROFILE
+        ZoneProfile ghettoProfile = new ZoneProfile();
+        ghettoProfile.AddIngredient(VehList.models_lowriders, 50);     
+        ghettoProfile.AddIngredient(VehList.models_general_common, 40);
+        ghettoProfile.AddIngredient(VehList.models_general_rare, 10);
+
+        // URBAN PROFILE
+        ZoneProfile urbanProfile = new ZoneProfile();
+        urbanProfile.AddIngredient(VehList.models_city, 50);           
+         urbanProfile.AddIngredient(VehList.models_general_common, 30);
+        urbanProfile.AddIngredient(VehList.models_general_rare, 20);
+
+       
+        // Industrial PROFILE
+        ZoneProfile industrialProfile = new ZoneProfile();
+        industrialProfile.AddIngredient(VehList.models_general_common, 50);
+        industrialProfile.AddIngredient(VehList.models_general_rare, 50);
+
+        // 2. ASSIGN ZONES TO PROFILES -------------------------------
+
+        // Assign Rural
+        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "MTJOSE", "PALFOR", "DESRT", "CANNY", "CCREAK", "MTCHIL", "GALFISH");
+
+        // Assign Rich
+        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE");
+
+        // Assign Ghetto
+        AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
+
+        // Assign Urban
+        AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON");
+
+        // Assign General-only Zones 
+        AssignToProfile(industrialProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI");
+    }
+
+    // Helper to save typing
+    private void AssignToProfile(ZoneProfile profile, params string[] zones)
+    {
+        foreach (string z in zones) _zoneRegistry[z] = profile;
     }
 
     private void OnTick(object sender, EventArgs e)
@@ -246,27 +304,26 @@ public class TrafficMP : Script
     private SpawnCandidate GetCandidateForLocation(Vector3 pos)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
+
+        // 1. Check Bans
         if (_bannedZones.Contains(zone)) return new SpawnCandidate();
 
-        if (_richZones.Contains(zone))
+        // 2. Check Registry
+        if (_zoneRegistry.ContainsKey(zone))
         {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_supers_common, VehList.models_city));
-            else return PickFromList(SelectWeightedList(VehList.models_classics_common, VehList.models_city));
+            // Get the profile for this zone
+            ZoneProfile profile = _zoneRegistry[zone];
 
+            // Ask the profile to pick a list based on its ingredients
+            HashSet<string> selectedList = profile.PickList();
+
+            if (selectedList != null)
+            {
+                return PickFromList(selectedList);
+            }
         }
 
-        if (_ghettoZones.Contains(zone))
-        {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(VehList.models_lowriders);
-            return PickFromList(SelectWeightedList(VehList.models_general_common, VehList.models_general_rare));
-        }
-
-        if (_urbanZones.Contains(zone))
-        {
-            if (_rnd.Next(0, 2) == 0) return PickFromList(SelectWeightedList(VehList.models_general_common, VehList.models_general_rare));
-            return PickFromList(VehList.models_city);
-        }
-
+        // 3. Fallback (if zone is unknown)
         return new SpawnCandidate();
     }
 
@@ -327,3 +384,43 @@ public struct SpawnCandidate
     public SpawnBehavior Behavior;
 }
 
+public class ZoneProfile
+{
+    private struct Ingredient
+    {
+        public HashSet<string> List;
+        public int Weight;
+    }
+
+    private List<Ingredient> _ingredients = new List<Ingredient>();
+    private int _totalWeight = 0;
+    private Random _rnd = new Random();
+
+    // Add a list (e.g., Rural) and how much space it takes (e.g., 50)
+    public void AddIngredient(HashSet<string> list, int weight)
+    {
+        _ingredients.Add(new Ingredient { List = list, Weight = weight });
+        _totalWeight += weight;
+    }
+
+    public HashSet<string> PickList()
+    {
+        if (_ingredients.Count == 0) return null;
+
+        // Roll the dice (0 to TotalWeight)
+        int roll = _rnd.Next(0, _totalWeight);
+        int current = 0;
+
+        foreach (var item in _ingredients)
+        {
+            current += item.Weight;
+            if (roll < current)
+            {
+                return item.List;
+            }
+        }
+
+        // Fallback (should never happen if math is right)
+        return _ingredients[0].List;
+    }
+}

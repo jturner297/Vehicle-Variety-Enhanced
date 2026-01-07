@@ -83,7 +83,7 @@ public static class SpawnDatabase
             new SpawnSpot("City1", new Vector3(110.261f, -714.605f, 32.133f), 341.667f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("City2", new Vector3(-340.161f, -876.799f, 30.90968f), 347.7794f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("City3", new Vector3(-329.9433f, -700.7843f, 32.33982f), 88.68892f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
-            new SpawnSpot("City4", new Vector3(627.8824f, 196.4409f, 96.67142f), 70.38502f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
+            new SpawnSpot("EastVinewood", new Vector3(626.567f, 192.583f, 96.535f), 70.105f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("City5", new Vector3(-421.333f, 1198.125f, 325.160f), 50.838f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("C_DelPerro_LOMBANK", new Vector3(-1628.467f, -614.632f, 31.880f), 229.606f, VehList.models_city, SpawnBehavior.Spec, VehList.models_armoured, 5),
             new SpawnSpot("C_RockfordPlazza_1", new Vector3(-187.144f, -175.854f, 42.624f), 160.257f, VehList.models_city,  SpawnBehavior.Spec, VehList.models_armoured, 5),
