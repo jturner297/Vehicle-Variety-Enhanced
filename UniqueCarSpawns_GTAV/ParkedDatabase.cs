@@ -109,14 +109,14 @@ public static class SpawnDatabase
             new SpawnSpot("G_ChumashShopping", new Vector3(-3139.044f, 1086.714f, 20.23225f),260.5882f, VehList.models_general_common,  SpawnBehavior.Spec, VehList.models_general_rare, 10),
             new SpawnSpot("G_MaibatsuDealer", new Vector3(246.847f, -1162.08f, 28.16f), 180.390f, VehList.models_general_common,  SpawnBehavior.Spec, VehList.models_general_rare, 10),
 
-            // --- MILITARY SPAWNS (Spec) ---
+          /*  // --- MILITARY SPAWNS (Spec) ---
             new SpawnSpot("M_Planes_1", new Vector3(-1892.247f, 3082.933f, 32.810f), 147.141f, VehList.models_military_planes, SpawnBehavior.Spec, null, 0, 800f),
             new SpawnSpot("M_Planes_2", new Vector3(-1934.867f, 3109.608f, 32.810f), 150.073f, VehList.models_military_planes, SpawnBehavior.Spec, null, 0, 800f),
             new SpawnSpot("M_Helis", new Vector3(-1965.212f, 3101.532f, 32.810f), 236.324f, VehList.models_military_helicopters, SpawnBehavior.Spec, null, 0, 800f),
             new SpawnSpot("M_Insurgents", new Vector3(-1788.814f, 3088.862f, 32.737f), 240.882f, VehList.models_insurgents, SpawnBehavior.Spec, null, 0, 800f),
             new SpawnSpot("M_Thruster", new Vector3(-1792.126f, 3085.639f, 32.656f), 279.921f, VehList.models_thruster, SpawnBehavior.Spec,  null, 0, 800f),
             new SpawnSpot("M_OppressorMKII", new Vector3(-1787.989f, 3082.481f, 32.726f), 284.223f, VehList.models_oppressor2, SpawnBehavior.Spec,  null, 0, 800f),
-
+          */
             // Desert (RandomSpec)
             new SpawnSpot("Paleto_modshop", new Vector3(140.945f, 6606.513f, 30.845f), 0.239f, VehList.models_wacky, SpawnBehavior.RandomSpec),
             new SpawnSpot("Route68_modshop", new Vector3(1205.454f, 2658.357f, 36.824f), 223.627f, VehList.models_wacky, SpawnBehavior.RandomSpec),

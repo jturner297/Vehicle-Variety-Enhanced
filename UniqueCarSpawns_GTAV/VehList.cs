@@ -633,5 +633,19 @@ public class VehList
     };
 
 
+    public static HashSet<string> models_offroad = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
+        "boor",
+        "brawler",
+        "esskey",
+        "kamacho",
+        "monstrociti",
+        "riata",
+        "rumpo3",
+        "seminole2",
+        "enduro",
+        "manchez2",
+        "bf400",
+
+    };
 
 }
