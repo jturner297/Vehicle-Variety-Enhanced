@@ -30,10 +30,10 @@ public class TrafficMP : Script
 
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO", "MTJOSE" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
-    private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC", "PALETO", "MTGORDO", "TONGVAH", "LAGO", "ZANCUDO" };
+    //private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC", "PALETO", "MTGORDO", "TONGVAH", "LAGO", "ZANCUDO" };
 
     // Define the Flags structure based on your request
     [Flags]
@@ -75,10 +75,13 @@ public class TrafficMP : Script
     private void InitializeZones()
     {
         ZoneProfile ruralProfile = new ZoneProfile();
+        ruralProfile.IsRural = true;
         ruralProfile.AddIngredient(VehList.models_rural, 50);
         ruralProfile.AddIngredient(VehList.models_general_common, 30);
         ruralProfile.AddIngredient(VehList.models_general_rare, 10);
         ruralProfile.AddIngredient(VehList.models_wacky, 10);
+
+
 
         ZoneProfile richProfile = new ZoneProfile();
         richProfile.AddIngredient(VehList.models_supers_common, 40);
@@ -95,15 +98,15 @@ public class TrafficMP : Script
         urbanProfile.AddIngredient(VehList.models_general_common, 30);
         urbanProfile.AddIngredient(VehList.models_general_rare, 20);
 
-        ZoneProfile industrialProfile = new ZoneProfile();
-        industrialProfile.AddIngredient(VehList.models_general_common, 50);
-        industrialProfile.AddIngredient(VehList.models_general_rare, 50);
+        ZoneProfile generalProfile = new ZoneProfile();
+        generalProfile.AddIngredient(VehList.models_general_common, 50);
+        generalProfile.AddIngredient(VehList.models_general_rare, 50);
 
-        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO");
+        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO",  "RTRAK", "ZQ_UAR", "MTJOSE");
         AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON");
-        AssignToProfile(industrialProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI");
+        AssignToProfile(generalProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO");
     }
 
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
@@ -178,6 +181,17 @@ public class TrafficMP : Script
             if (candidatePos == Vector3.Zero) continue;
             if (IsZoneBanned(candidatePos)) continue;
 
+            // --- OPTIMIZATION: Node Zone Lookup ---
+            // We check the zone of the *Road Node*, look up its profile, and see if IsRural is true.
+            string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
+            bool isRuralNode = false;
+
+            if (_zoneRegistry.ContainsKey(nodeZone))
+            {
+                isRuralNode = _zoneRegistry[nodeZone].IsRural;
+            }
+
+
             // --- NEW NODE FILTERING LOGIC ---
             OutputArgument outDensity = new OutputArgument();
             OutputArgument outFlags = new OutputArgument();
@@ -200,7 +214,7 @@ public class TrafficMP : Script
                 // If we are NOT in a rural zone, and the node is "OffRoad", it's likely a parking lot or alley.
                 // We ban these to prevent parking lot spawns. 
                 // We ALLOW them in Rural zones because dirt roads are flagged as OffRoad.
-                if (!_ruralZones.Contains(cZone))
+                if (!isRuralNode)
                 {
                     if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
                 }
@@ -209,8 +223,7 @@ public class TrafficMP : Script
 
             float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
             string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
-            float maxSnap = (_ruralZones.Contains(currentZone)) ? 90.0f : 60.0f;
-
+            float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
             if (snapDist > maxSnap) continue;
 
             float nodeDeviation = 0f;
@@ -378,6 +391,8 @@ public class TrafficMP : Script
 public struct SpawnCandidate { public string ModelName; public SpawnBehavior Behavior; }
 public class ZoneProfile
 {
+
+    public bool IsRural { get; set; } = false; // Added this flag
     private struct Ingredient { public HashSet<string> List; public int Weight; }
     private List<Ingredient> _ingredients = new List<Ingredient>();
     private int _totalWeight = 0;
