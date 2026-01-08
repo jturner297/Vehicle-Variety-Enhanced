@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Windows.Forms; // Added for Key Handling
+using System.Windows.Forms;
 using GTA;
 using GTA.Math;
 using GTA.Native;
@@ -11,13 +11,12 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-    private float SpawnDistance = 130.0f;
 
-    // Increased to 230 to safely cover wider searches + spawn buffers
-    private float DespawnDistance = 230.0f;
+    // 260.0f allows the 240m probe to exist without instant cleanup
+    private float DespawnDistance = 320.0f;
 
     private int SpawnChance = 100;
-    private int CheckInterval = 1000; // 1s Check for smoother spawning
+    private int CheckInterval = 1000;
     private int RareCarChance = 15;
     // ==========================================
 
@@ -37,7 +36,6 @@ public class TrafficMP : Script
     private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO", "MTJOSE" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
     private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC" };
-    private HashSet<string> _denseCityZones = new HashSet<string> { "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "HAWICK", "BURTON", "ALTA", "EAST_V", "CHAMH", "DAVIS", "RANCHO", "STRAW", "PALETO", "SANDY", "GRAPES" };
 
     public TrafficMP()
     {
@@ -123,9 +121,6 @@ public class TrafficMP : Script
         if (_rnd.Next(1, 101) > SpawnChance) return;
         if (IsZoneBanned(player.Position)) return;
 
-        // 1. CALCULATE TERRAIN DEVIATION
-        // Check if the PLAYER is on the ground (Hill/Flat) or in the air (Bridge)
-        // This is key: If player is 80m above the terrain, they are on a bridge. We need to look for nodes 80m above the terrain.
         OutputArgument playerGroundZArg = new OutputArgument();
         float playerDeviation = 0f;
 
@@ -135,74 +130,91 @@ public class TrafficMP : Script
             playerDeviation = player.Position.Z - gZ;
         }
 
-        // 2. PROJECT SEARCH POS (Flattened)
-        // Use Z=0 for the forward vector so we don't dig into hills
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        float testDist = SpawnDistance;
-        Vector3 searchPos = player.Position + (flatFwd * testDist);
+        float[] probeDistances = { 240.0f, 170.0f, 120.0f };
 
-        // 3. APPLY SMART HEIGHT
-        // Find the terrain height at the spawn point, then ADD the player's deviation (Bridge Height)
-        OutputArgument targetGroundZArg = new OutputArgument();
-        if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
-        {
-            float tGZ = targetGroundZArg.GetResult<float>();
-            searchPos.Z = tGZ + playerDeviation; // Snap to the correct "Layer" (Ground or Bridge)
-        }
+        Vector3 finalSpawnPos = Vector3.Zero;
+        float finalHeading = 0f;
+        bool foundValidSpot = false;
 
-        // 4. CURVE CHECK
-        bool isVisible = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, searchPos.X, searchPos.Y, searchPos.Z, 2.0f);
-        if (!isVisible)
+        foreach (float dist in probeDistances)
         {
-            testDist = 110.0f;
-            searchPos = player.Position + (flatFwd * testDist);
-            // Re-apply Smart Height for closer point
+            Vector3 searchPos = player.Position + (flatFwd * dist);
+
+            OutputArgument targetGroundZArg = new OutputArgument();
             if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
             {
-                searchPos.Z = targetGroundZArg.GetResult<float>() + playerDeviation;
+                float tGZ = targetGroundZArg.GetResult<float>();
+                searchPos.Z = tGZ + playerDeviation;
+            }
+
+            // Tightened Radius (Prevents parking lot spawns)
+            float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
+
+            OutputArgument outPos = new OutputArgument();
+            OutputArgument outHead = new OutputArgument();
+
+            Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, searchRadius, 0);
+
+            Vector3 candidatePos = outPos.GetResult<Vector3>();
+            float candidateHead = outHead.GetResult<float>();
+
+            if (candidatePos == Vector3.Zero) continue;
+            if (IsZoneBanned(candidatePos)) continue;
+
+            float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
+            string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
+            float maxSnap = (_ruralZones.Contains(currentZone)) ? 90.0f : 60.0f;
+
+            if (snapDist > maxSnap) continue;
+
+            float nodeDeviation = 0f;
+            if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, candidatePos.X, candidatePos.Y, candidatePos.Z + 5.0f, targetGroundZArg, false))
+            {
+                nodeDeviation = candidatePos.Z - targetGroundZArg.GetResult<float>();
+            }
+            if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
+
+            // VISIBILITY & DISTANCE CHECK
+            float distToPlayer = player.Position.DistanceTo(candidatePos);
+
+            if (distToPlayer < 85.0f) continue;
+
+            // [THE DOOMED CHECK]
+            // If the found node is further than our Cleanup Distance, ignore it.
+            // This prevents the "Flash" where we spawn a car only to delete it 1ms later.
+            if (distToPlayer > DespawnDistance - 10.0f) continue;
+
+            // A. Horizon 
+            if (distToPlayer > 215.0f)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+            }
+
+            // B. Frustum Check
+            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 2.0f);
+
+            if (!isWithinScreenBounds)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+            }
+
+            // C. Raycast Check
+            RaycastResult ray = World.Raycast(GameplayCamera.Position, candidatePos, IntersectFlags.Map);
+            if (ray.DidHit)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
         }
 
-        // 5. WIDE SEARCH (Intersection Fix)
-        // 60.0f radius allows grabbing cross-streets and winding roads
-        OutputArgument outPos = new OutputArgument();
-        OutputArgument outHead = new OutputArgument();
-        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, 60.0f, 0);
+        if (!foundValidSpot) return;
 
-        Vector3 spawnPos = outPos.GetResult<Vector3>();
-        float spawnHeading = outHead.GetResult<float>();
-
-        if (spawnPos == Vector3.Zero) return;
-        if (player.Position.DistanceTo(spawnPos) < 100.0f) return;
-        if (IsZoneBanned(spawnPos)) return;
-
-        // 6. SNAP CHECK (Restored MaxSnap logic)
-        float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(spawnPos.X, spawnPos.Y));
-        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
-        float maxSnap = (_ruralZones.Contains(currentZone)) ? 80.0f : 55.0f;
-
-        if (snapDist > maxSnap) return;
-
-        // 7. SMART VERTICAL CHECK (The Hill Fix)
-        // Instead of verifying Z vs Player Z, we verify Z vs Terrain Z.
-        // If the NODE's deviation from terrain matches the PLAYER'S deviation, it's a valid path.
-        // This allows spawning 50m above the player IF both are on the ground (Hill).
-
-        float nodeDeviation = 0f;
-        if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, spawnPos.X, spawnPos.Y, spawnPos.Z + 5.0f, targetGroundZArg, false))
-        {
-            nodeDeviation = spawnPos.Z - targetGroundZArg.GetResult<float>();
-        }
-
-        // Allow 10m tolerance for deviation (e.g. slight bumps/dips)
-        if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) return;
-
-        SpawnCandidate candidate = GetCandidateForLocation(spawnPos);
+        SpawnCandidate candidate = GetCandidateForLocation(finalSpawnPos);
         if (string.IsNullOrEmpty(candidate.ModelName) || candidate.ModelName == _lastGlobalModel) return;
 
-        CreateTrafficEntity(candidate, spawnPos, spawnHeading);
+        CreateTrafficEntity(candidate, finalSpawnPos, finalHeading);
     }
 
     private void ReleaseVehicleToPlayer()
@@ -232,7 +244,6 @@ public class TrafficMP : Script
         }
     }
 
-    //
     private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
     {
         Model model = new Model(candidate.ModelName);
@@ -250,11 +261,8 @@ public class TrafficMP : Script
             _activeVehicle.IsPersistent = true; _activeVehicle.IsEngineRunning = true;
             Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, _activeVehicle, 5.0f);
 
-            OutputArgument outRoadHead = new OutputArgument();
-            if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, pos.X, pos.Y, pos.Z, new OutputArgument(), outRoadHead, 1, 3.0f, 0))
-            {
-                _activeVehicle.Heading = outRoadHead.GetResult<float>();
-            }
+            // REMOVED: Redundant GetClosestVehicleNode call that was overwriting the good heading with bad data.
+            // Now strictly uses the 'heading' passed from ManageSpawning.
 
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, _activeVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, _activeVehicle, _rnd.Next(0, comboCount));
