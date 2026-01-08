@@ -11,7 +11,7 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-    private float DespawnDistance = 260.0f; // Buffer for the 225m probe
+    private float DespawnDistance = 260.0f;
     private int SpawnChance = 100;
     private int CheckInterval = 1000;
     private int RareCarChance = 15;
@@ -34,6 +34,23 @@ public class TrafficMP : Script
 
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
     private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC", "PALETO", "MTGORDO", "TONGVAH", "LAGO", "ZANCUDO" };
+
+    // Define the Flags structure based on your request
+    [Flags]
+    public enum VehicleNodeFlags
+    {
+        OffRoad = 1 << 0,
+        OnPlayersRoad = 1 << 1,
+        NoBigVehicles = 1 << 2,
+        SwitchedOff = 1 << 3,
+        TunnelOrInterior = 1 << 4,
+        LeadsToDeadEnd = 1 << 5,
+        Highway = 1 << 6,
+        Junction = 1 << 7,
+        TrafficLight = 1 << 8,
+        GiveWay = 1 << 9,
+        Water = 1 << 10
+    }
 
     public TrafficMP()
     {
@@ -131,11 +148,6 @@ public class TrafficMP : Script
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        // INSIDE-OUT PROBING
-        // 1. Try 55m (Aggressive Blind Corner)
-        // 2. Try 110m (Standard Block)
-        // 3. Try 160m (Mid Range)
-        // 4. Try 225m (Horizon - Last Resort)
         float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
 
         Vector3 finalSpawnPos = Vector3.Zero;
@@ -166,6 +178,35 @@ public class TrafficMP : Script
             if (candidatePos == Vector3.Zero) continue;
             if (IsZoneBanned(candidatePos)) continue;
 
+            // --- NEW NODE FILTERING LOGIC ---
+            OutputArgument outDensity = new OutputArgument();
+            OutputArgument outFlags = new OutputArgument();
+
+            // Call GET_VEHICLE_NODE_PROPERTIES
+            if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
+            {
+                int density = outDensity.GetResult<int>();
+                int flags = outFlags.GetResult<int>();
+                string cZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
+
+                // 1. FILTER: Dead Nodes
+                // Density 0 usually means private driveways or empty lots.
+                if (density == 0) continue;
+
+                // 2. FILTER: "Switched Off" Nodes
+                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
+
+                // 3. FILTER: Parking Lots (City Only)
+                // If we are NOT in a rural zone, and the node is "OffRoad", it's likely a parking lot or alley.
+                // We ban these to prevent parking lot spawns. 
+                // We ALLOW them in Rural zones because dirt roads are flagged as OffRoad.
+                if (!_ruralZones.Contains(cZone))
+                {
+                    if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
+                }
+            }
+            // --------------------------------
+
             float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
             string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
             float maxSnap = (_ruralZones.Contains(currentZone)) ? 90.0f : 60.0f;
@@ -179,48 +220,30 @@ public class TrafficMP : Script
             }
             if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
 
-            // VISIBILITY & DISTANCE CHECK
             float distToPlayer = player.Position.DistanceTo(candidatePos);
 
             if (distToPlayer < 35.0f) continue;
             if (distToPlayer > DespawnDistance - 10.0f) continue;
 
-            // --- THE INSIDE-OUT DECISION LOGIC ---
-
-            // 1. HORIZON CHECK
-            // If we have retreated back to > 210m, we are safe regardless of visibility.
             if (distToPlayer > 210.0f)
             {
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
-            // 2. FRUSTUM CHECK
-            // Is it technically on screen?
-            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 2.0f);
+            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
 
             if (!isWithinScreenBounds)
             {
-                // Hidden (Behind us/Side) -> TAKE IT
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
-            // 3. RAYCAST CHECK (The "Is it Open?" Detector)
-            // We check 1.2 meters ABOVE the road node.
-            // This ensures we are checking for the CAR BODY, not just the tires (which might be hidden by a curb).
-            // If Ray hits Map -> Hidden -> Spawn.
-            // If Ray hits Nothing -> Open -> SKIP.
-            Vector3 checkOffset = new Vector3(0, 0, 1.2f);
-            RaycastResult ray = World.Raycast(GameplayCamera.Position, candidatePos + checkOffset, IntersectFlags.Map);
+            bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
+            bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
 
-            if (ray.DidHit)
+            if (isLowBlocked || isHighBlocked)
             {
-                // HIDDEN BY MAP (Building/Hill): Safe to spawn!
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
-
-            // 4. FAILURE:
-            // It is Close, On Screen, and the Raycast confirmed it is OPEN AIR.
-            // We SKIP this spot and let the loop retry at the next further distance.
         }
 
         if (!foundValidSpot) return;
@@ -260,6 +283,8 @@ public class TrafficMP : Script
 
     private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
     {
+
+        if (_excludedModels.Contains(candidate.ModelName)) return;
         Model model = new Model(candidate.ModelName);
         if (!model.IsValid || !model.IsInCdImage) return;
         model.Request(500);
