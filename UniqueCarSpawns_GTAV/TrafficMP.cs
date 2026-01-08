@@ -11,8 +11,9 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
+    private float SpawnDistance = 150.0f; // Target Distance
 
-    // UPDATED: 250.0f gives a healthy buffer for the new 150m spawn logic.
+    // Increased to accommodate Ghost Spawning fade-in time
     private float DespawnDistance = 250.0f;
 
     private int SpawnChance = 100;
@@ -26,10 +27,13 @@ public class TrafficMP : Script
     private int _nextSpawnCheckTime = 0;
     private Random _rnd = new Random();
 
+    // FADE SYSTEM (Ghost Spawn Logic)
+    private Vehicle _fadingVehicle;
+    private int _fadingAlpha = 0;
+
     private bool _isInMissionMode = false;
     private string _lastGlobalModel = "";
 
-    private ZoneProfile _trailProfile;
 
     // Updated: Uses Shared Enum
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
@@ -40,7 +44,7 @@ public class TrafficMP : Script
     };
 
     // ZONES
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO", "MTJOSE" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "LAGO", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO", "MTJOSE" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
     public TrafficMP()
@@ -64,9 +68,6 @@ public class TrafficMP : Script
 
     private void InitializeZones()
     {
-        _trailProfile = new ZoneProfile();
-        _trailProfile.AddIngredient(VehList.models_cemetery, 100);
-
         ZoneProfile ruralProfile = new ZoneProfile();
         ruralProfile.AddIngredient(VehList.models_rural, 50);
         ruralProfile.AddIngredient(VehList.models_general_common, 30);
@@ -92,6 +93,10 @@ public class TrafficMP : Script
         industrialProfile.AddIngredient(VehList.models_general_common, 50);
         industrialProfile.AddIngredient(VehList.models_general_rare, 50);
 
+
+        // but since this is a simple script, they just get the general car lists unless defined here.
+        // Kept Rural definitions for standard rural zones.
+      //  AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "DESRT", "CANNY", "CCREAK", "MTCHIL", "GALFISH", "PALFOR", "PALETO");
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA");
         AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
@@ -126,6 +131,27 @@ public class TrafficMP : Script
             }
         }
 
+        // ==========================================
+        // FADE-IN LOGIC (Ghost Spawn System)
+        // ==========================================
+        if (_fadingVehicle != null && _fadingVehicle.Exists())
+        {
+            if (_fadingAlpha < 255)
+            {
+                _fadingAlpha += 15; // Fade Speed
+                if (_fadingAlpha > 255) _fadingAlpha = 255;
+
+                _fadingVehicle.Opacity = _fadingAlpha;
+                Function.Call(Hash.SET_ENTITY_ALPHA, _fadingVehicle, _fadingAlpha, false);
+            }
+            else
+            {
+                Function.Call(Hash.RESET_ENTITY_ALPHA, _fadingVehicle);
+                _fadingVehicle = null;
+            }
+        }
+        // ==========================================
+
         Ped player = Game.Player.Character;
 
         if (_activeVehicle != null && _activeVehicle.Exists())
@@ -147,6 +173,12 @@ public class TrafficMP : Script
 
     private void ReleaseVehicleToPlayer()
     {
+        if (_activeVehicle != null && _activeVehicle.Exists())
+        {
+            _activeVehicle.Opacity = 255;
+            Function.Call(Hash.RESET_ENTITY_ALPHA, _activeVehicle);
+        }
+
         if (_activeBlip != null && _activeBlip.Exists()) _activeBlip.Delete();
         if (_activeVehicle != null && _activeVehicle.Exists()) _activeVehicle.MarkAsNoLongerNeeded();
         if (_activeDriver != null && _activeDriver.Exists()) _activeDriver.MarkAsNoLongerNeeded();
@@ -154,6 +186,7 @@ public class TrafficMP : Script
         _activeVehicle = null;
         _activeDriver = null;
         _activeBlip = null;
+        _fadingVehicle = null;
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
@@ -174,169 +207,58 @@ public class TrafficMP : Script
         }
     }
 
-    private bool IsRuggedZone(string zone)
-    {
-        HashSet<string> ruralZones = new HashSet<string> {
-            "MTGORDO", "CMSW","GREATC", "WINDF", "ZANCUDO" , "LAGO", "ZQ_UAR",
-            "PALFOR", "DESRT", "MTCHIL", "GALFISH", "CANNY", "CCREAK"
-        };
-        return ruralZones.Contains(zone);
-    }
-
-    // NEW: Helper to identify dangerous zones for long-distance spawning
-    private bool IsHighRiskZone(string zone)
-    {
-        HashSet<string> riskZones = new HashSet<string> {
-            "MTCHIL", "CANNY", "CCREAK", "PALETO", "PALFOR", "CMSW", "MTGORDO"
-        };
-        return riskZones.Contains(zone);
-    }
-
-    // =========================================================================
-    //                        CORE SPAWNING LOGIC (UPDATED)
-    // =========================================================================
-
     private void ManageSpawning(Ped player)
     {
         if (_rnd.Next(1, 101) > SpawnChance) return;
         if (IsZoneBanned(player.Position)) return;
 
-        // BOSS LOGIC: Decide which specialist to call based on the zone
-        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
-
-        if (IsRuggedZone(currentZone))
-        {
-            SpawnWilderness(player); // Use Strict Logic
-        }
-        else
-        {
-            SpawnCity(player);       // Use Aggressive Logic
-        }
-    }
-
-    // SPECIALIST A: CITY (Vinewood, Downtown, Suburbs)
-    // Aggressive, relaxed checks to fill gaps and handle hills.
-    private void SpawnCity(Ped player)
-    {
-        // 1. BALANCED DISTANCE (150m)
-        float testDist = 150.0f;
+        // SMART DISTANCE: 
+        // 1. Try 200m (Standard).
+        float testDist = SpawnDistance;
         Vector3 searchPos = player.Position + (player.ForwardVector * testDist);
 
-        // Smart Check: If blocked (Corner/Hill), pull back to 90m to find the street.
+        // 2. Curve Check: If 200m is hidden (blocked by hill/curve), pull back to 110m.
+        // This keeps the vector on the road and allows the "Snap Check" to pass.
         bool isVisible = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, searchPos.X, searchPos.Y, searchPos.Z, 2.0f);
         if (!isVisible)
         {
-            testDist = 90.0f;
+            testDist = 110.0f;
             searchPos = player.Position + (player.ForwardVector * testDist);
         }
 
-        // 2. FIND ROAD (Asphalt Only - Arg 0)
         OutputArgument outPos = new OutputArgument();
         OutputArgument outHead = new OutputArgument();
+
+        // Node Arg 0 = Main Roads (This works best for City)
         Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, 3.0f, 0);
 
         Vector3 spawnPos = outPos.GetResult<Vector3>();
         float spawnHeading = outHead.GetResult<float>();
 
         if (spawnPos == Vector3.Zero) return;
-        if (player.Position.DistanceTo(spawnPos) < 40.0f) return;
+        if (player.Position.DistanceTo(spawnPos) < 100.0f) return;
         if (IsZoneBanned(spawnPos)) return;
 
-        // 3. RELAXED CHECKS (Fixes Vinewood Gaps)
-        // Snap: Allow 60m variance to find parallel streets around blocks.
+        // THE BACK ALLEY FIX:
+        // Calculate lateral distance from our search vector to the found road.
         float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(spawnPos.X, spawnPos.Y));
-        if (snapDist > 60.0f) return;
 
-        // Height: Allow 50m difference (Overpasses/Steep Hills)
-        if (Math.Abs(spawnPos.Z - player.Position.Z) > 50.0f) return;
-
-        // 4. SPAWN
-        SpawnCandidate candidate = GetCandidateForLocation(spawnPos, false);
-        if (string.IsNullOrEmpty(candidate.ModelName) || candidate.ModelName == _lastGlobalModel) return;
-
-        CreateTrafficEntity(candidate, spawnPos, spawnHeading, false);
-    }
-
-    // SPECIALIST B: WILDERNESS (Mountains, Desert, Canyons)
-    // Safe, strict checks to prevent glitches and manage trails.
-    private void SpawnWilderness(Ped player)
-    {
-        // 1. BALANCED DISTANCE & RISK MANAGEMENT
+        // Logic:
+        // In City: > 40m means it jumped over a building into an alley -> ABORT.
+        // In Rural: > 80m is okay (fields are wide).
         string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
-        bool isHighRisk = IsHighRiskZone(currentZone);
+        bool isRural = (currentZone == "DESRT" || currentZone == "MTCHIL" || currentZone == "CANNY" || currentZone == "CCREAK" || currentZone == "GREATC");
 
-        float testDist = 150.0f; // Default "Goldilocks" Distance
+        float maxSnap = isRural ? 80.0f : 40.0f;
 
-        if (isHighRisk)
-        {
-            // Cap at 130m in canyons to prevent wall glitches
-            testDist = 130.0f;
-        }
-        else
-        {
-            // Open Rural: If hidden (Curve), pull back to 90m to stay on road.
-            Vector3 longPos = player.Position + (player.ForwardVector * testDist);
-            bool isVisible = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, longPos.X, longPos.Y, longPos.Z, 2.0f);
-            if (!isVisible) testDist = 90.0f;
-        }
-
-        Vector3 searchPos = player.Position + (player.ForwardVector * testDist);
-
-        // 2. ROAD DOMINANCE (Veto Logic)
-        OutputArgument outMain = new OutputArgument();
-        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE, searchPos.X, searchPos.Y, searchPos.Z, outMain, 0, 3.0f, 0);
-        Vector3 mainPos = outMain.GetResult<Vector3>();
-        float distToMain = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(mainPos.X, mainPos.Y));
-
-        int nodeArg = 0;
-        bool forceOffroad = false;
-        bool useVerticalCheck = true;
-
-        // If Highway is within 30m, it wins.
-        if (distToMain < 30.0f)
-        {
-            nodeArg = 0;
-            forceOffroad = false;
-            useVerticalCheck = true;
-        }
-        else
-        {
-            nodeArg = 1; // Trail Mode
-            forceOffroad = true;
-            useVerticalCheck = false;
-        }
-
-        // 3. EXECUTE SEARCH
-        OutputArgument outPos = new OutputArgument();
-        OutputArgument outHead = new OutputArgument();
-        Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, nodeArg, 3.0f, 0);
-
-        Vector3 spawnPos = outPos.GetResult<Vector3>();
-        float spawnHeading = outHead.GetResult<float>();
-
-        if (spawnPos == Vector3.Zero) return;
-        if (player.Position.DistanceTo(spawnPos) < 50.0f) return;
-        if (IsZoneBanned(spawnPos)) return;
-
-        // 4. SAFETY CHECKS (Dynamic based on Risk)
-        float maxSnap = isHighRisk ? 20.0f : 80.0f; // Relaxed snap for open fields
-        float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(spawnPos.X, spawnPos.Y));
         if (snapDist > maxSnap) return;
 
-        float maxVert = isHighRisk ? 10.0f : 30.0f; // Relaxed vertical for rolling hills
-        bool isFlying = player.IsInVehicle() && (player.CurrentVehicle.Model.IsHelicopter || player.CurrentVehicle.Model.IsPlane);
-        if (useVerticalCheck && !isFlying)
-        {
-            if (Math.Abs(spawnPos.Z - player.Position.Z) > maxVert) return;
-        }
+        SpawnCandidate candidate = GetCandidateForLocation(spawnPos);
 
-        SpawnCandidate candidate = GetCandidateForLocation(spawnPos, forceOffroad);
         if (string.IsNullOrEmpty(candidate.ModelName) || candidate.ModelName == _lastGlobalModel) return;
 
-        CreateTrafficEntity(candidate, spawnPos, spawnHeading, forceOffroad);
+        CreateTrafficEntity(candidate, spawnPos, spawnHeading);
     }
-
-    // =========================================================================
 
     private bool IsZoneBanned(Vector3 pos)
     {
@@ -344,7 +266,7 @@ public class TrafficMP : Script
         return _bannedZones.Contains(zone);
     }
 
-    private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading, bool isTrailSpawn)
+    private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
     {
         Model model = new Model(candidate.ModelName);
         if (!model.IsValid || !model.IsInCdImage) return;
@@ -358,8 +280,17 @@ public class TrafficMP : Script
 
         if (_activeVehicle != null)
         {
+            // 1. GHOST SPAWN (Start Invisible)
+            _activeVehicle.Opacity = 0;
+            Function.Call(Hash.SET_ENTITY_ALPHA, _activeVehicle, 0, false);
+            _fadingVehicle = _activeVehicle;
+            _fadingAlpha = 0;
+
             _activeVehicle.IsPersistent = true;
             _activeVehicle.IsEngineRunning = true;
+
+            // 2. PHYSICS FIX (Prevent U-Turn)
+            Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, _activeVehicle, 5.0f);
 
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, _activeVehicle);
             if (comboCount > 0)
@@ -369,7 +300,9 @@ public class TrafficMP : Script
 
             CarMod.ApplyStyle(_activeVehicle, candidate.Behavior, candidate.ModelName);
 
-            float driveSpeed = isTrailSpawn ? 6.0f : 20.0f;
+            // 3. APPLY SPEED (Cruise immediately)
+            float driveSpeed = 20.0f; // ~45mph
+            Function.Call(Hash.SET_VEHICLE_FORWARD_SPEED, _activeVehicle, driveSpeed);
 
             _activeDriver = _activeVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
             if (_activeDriver != null)
@@ -381,7 +314,7 @@ public class TrafficMP : Script
                VehicleDrivingFlags.StopForVehicles |
                VehicleDrivingFlags.SteerAroundStationaryVehicles |
                VehicleDrivingFlags.SteerAroundObjects |
-               VehicleDrivingFlags.AllowGoingWrongWay |
+               // REMOVED "AllowGoingWrongWay" to fix the U-Turn bug
                VehicleDrivingFlags.ChangeLanesAroundObstructions
            );
             }
@@ -401,13 +334,8 @@ public class TrafficMP : Script
         model.MarkAsNoLongerNeeded();
     }
 
-    private SpawnCandidate GetCandidateForLocation(Vector3 pos, bool forceOffroad)
+    private SpawnCandidate GetCandidateForLocation(Vector3 pos)
     {
-        if (forceOffroad)
-        {
-            return PickFromList(_trailProfile.PickList());
-        }
-
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
 
         if (_bannedZones.Contains(zone)) return new SpawnCandidate();
@@ -453,6 +381,7 @@ public class TrafficMP : Script
         _activeBlip = null;
         _activeDriver = null;
         _activeVehicle = null;
+        _fadingVehicle = null;
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
@@ -466,6 +395,7 @@ public class TrafficMP : Script
         _activeBlip = null;
         _activeDriver = null;
         _activeVehicle = null;
+        _fadingVehicle = null;
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
     private void OnAborted(object sender, EventArgs e) => RemoveResources();

@@ -645,6 +645,13 @@ public class VehList
         "enduro",
         "manchez2",
         "bf400",
+        "hellion",
+        "journey2",
+        "outlaw",
+        "vagrant",
+        "verus",
+        "manchez",
+        "manchez3"
 
     };
 
