@@ -11,10 +11,7 @@ public class TrafficMP : Script
     //              QUICK SETTINGS
     // ==========================================
     private bool ShowBlips = true;
-
-    // 260.0f allows the 240m probe to exist without instant cleanup
-    private float DespawnDistance = 320.0f;
-
+    private float DespawnDistance = 260.0f; // Buffer for the 225m probe
     private int SpawnChance = 100;
     private int CheckInterval = 1000;
     private int RareCarChance = 15;
@@ -34,8 +31,9 @@ public class TrafficMP : Script
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
     private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "ZQ_UAR", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "TATAMO", "MTJOSE" };
+
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
-    private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC" };
+    private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC", "PALETO", "MTGORDO", "TONGVAH", "LAGO", "ZANCUDO" };
 
     public TrafficMP()
     {
@@ -133,7 +131,12 @@ public class TrafficMP : Script
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        float[] probeDistances = { 240.0f, 170.0f, 120.0f };
+        // INSIDE-OUT PROBING
+        // 1. Try 55m (Aggressive Blind Corner)
+        // 2. Try 110m (Standard Block)
+        // 3. Try 160m (Mid Range)
+        // 4. Try 225m (Horizon - Last Resort)
+        float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
 
         Vector3 finalSpawnPos = Vector3.Zero;
         float finalHeading = 0f;
@@ -150,7 +153,6 @@ public class TrafficMP : Script
                 searchPos.Z = tGZ + playerDeviation;
             }
 
-            // Tightened Radius (Prevents parking lot spawns)
             float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
 
             OutputArgument outPos = new OutputArgument();
@@ -180,33 +182,45 @@ public class TrafficMP : Script
             // VISIBILITY & DISTANCE CHECK
             float distToPlayer = player.Position.DistanceTo(candidatePos);
 
-            if (distToPlayer < 85.0f) continue;
-
-            // [THE DOOMED CHECK]
-            // If the found node is further than our Cleanup Distance, ignore it.
-            // This prevents the "Flash" where we spawn a car only to delete it 1ms later.
+            if (distToPlayer < 35.0f) continue;
             if (distToPlayer > DespawnDistance - 10.0f) continue;
 
-            // A. Horizon 
-            if (distToPlayer > 215.0f)
+            // --- THE INSIDE-OUT DECISION LOGIC ---
+
+            // 1. HORIZON CHECK
+            // If we have retreated back to > 210m, we are safe regardless of visibility.
+            if (distToPlayer > 210.0f)
             {
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
-            // B. Frustum Check
+            // 2. FRUSTUM CHECK
+            // Is it technically on screen?
             bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 2.0f);
 
             if (!isWithinScreenBounds)
             {
+                // Hidden (Behind us/Side) -> TAKE IT
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
-            // C. Raycast Check
-            RaycastResult ray = World.Raycast(GameplayCamera.Position, candidatePos, IntersectFlags.Map);
+            // 3. RAYCAST CHECK (The "Is it Open?" Detector)
+            // We check 1.2 meters ABOVE the road node.
+            // This ensures we are checking for the CAR BODY, not just the tires (which might be hidden by a curb).
+            // If Ray hits Map -> Hidden -> Spawn.
+            // If Ray hits Nothing -> Open -> SKIP.
+            Vector3 checkOffset = new Vector3(0, 0, 1.2f);
+            RaycastResult ray = World.Raycast(GameplayCamera.Position, candidatePos + checkOffset, IntersectFlags.Map);
+
             if (ray.DidHit)
             {
+                // HIDDEN BY MAP (Building/Hill): Safe to spawn!
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
+
+            // 4. FAILURE:
+            // It is Close, On Screen, and the Raycast confirmed it is OPEN AIR.
+            // We SKIP this spot and let the loop retry at the next further distance.
         }
 
         if (!foundValidSpot) return;
@@ -260,9 +274,6 @@ public class TrafficMP : Script
             _fadingVehicle = _activeVehicle; _fadingAlpha = 0;
             _activeVehicle.IsPersistent = true; _activeVehicle.IsEngineRunning = true;
             Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, _activeVehicle, 5.0f);
-
-            // REMOVED: Redundant GetClosestVehicleNode call that was overwriting the good heading with bad data.
-            // Now strictly uses the 'heading' passed from ManageSpawning.
 
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, _activeVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, _activeVehicle, _rnd.Next(0, comboCount));
