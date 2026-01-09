@@ -30,7 +30,7 @@ public class TrafficMP : Script
 
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
@@ -97,11 +97,11 @@ public class TrafficMP : Script
         ZoneProfile generalProfile = new ZoneProfile();
         generalProfile.AddIngredient(VehList.models_general_common, 50);
         generalProfile.AddIngredient(VehList.models_general_rare, 50);
-
+       
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE");
+        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
-        AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON");
+        AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP");
         AssignToProfile(generalProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO");
     }
 
@@ -147,119 +147,105 @@ public class TrafficMP : Script
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        // The probe gradient as defined in your current setup
-        float[] probeDistances = { 75f, 110f, 170f, 240f };
+        // Using your current linear probe list
+        // float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
+        float[] probeDistances = { 55f, 75f, 100f, 130f, 170f, 210f, 240f };
         Vector3 finalSpawnPos = Vector3.Zero;
         float finalHeading = 0f;
         bool foundValidSpot = false;
 
         foreach (float dist in probeDistances)
         {
-            // --- DYNAMIC ANGULAR OFFSET CALCULATION ---
-            // At 75m, the angle is ~15 degrees (Forward Bias)
-            // At 240m, the angle grows to ~45 degrees (Wide Sweep)
-            float dynamicAngle = 10.0f + (dist / 240.0f) * 35.0f;
+            Vector3 searchPos = player.Position + (flatFwd * dist);
 
-            float angleRad = dynamicAngle * (float)(Math.PI / 180.0f);
-            float cosA = (float)Math.Cos(angleRad);
-            float sinA = (float)Math.Sin(angleRad);
-
-            Vector3 dirLeft = new Vector3(
-                flatFwd.X * cosA - flatFwd.Y * sinA,
-                flatFwd.X * sinA + flatFwd.Y * cosA,
-                0
-            );
-
-            Vector3 dirRight = new Vector3(
-                flatFwd.X * cosA + flatFwd.Y * sinA,
-                -flatFwd.X * sinA + flatFwd.Y * cosA,
-                0
-            );
-
-            Vector3[] searchDirections = { flatFwd, dirLeft, dirRight };
-            // -------------------------------------------
-
-            foreach (Vector3 searchDir in searchDirections)
+            OutputArgument targetGroundZArg = new OutputArgument();
+            if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
             {
-                Vector3 searchPos = player.Position + (searchDir * dist);
+                float tGZ = targetGroundZArg.GetResult<float>();
+                searchPos.Z = tGZ + playerDeviation;
+            }
 
-                OutputArgument targetGroundZArg = new OutputArgument();
-                if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
+            // We no longer pass searchRadius to the native, but we keep it if you want to use it for other logic later.
+            float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
+
+            OutputArgument outPos = new OutputArgument();
+            OutputArgument outHead = new OutputArgument();
+
+            // --- THE FORUM FIX ---
+            // Native: GET_CLOSEST_VEHICLE_NODE_WITH_HEADING
+            // p6 (NodeFlags) = 1 (Forces Valid Road/Lane Nodes, ignores weird intersection centers)
+            // p7 (Z-Mult)    = 3.0f (Standard GTA 3.0f tolerance, derived from your magic number 1077936128)
+            // p8 (Z-Tol)     = 0
+            Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
+
+            Vector3 candidatePos = outPos.GetResult<Vector3>();
+            float candidateHead = outHead.GetResult<float>();
+
+            if (candidatePos == Vector3.Zero) continue;
+            if (IsZoneBanned(candidatePos)) continue;
+
+            // --- OPTIMIZATION: Node Zone Lookup ---
+            string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
+            bool isRuralNode = false;
+
+            if (_zoneRegistry.ContainsKey(nodeZone))
+            {
+                isRuralNode = _zoneRegistry[nodeZone].IsRural;
+            }
+
+            // --- NODE FILTERING LOGIC ---
+            OutputArgument outDensity = new OutputArgument();
+            OutputArgument outFlags = new OutputArgument();
+
+            if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
+            {
+                int density = outDensity.GetResult<int>();
+                int flags = outFlags.GetResult<int>();
+
+                if (density == 0) continue;
+                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
+
+                if (!isRuralNode)
                 {
-                    float tGZ = targetGroundZArg.GetResult<float>();
-                    searchPos.Z = tGZ + playerDeviation;
-                }
-
-                float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
-
-                OutputArgument outPos = new OutputArgument();
-                OutputArgument outHead = new OutputArgument();
-
-                // Native: GET_CLOSEST_VEHICLE_NODE_WITH_HEADING (Flag 1 for lane alignment)
-                Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
-
-                Vector3 candidatePos = outPos.GetResult<Vector3>();
-                float candidateHead = outHead.GetResult<float>();
-
-                if (candidatePos == Vector3.Zero) continue;
-                if (IsZoneBanned(candidatePos)) continue;
-
-                string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
-                bool isRuralNode = _zoneRegistry.ContainsKey(nodeZone) && _zoneRegistry[nodeZone].IsRural;
-
-                // --- FILTERING ---
-                OutputArgument outDensity = new OutputArgument();
-                OutputArgument outFlags = new OutputArgument();
-
-                if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
-                {
-                    int density = outDensity.GetResult<int>();
-                    int flags = outFlags.GetResult<int>();
-
-                    if (density == 0) continue;
-                    if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
-                    if (!isRuralNode)
-                    {
-                        if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
-                    }
-                }
-
-                float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
-                float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
-                if (snapDist > maxSnap) continue;
-
-                float nodeDeviation = 0f;
-                if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, candidatePos.X, candidatePos.Y, candidatePos.Z + 5.0f, targetGroundZArg, false))
-                {
-                    nodeDeviation = candidatePos.Z - targetGroundZArg.GetResult<float>();
-                }
-                if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
-
-                float distToPlayer = player.Position.DistanceTo(candidatePos);
-                if (distToPlayer < 35.0f) continue;
-                if (distToPlayer > DespawnDistance - 10.0f) continue;
-
-                // Visibility Logic
-                if (distToPlayer > 210.0f)
-                {
-                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
-                }
-
-                bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
-                if (!isWithinScreenBounds)
-                {
-                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
-                }
-
-                bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
-                bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
-
-                if (isLowBlocked || isHighBlocked)
-                {
-                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+                    if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
                 }
             }
-            if (foundValidSpot) break;
+
+            float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
+            float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
+            if (snapDist > maxSnap) continue;
+
+            float nodeDeviation = 0f;
+            if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, candidatePos.X, candidatePos.Y, candidatePos.Z + 5.0f, targetGroundZArg, false))
+            {
+                nodeDeviation = candidatePos.Z - targetGroundZArg.GetResult<float>();
+            }
+            if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
+
+            float distToPlayer = player.Position.DistanceTo(candidatePos);
+
+            if (distToPlayer < 35.0f) continue;
+            if (distToPlayer > DespawnDistance - 10.0f) continue;
+
+            if (distToPlayer > 210.0f)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+            }
+
+            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
+
+            if (!isWithinScreenBounds)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+            }
+
+            bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
+            bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
+
+            if (isLowBlocked || isHighBlocked)
+            {
+                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+            }
         }
 
         if (!foundValidSpot) return;
@@ -285,7 +271,7 @@ public class TrafficMP : Script
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
-    private void ManageCleanup(Ped player)
+   /* private void ManageCleanup(Ped player)
     {
         if (_activeVehicle != null && !_activeVehicle.Exists()) { RemoveResources(); return; }
         if (_activeVehicle != null && _activeVehicle.Exists())
@@ -295,8 +281,72 @@ public class TrafficMP : Script
                 if (!player.IsInVehicle(_activeVehicle)) RemoveResources();
             }
         }
-    }
+    }*/
+    private void ManageCleanup(Ped player)
+    {
+        // 1. Safety Checks: If vehicle is gone/deleted, reset script.
+        if (_activeVehicle != null && !_activeVehicle.Exists()) { RemoveResources(); return; }
+        if (_activeVehicle == null) return;
 
+        // 2. Player Interaction: Never delete if player is inside or entering.
+        if (player.IsInVehicle(_activeVehicle))
+        {
+            ReleaseVehicleToPlayer(); // Hand it off to the game
+            return;
+        }
+
+        float distance = player.Position.DistanceTo(_activeVehicle.Position);
+
+        // --- CONDITION A: HARD LIMIT (The Safety Net) ---
+        // If it's just too far away, nuke it.
+        if (distance > DespawnDistance)
+        {
+            RemoveResources();
+            return;
+        }
+
+        // --- CONDITION B: "THE LOOK AWAY" (Frustum Culling) ---
+        // If the car is moderately far away (> 90m) AND you can't see it, delete it.
+        // This fixes "Bad Spawns" that you have already driven past.
+        if (distance > 90.0f)
+        {
+            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
+            if (!isOnScreen)
+            {
+                RemoveResources();
+                return;
+            }
+        }
+
+        // --- CONDITION C: REAR VIEW CLEANUP (Aggressive) ---
+        // If the car is behind you, we can delete it much sooner (e.g. 50m).
+        // Dot Product > 0 means in front, < 0 means behind.
+        Vector3 toVehicle = _activeVehicle.Position - player.Position;
+        float dotProduct = Vector3.Dot(player.ForwardVector, toVehicle);
+
+        if (dotProduct < 0 && distance > 60.0f) // If behind AND > 60m away
+        {
+            // Double check it's not on screen (e.g. looking back with camera)
+            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
+            if (!isOnScreen)
+            {
+                RemoveResources();
+                return;
+            }
+        }
+
+        // --- CONDITION D: "BAD SPAWN" DETECTOR ---
+        // If the car spawned upside down or dead, kill it immediately if not looking.
+        if (_activeVehicle.IsUpsideDown || _activeVehicle.IsDead)
+        {
+            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
+            if (!isOnScreen)
+            {
+                RemoveResources();
+                return;
+            }
+        }
+    }
     private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
     {
         if (_excludedModels.Contains(candidate.ModelName)) return;
