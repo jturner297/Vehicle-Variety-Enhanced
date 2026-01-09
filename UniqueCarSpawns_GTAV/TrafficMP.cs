@@ -203,16 +203,19 @@ public class TrafficMP : Script
                 int flags = outFlags.GetResult<int>();
 
                 // 1. Basic Checks (Keep existing)
-                if (density == 0) continue; // No density means it's likely a helper node
-                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue; // Closed roads
+                if (density == 0) continue;
+                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
 
-                // 2. THE ALLEY & LAWN FIX (New)
-                // "LeadsToDeadEnd" is the flag GTA uses for driveways (lawns) and service alleys.
+                // 2. The "Alley & Lawn" Fix (From previous step)
                 if ((flags & (int)VehicleNodeFlags.LeadsToDeadEnd) != 0) continue;
-
-                // 3. THE TUNNEL FIX (New)
-                // Prevents spawning inside buildings or underground tunnels when you are on the surface.
                 if ((flags & (int)VehicleNodeFlags.TunnelOrInterior) != 0) continue;
+
+                // 3. THE INTERSECTION FIX (New)
+                // This prevents spawning in the middle of a junction.
+                // It forces the spawn onto the straight road *before* or *after* the turn.
+                if ((flags & (int)VehicleNodeFlags.Junction) != 0) continue;
+                if ((flags & (int)VehicleNodeFlags.TrafficLight) != 0) continue;
+                if ((flags & (int)VehicleNodeFlags.GiveWay) != 0) continue;
 
                 // 4. Rural Logic (Keep existing)
                 if (!isRuralNode)
@@ -281,17 +284,17 @@ public class TrafficMP : Script
         _nextSpawnCheckTime = Game.GameTime + CheckInterval;
     }
 
-   /* private void ManageCleanup(Ped player)
-    {
-        if (_activeVehicle != null && !_activeVehicle.Exists()) { RemoveResources(); return; }
-        if (_activeVehicle != null && _activeVehicle.Exists())
-        {
-            if (player.Position.DistanceTo(_activeVehicle.Position) > DespawnDistance)
-            {
-                if (!player.IsInVehicle(_activeVehicle)) RemoveResources();
-            }
-        }
-    }*/
+    /* private void ManageCleanup(Ped player)
+     {
+         if (_activeVehicle != null && !_activeVehicle.Exists()) { RemoveResources(); return; }
+         if (_activeVehicle != null && _activeVehicle.Exists())
+         {
+             if (player.Position.DistanceTo(_activeVehicle.Position) > DespawnDistance)
+             {
+                 if (!player.IsInVehicle(_activeVehicle)) RemoveResources();
+             }
+         }
+     }*/
     private void ManageCleanup(Ped player)
     {
         // 1. Safety Checks: If vehicle is gone/deleted, reset script.
@@ -301,60 +304,47 @@ public class TrafficMP : Script
         // 2. Player Interaction: Never delete if player is inside or entering.
         if (player.IsInVehicle(_activeVehicle))
         {
-            ReleaseVehicleToPlayer(); // Hand it off to the game
+            ReleaseVehicleToPlayer(); // Hand it off to the game engine
             return;
         }
 
         float distance = player.Position.DistanceTo(_activeVehicle.Position);
 
-        // --- CONDITION A: HARD LIMIT (The Safety Net) ---
-        // If it's just too far away, nuke it.
+        // --- CONDITION A: THE HORIZON (Hard Limit) ---
+        // If it is genuinely too far away, remove it to save memory.
         if (distance > DespawnDistance)
         {
             RemoveResources();
             return;
         }
 
-        // --- CONDITION B: "THE LOOK AWAY" (Frustum Culling) ---
-        // If the car is moderately far away (> 90m) AND you can't see it, delete it.
-        // This fixes "Bad Spawns" that you have already driven past.
-        if (distance > 90.0f)
+        // --- CONDITION B: THE PERSISTENCE BUBBLE (The Fix) ---
+        // If the car is within 130 meters (approx 1.5 city blocks), WE KEEP IT.
+        // It does NOT matter if you look back, look down, or spin the camera.
+        // As long as it is physically close, it stays.
+        if (distance < 130.0f)
         {
-            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
-            if (!isOnScreen)
+            // EXCEPTION: "Broken" cleanup.
+            // Only delete a close car if it is flipped/dead AND you aren't looking at it.
+            // This stops a burning wreck from staying in the middle of the road forever.
+            if (_activeVehicle.IsUpsideDown || _activeVehicle.IsDead)
             {
-                RemoveResources();
-                return;
+                bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
+                if (!isOnScreen) RemoveResources();
             }
+            return; // EXIT HERE -> Protects the car from deletion
         }
 
-        // --- CONDITION C: REAR VIEW CLEANUP (Aggressive) ---
-        // If the car is behind you, we can delete it much sooner (e.g. 50m).
-        // Dot Product > 0 means in front, < 0 means behind.
-        Vector3 toVehicle = _activeVehicle.Position - player.Position;
-        float dotProduct = Vector3.Dot(player.ForwardVector, toVehicle);
+        // --- CONDITION C: DISTANT CULLING ---
+        // We are now in the "Gray Zone" (130m to 260m).
+        // The car is far away. We only keep it if you are looking at it.
+        // If you look away at THIS distance, we delete it to prepare a new spawn ahead.
+        bool isVisible = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
 
-        if (dotProduct < 0 && distance > 60.0f) // If behind AND > 60m away
+        if (!isVisible)
         {
-            // Double check it's not on screen (e.g. looking back with camera)
-            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
-            if (!isOnScreen)
-            {
-                RemoveResources();
-                return;
-            }
-        }
-
-        // --- CONDITION D: "BAD SPAWN" DETECTOR ---
-        // If the car spawned upside down or dead, kill it immediately if not looking.
-        if (_activeVehicle.IsUpsideDown || _activeVehicle.IsDead)
-        {
-            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, _activeVehicle.Position.X, _activeVehicle.Position.Y, _activeVehicle.Position.Z, 2.0f);
-            if (!isOnScreen)
-            {
-                RemoveResources();
-                return;
-            }
+            RemoveResources();
+            return;
         }
     }
     private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
