@@ -144,39 +144,41 @@ public class TrafficMP : Script
             playerDeviation = player.Position.Z - gZ;
         }
 
-        // --- MANUAL ANGULAR OFFSET CALCULATION ---
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        // We calculate 35 degrees in radians for the math functions
-        float angleRad = 35.0f * (float)(Math.PI / 180.0f);
-        float cosA = (float)Math.Cos(angleRad);
-        float sinA = (float)Math.Sin(angleRad);
-
-        // Manual Rotation Matrix logic for the Z-axis (Yaw)
-        Vector3 dirLeft = new Vector3(
-            flatFwd.X * cosA - flatFwd.Y * sinA,
-            flatFwd.X * sinA + flatFwd.Y * cosA,
-            0
-        );
-
-        Vector3 dirRight = new Vector3(
-            flatFwd.X * cosA + flatFwd.Y * sinA,
-            -flatFwd.X * sinA + flatFwd.Y * cosA,
-            0
-        );
-
-        Vector3[] searchDirections = { flatFwd, dirLeft, dirRight };
-        // ------------------------------------------
-
-        // float[] probeDistances = { 35f, 45f, 55f, 65f, 75f, 85f, 95f, 110f, 130f, 170f, 210f, 240f };
-        float[] probeDistances = {75f, 110f, 170f, 240f };
+        // The probe gradient as defined in your current setup
+        float[] probeDistances = { 75f, 110f, 170f, 240f };
         Vector3 finalSpawnPos = Vector3.Zero;
         float finalHeading = 0f;
         bool foundValidSpot = false;
 
         foreach (float dist in probeDistances)
         {
+            // --- DYNAMIC ANGULAR OFFSET CALCULATION ---
+            // At 75m, the angle is ~15 degrees (Forward Bias)
+            // At 240m, the angle grows to ~45 degrees (Wide Sweep)
+            float dynamicAngle = 10.0f + (dist / 240.0f) * 35.0f;
+
+            float angleRad = dynamicAngle * (float)(Math.PI / 180.0f);
+            float cosA = (float)Math.Cos(angleRad);
+            float sinA = (float)Math.Sin(angleRad);
+
+            Vector3 dirLeft = new Vector3(
+                flatFwd.X * cosA - flatFwd.Y * sinA,
+                flatFwd.X * sinA + flatFwd.Y * cosA,
+                0
+            );
+
+            Vector3 dirRight = new Vector3(
+                flatFwd.X * cosA + flatFwd.Y * sinA,
+                -flatFwd.X * sinA + flatFwd.Y * cosA,
+                0
+            );
+
+            Vector3[] searchDirections = { flatFwd, dirLeft, dirRight };
+            // -------------------------------------------
+
             foreach (Vector3 searchDir in searchDirections)
             {
                 Vector3 searchPos = player.Position + (searchDir * dist);
@@ -193,7 +195,7 @@ public class TrafficMP : Script
                 OutputArgument outPos = new OutputArgument();
                 OutputArgument outHead = new OutputArgument();
 
-                // Flag 1 = Valid Lanes
+                // Native: GET_CLOSEST_VEHICLE_NODE_WITH_HEADING (Flag 1 for lane alignment)
                 Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
 
                 Vector3 candidatePos = outPos.GetResult<Vector3>();
@@ -205,6 +207,7 @@ public class TrafficMP : Script
                 string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
                 bool isRuralNode = _zoneRegistry.ContainsKey(nodeZone) && _zoneRegistry[nodeZone].IsRural;
 
+                // --- FILTERING ---
                 OutputArgument outDensity = new OutputArgument();
                 OutputArgument outFlags = new OutputArgument();
 
@@ -215,7 +218,6 @@ public class TrafficMP : Script
 
                     if (density == 0) continue;
                     if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
-
                     if (!isRuralNode)
                     {
                         if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
@@ -237,6 +239,7 @@ public class TrafficMP : Script
                 if (distToPlayer < 35.0f) continue;
                 if (distToPlayer > DespawnDistance - 10.0f) continue;
 
+                // Visibility Logic
                 if (distToPlayer > 210.0f)
                 {
                     finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
