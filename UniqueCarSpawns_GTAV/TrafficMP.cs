@@ -13,7 +13,7 @@ public class TrafficMP : Script
     private bool ShowBlips = true;
     private float DespawnDistance = 260.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 1000;
+    private int CheckInterval = 15000;
     private int RareCarChance = 15;
     // ==========================================
 
@@ -33,9 +33,7 @@ public class TrafficMP : Script
     private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "AIRP", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
-    //private HashSet<string> _ruralZones = new HashSet<string> { "DESRT", "MTCHIL", "CANNY", "CCREAK", "GREATC", "PALETO", "MTGORDO", "TONGVAH", "LAGO", "ZANCUDO" };
 
-    // Define the Flags structure based on your request
     [Flags]
     public enum VehicleNodeFlags
     {
@@ -81,8 +79,6 @@ public class TrafficMP : Script
         ruralProfile.AddIngredient(VehList.models_general_rare, 10);
         ruralProfile.AddIngredient(VehList.models_wacky, 10);
 
-
-
         ZoneProfile richProfile = new ZoneProfile();
         richProfile.AddIngredient(VehList.models_supers_common, 40);
         richProfile.AddIngredient(VehList.models_classics_common, 40);
@@ -102,7 +98,7 @@ public class TrafficMP : Script
         generalProfile.AddIngredient(VehList.models_general_common, 50);
         generalProfile.AddIngredient(VehList.models_general_rare, 50);
 
-        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO",  "RTRAK", "ZQ_UAR", "MTJOSE");
+        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
         AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON");
@@ -151,8 +147,9 @@ public class TrafficMP : Script
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
-
+        // Using your current linear probe list
+       // float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
+        float[] probeDistances = { 55f, 75f, 100f, 130f, 170f, 210f, 240f };
         Vector3 finalSpawnPos = Vector3.Zero;
         float finalHeading = 0f;
         bool foundValidSpot = false;
@@ -168,12 +165,18 @@ public class TrafficMP : Script
                 searchPos.Z = tGZ + playerDeviation;
             }
 
-            float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
+            // We no longer pass searchRadius to the native, but we keep it if you want to use it for other logic later.
+             float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
 
             OutputArgument outPos = new OutputArgument();
             OutputArgument outHead = new OutputArgument();
 
-            Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 0, searchRadius, 0);
+            // --- THE FORUM FIX ---
+            // Native: GET_CLOSEST_VEHICLE_NODE_WITH_HEADING
+            // p6 (NodeFlags) = 1 (Forces Valid Road/Lane Nodes, ignores weird intersection centers)
+            // p7 (Z-Mult)    = 3.0f (Standard GTA 3.0f tolerance, derived from your magic number 1077936128)
+            // p8 (Z-Tol)     = 0
+            Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
 
             Vector3 candidatePos = outPos.GetResult<Vector3>();
             float candidateHead = outHead.GetResult<float>();
@@ -182,7 +185,6 @@ public class TrafficMP : Script
             if (IsZoneBanned(candidatePos)) continue;
 
             // --- OPTIMIZATION: Node Zone Lookup ---
-            // We check the zone of the *Road Node*, look up its profile, and see if IsRural is true.
             string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
             bool isRuralNode = false;
 
@@ -191,38 +193,25 @@ public class TrafficMP : Script
                 isRuralNode = _zoneRegistry[nodeZone].IsRural;
             }
 
-
-            // --- NEW NODE FILTERING LOGIC ---
+            // --- NODE FILTERING LOGIC ---
             OutputArgument outDensity = new OutputArgument();
             OutputArgument outFlags = new OutputArgument();
 
-            // Call GET_VEHICLE_NODE_PROPERTIES
             if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
             {
                 int density = outDensity.GetResult<int>();
                 int flags = outFlags.GetResult<int>();
-                string cZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
 
-                // 1. FILTER: Dead Nodes
-                // Density 0 usually means private driveways or empty lots.
                 if (density == 0) continue;
-
-                // 2. FILTER: "Switched Off" Nodes
                 if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
 
-                // 3. FILTER: Parking Lots (City Only)
-                // If we are NOT in a rural zone, and the node is "OffRoad", it's likely a parking lot or alley.
-                // We ban these to prevent parking lot spawns. 
-                // We ALLOW them in Rural zones because dirt roads are flagged as OffRoad.
                 if (!isRuralNode)
                 {
                     if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
                 }
             }
-            // --------------------------------
 
             float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
-            string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, player.Position.X, player.Position.Y, player.Position.Z);
             float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
             if (snapDist > maxSnap) continue;
 
@@ -296,7 +285,6 @@ public class TrafficMP : Script
 
     private void CreateTrafficEntity(SpawnCandidate candidate, Vector3 pos, float heading)
     {
-
         if (_excludedModels.Contains(candidate.ModelName)) return;
         Model model = new Model(candidate.ModelName);
         if (!model.IsValid || !model.IsInCdImage) return;
@@ -391,8 +379,7 @@ public class TrafficMP : Script
 public struct SpawnCandidate { public string ModelName; public SpawnBehavior Behavior; }
 public class ZoneProfile
 {
-
-    public bool IsRural { get; set; } = false; // Added this flag
+    public bool IsRural { get; set; } = false;
     private struct Ingredient { public HashSet<string> List; public int Weight; }
     private List<Ingredient> _ingredients = new List<Ingredient>();
     private int _totalWeight = 0;
