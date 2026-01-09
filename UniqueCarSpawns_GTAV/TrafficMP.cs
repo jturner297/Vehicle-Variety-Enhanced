@@ -13,7 +13,7 @@ public class TrafficMP : Script
     private bool ShowBlips = true;
     private float DespawnDistance = 260.0f;
     private int SpawnChance = 100;
-    private int CheckInterval = 15000;
+    private int CheckInterval = 1000;
     private int RareCarChance = 15;
     // ==========================================
 
@@ -144,108 +144,119 @@ public class TrafficMP : Script
             playerDeviation = player.Position.Z - gZ;
         }
 
+        // --- MANUAL ANGULAR OFFSET CALCULATION ---
         Vector3 flatFwd = player.ForwardVector;
         flatFwd.Z = 0; flatFwd.Normalize();
 
-        // Using your current linear probe list
-       // float[] probeDistances = { 55.0f, 110.0f, 160.0f, 225.0f };
-        float[] probeDistances = { 55f, 75f, 100f, 130f, 170f, 210f, 240f };
+        // We calculate 35 degrees in radians for the math functions
+        float angleRad = 35.0f * (float)(Math.PI / 180.0f);
+        float cosA = (float)Math.Cos(angleRad);
+        float sinA = (float)Math.Sin(angleRad);
+
+        // Manual Rotation Matrix logic for the Z-axis (Yaw)
+        Vector3 dirLeft = new Vector3(
+            flatFwd.X * cosA - flatFwd.Y * sinA,
+            flatFwd.X * sinA + flatFwd.Y * cosA,
+            0
+        );
+
+        Vector3 dirRight = new Vector3(
+            flatFwd.X * cosA + flatFwd.Y * sinA,
+            -flatFwd.X * sinA + flatFwd.Y * cosA,
+            0
+        );
+
+        Vector3[] searchDirections = { flatFwd, dirLeft, dirRight };
+        // ------------------------------------------
+
+        // float[] probeDistances = { 35f, 45f, 55f, 65f, 75f, 85f, 95f, 110f, 130f, 170f, 210f, 240f };
+        float[] probeDistances = {75f, 110f, 170f, 240f };
         Vector3 finalSpawnPos = Vector3.Zero;
         float finalHeading = 0f;
         bool foundValidSpot = false;
 
         foreach (float dist in probeDistances)
         {
-            Vector3 searchPos = player.Position + (flatFwd * dist);
-
-            OutputArgument targetGroundZArg = new OutputArgument();
-            if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
+            foreach (Vector3 searchDir in searchDirections)
             {
-                float tGZ = targetGroundZArg.GetResult<float>();
-                searchPos.Z = tGZ + playerDeviation;
-            }
+                Vector3 searchPos = player.Position + (searchDir * dist);
 
-            // We no longer pass searchRadius to the native, but we keep it if you want to use it for other logic later.
-             float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
-
-            OutputArgument outPos = new OutputArgument();
-            OutputArgument outHead = new OutputArgument();
-
-            // --- THE FORUM FIX ---
-            // Native: GET_CLOSEST_VEHICLE_NODE_WITH_HEADING
-            // p6 (NodeFlags) = 1 (Forces Valid Road/Lane Nodes, ignores weird intersection centers)
-            // p7 (Z-Mult)    = 3.0f (Standard GTA 3.0f tolerance, derived from your magic number 1077936128)
-            // p8 (Z-Tol)     = 0
-            Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
-
-            Vector3 candidatePos = outPos.GetResult<Vector3>();
-            float candidateHead = outHead.GetResult<float>();
-
-            if (candidatePos == Vector3.Zero) continue;
-            if (IsZoneBanned(candidatePos)) continue;
-
-            // --- OPTIMIZATION: Node Zone Lookup ---
-            string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
-            bool isRuralNode = false;
-
-            if (_zoneRegistry.ContainsKey(nodeZone))
-            {
-                isRuralNode = _zoneRegistry[nodeZone].IsRural;
-            }
-
-            // --- NODE FILTERING LOGIC ---
-            OutputArgument outDensity = new OutputArgument();
-            OutputArgument outFlags = new OutputArgument();
-
-            if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
-            {
-                int density = outDensity.GetResult<int>();
-                int flags = outFlags.GetResult<int>();
-
-                if (density == 0) continue;
-                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
-
-                if (!isRuralNode)
+                OutputArgument targetGroundZArg = new OutputArgument();
+                if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, searchPos.X, searchPos.Y, searchPos.Z + 100f, targetGroundZArg, false))
                 {
-                    if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
+                    float tGZ = targetGroundZArg.GetResult<float>();
+                    searchPos.Z = tGZ + playerDeviation;
+                }
+
+                float searchRadius = (dist > 200f) ? 45.0f : 30.0f;
+
+                OutputArgument outPos = new OutputArgument();
+                OutputArgument outHead = new OutputArgument();
+
+                // Flag 1 = Valid Lanes
+                Function.Call(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHead, 1, searchRadius, 0);
+
+                Vector3 candidatePos = outPos.GetResult<Vector3>();
+                float candidateHead = outHead.GetResult<float>();
+
+                if (candidatePos == Vector3.Zero) continue;
+                if (IsZoneBanned(candidatePos)) continue;
+
+                string nodeZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, candidatePos.X, candidatePos.Y, candidatePos.Z);
+                bool isRuralNode = _zoneRegistry.ContainsKey(nodeZone) && _zoneRegistry[nodeZone].IsRural;
+
+                OutputArgument outDensity = new OutputArgument();
+                OutputArgument outFlags = new OutputArgument();
+
+                if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, candidatePos.X, candidatePos.Y, candidatePos.Z, outDensity, outFlags))
+                {
+                    int density = outDensity.GetResult<int>();
+                    int flags = outFlags.GetResult<int>();
+
+                    if (density == 0) continue;
+                    if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
+
+                    if (!isRuralNode)
+                    {
+                        if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
+                    }
+                }
+
+                float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
+                float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
+                if (snapDist > maxSnap) continue;
+
+                float nodeDeviation = 0f;
+                if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, candidatePos.X, candidatePos.Y, candidatePos.Z + 5.0f, targetGroundZArg, false))
+                {
+                    nodeDeviation = candidatePos.Z - targetGroundZArg.GetResult<float>();
+                }
+                if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
+
+                float distToPlayer = player.Position.DistanceTo(candidatePos);
+                if (distToPlayer < 35.0f) continue;
+                if (distToPlayer > DespawnDistance - 10.0f) continue;
+
+                if (distToPlayer > 210.0f)
+                {
+                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+                }
+
+                bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
+                if (!isWithinScreenBounds)
+                {
+                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
+                }
+
+                bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
+                bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
+
+                if (isLowBlocked || isHighBlocked)
+                {
+                    finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
                 }
             }
-
-            float snapDist = Vector2.Distance(new Vector2(searchPos.X, searchPos.Y), new Vector2(candidatePos.X, candidatePos.Y));
-            float maxSnap = (isRuralNode) ? 90.0f : 60.0f;
-            if (snapDist > maxSnap) continue;
-
-            float nodeDeviation = 0f;
-            if (Function.Call<bool>(Hash.GET_GROUND_Z_FOR_3D_COORD, candidatePos.X, candidatePos.Y, candidatePos.Z + 5.0f, targetGroundZArg, false))
-            {
-                nodeDeviation = candidatePos.Z - targetGroundZArg.GetResult<float>();
-            }
-            if (Math.Abs(playerDeviation - nodeDeviation) > 10.0f) continue;
-
-            float distToPlayer = player.Position.DistanceTo(candidatePos);
-
-            if (distToPlayer < 35.0f) continue;
-            if (distToPlayer > DespawnDistance - 10.0f) continue;
-
-            if (distToPlayer > 210.0f)
-            {
-                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
-            }
-
-            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
-
-            if (!isWithinScreenBounds)
-            {
-                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
-            }
-
-            bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
-            bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
-
-            if (isLowBlocked || isHighBlocked)
-            {
-                finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
-            }
+            if (foundValidSpot) break;
         }
 
         if (!foundValidSpot) return;
