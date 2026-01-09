@@ -202,9 +202,19 @@ public class TrafficMP : Script
                 int density = outDensity.GetResult<int>();
                 int flags = outFlags.GetResult<int>();
 
-                if (density == 0) continue;
-                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue;
+                // 1. Basic Checks (Keep existing)
+                if (density == 0) continue; // No density means it's likely a helper node
+                if ((flags & (int)VehicleNodeFlags.SwitchedOff) != 0) continue; // Closed roads
 
+                // 2. THE ALLEY & LAWN FIX (New)
+                // "LeadsToDeadEnd" is the flag GTA uses for driveways (lawns) and service alleys.
+                if ((flags & (int)VehicleNodeFlags.LeadsToDeadEnd) != 0) continue;
+
+                // 3. THE TUNNEL FIX (New)
+                // Prevents spawning inside buildings or underground tunnels when you are on the surface.
+                if ((flags & (int)VehicleNodeFlags.TunnelOrInterior) != 0) continue;
+
+                // 4. Rural Logic (Keep existing)
                 if (!isRuralNode)
                 {
                     if ((flags & (int)VehicleNodeFlags.OffRoad) != 0) continue;
