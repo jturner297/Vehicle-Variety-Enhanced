@@ -237,25 +237,39 @@ public class TrafficMP : Script
 
             float distToPlayer = player.Position.DistanceTo(candidatePos);
 
-            if (distToPlayer < 35.0f) continue;
-            if (distToPlayer > DespawnDistance - 10.0f) continue;
+            // --- FIX 1: DYNAMIC SAFETY MARGIN ---
+            // If driving fast (> 30mph), bump the safety buffer to 65m.
+            // If slow/stopped, keep it at 35m so we can spawn in traffic jams.
+            float minSafeDist = (player.Velocity.Length() > 15.0f) ? 65.0f : 35.0f;
 
+            if (distToPlayer < minSafeDist) continue; // Too close!
+            if (distToPlayer > DespawnDistance - 10.0f) continue; // Too far!
+
+            // 1. Far Spawns (Always Safe)
             if (distToPlayer > 210.0f)
             {
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
-            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 1.0f);
+            // 2. Off-Screen Spawns (Always Safe)
+            // Increased radius check to 3.0f to ensure the WHOLE car is off-screen, not just the center.
+            bool isWithinScreenBounds = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, candidatePos.X, candidatePos.Y, candidatePos.Z, 3.0f);
 
             if (!isWithinScreenBounds)
             {
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
 
+            // 3. Obstructed Spawns (The "Pop-In" Fix)
             bool isLowBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
             bool isHighBlocked = World.Raycast(GameplayCamera.Position, candidatePos + new Vector3(0, 0, 1.3f), IntersectFlags.Map).DidHit;
 
-            if (isLowBlocked || isHighBlocked)
+            // FIX 2: STRICTER RAYCAST
+            // Changed || (OR) to && (AND).
+            // Old Logic: "If I can't see the tires OR I can't see the roof, Spawn it." 
+            //            (Result: Spawns behind low walls where you can still see the roof popping in).
+            // New Logic: "I must be blocked from seeing the tires AND the roof."
+            if (isLowBlocked && isHighBlocked)
             {
                 finalSpawnPos = candidatePos; finalHeading = candidateHead; foundValidSpot = true; break;
             }
@@ -381,8 +395,10 @@ public class TrafficMP : Script
             }
             if (ShowBlips)
             {
-                _activeBlip = _activeVehicle.AddBlip(); _activeBlip.Sprite = BlipSprite.PersonalVehicleCar;
-                _activeBlip.Color = BlipColor.Purple; _activeBlip.Name = "Exotic Traffic";
+                 _activeBlip = _activeVehicle.AddBlip(); _activeBlip.Sprite = BlipSprite.PersonalVehicleCar;
+                  _activeBlip.Color = BlipColor.Purple; _activeBlip.Name = "Exotic Traffic";
+             //    _activeBlip = _activeVehicle.AddBlip(); _activeBlip.Sprite = BlipSprite.Standard;
+               //  _activeBlip.Color = BlipColor.White; _activeBlip.Name = "Exotic Traffic";
                 Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
             }
             _lastGlobalModel = candidate.ModelName;
