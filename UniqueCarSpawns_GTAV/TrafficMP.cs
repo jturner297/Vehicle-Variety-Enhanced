@@ -4,21 +4,25 @@ using System.Linq;
 using GTA;
 using GTA.Math;
 using GTA.Native;
+using System.Drawing;
 
 public class TrafficMP : Script
 {
     // ==========================================
     //      PERFORMANCE & LOGIC SETTINGS
     // ==========================================
-    private int MaxDuplicates = 1;       // Strict variety (1 of each model max)
+    private int MaxDuplicates = 1;       // Strict variety
 
-    // TUNED FOR HIGH SPEED REPLACEMENT:
-    private int CheckInterval = 250;     // Run logic 4 times per second (Fast response)
-    private int MaxSwapsPerCycle = 3;    // Swap 3 cars per tick.
+    // CPU TUNING
+    private int CheckInterval = 1000;     // 4x per second
+    private int MaxSwapsPerCycle = 5;
 
-    private int MinTransformDist = 80;   // Meters
-    private int HorizonDist = 300;       // DISTANCE FIX: Beyond this, we force swaps
-    private bool SwapNewTraffic = true;
+    private int MinTransformDist = 60;   // Pulled closer (was 80)
+    private int HorizonDist = 100;       // AGGRESSIVE: Beyond 200m, we force everything.
+
+
+    // GLOBAL BLIP SETTING
+    private bool ShowBlips = true;
 
     // EXCLUSIONS
     private bool IgnoreEmergency = true;
@@ -31,9 +35,9 @@ public class TrafficMP : Script
     private int _nextCheckTime = 0;
     private Random _rnd = new Random();
 
-    // Optimization: Cache squared distance to avoid Sqrt math every frame
     private float _minTransformDistSq;
     private float _horizonDistSq;
+    private bool _debugMode = false; // Toggle F11
 
     // Registry & Zones
     private Dictionary<HashSet<string>, SpawnBehavior> _behaviorRegistry;
@@ -41,141 +45,131 @@ public class TrafficMP : Script
     private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
-    // Duplicate Prevention Tracker
     private HashSet<int> _presentModels = new HashSet<int>();
+    private List<Blip> _activeBlips = new List<Blip>();
+
+    // AGGRESSIVE PROBES: Starts at 120m now.
+    private float[] _spawnProbes = new float[] { 120f, 180f, 250f, 350f, 500f };
 
     public TrafficMP()
     {
-        _minTransformDistSq = MinTransformDist * MinTransformDist; // Calculate once
+        _minTransformDistSq = MinTransformDist * MinTransformDist;
         _horizonDistSq = HorizonDist * HorizonDist;
         InitializeRegistry();
         InitializeZones();
         Tick += OnTick;
+        KeyDown += OnKeyDown;
+        Aborted += OnAborted;
     }
 
     private void OnTick(object sender, EventArgs e)
     {
+        if (_debugMode) DrawDebugInfo();
+
         if (Game.GameTime < _nextCheckTime) return;
 
         try
         {
+            CleanupBlips();
             RunIntelligentReplacement();
         }
-        catch (Exception)
-        {
-            // Silently catch errors to keep script alive
-        }
+        catch (Exception) { }
 
         _nextCheckTime = Game.GameTime + CheckInterval;
+    }
+
+    private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
+    {
+        if (e.KeyCode == System.Windows.Forms.Keys.F11)
+        {
+            _debugMode = !_debugMode;
+            GTA.UI.Notification.Show($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}");
+            foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0;
+        }
+    }
+
+    private void OnAborted(object sender, EventArgs e)
+    {
+        foreach (var b in _activeBlips) if (b.Exists()) b.Delete();
     }
 
     private void RunIntelligentReplacement()
     {
         Ped player = Game.Player.Character;
         Vector3 playerPos = player.Position;
-        Vector3 camPos = GameplayCamera.Position; // Needed for Raycasting
+        Vector3 camPos = GameplayCamera.Position;
 
-        // 1. GET VEHICLES (Raw Array is faster than List)
         Vehicle[] allVehicles = World.GetAllVehicles();
 
-        // 2. RESET TRACKERS
         _presentModels.Clear();
         Dictionary<int, int> modelCounts = new Dictionary<int, int>();
         List<Vehicle> candidates = new List<Vehicle>();
 
-        // 3. FIRST PASS: SCAN WORLD
+        // 1. SCAN
         foreach (Vehicle v in allVehicles)
         {
             if (v == null || !v.Exists()) continue;
 
             int hash = v.Model.Hash;
-
-            // Always track this model exists to prevent spawning it later
             if (!_presentModels.Contains(hash)) _presentModels.Add(hash);
 
             if (modelCounts.ContainsKey(hash)) modelCounts[hash]++;
             else modelCounts[hash] = 1;
 
-            // Is this vehicle a candidate for swapping?
             if (v.Driver == null || v.Driver.IsPlayer || v.Mods.LicensePlate == MARKER_PLATE) continue;
 
-            // Distance Check
             float distSq = v.Position.DistanceToSquared(playerPos);
             if (distSq < _minTransformDistSq) continue;
 
             if (IsExcludedCategory(v)) continue;
 
-            // --- SMART RAYCAST LOGIC START ---
             bool needsSwap = (modelCounts[hash] > MaxDuplicates);
 
             if (needsSwap)
             {
-                // If checking specifically for duplicate reduction or variety
+                // Use new Aggressive Safety Check
                 if (IsSafeToSwap(v, distSq, camPos))
                 {
                     candidates.Add(v);
                 }
             }
-            // --- SMART RAYCAST LOGIC END ---
         }
 
-        // 4. SECOND PASS: SWAP (With Limits)
+        // 2. SWAP
         int swapsDone = 0;
-
-        // Iterate backwards
         for (int i = candidates.Count - 1; i >= 0; i--)
         {
             if (swapsDone >= MaxSwapsPerCycle) break;
 
-            Vehicle v = candidates[i];
-            if (v != null && v.Exists())
+            if (TransformVehicle(candidates[i]))
             {
-                if (TransformVehicle(v))
-                {
-                    swapsDone++;
-                }
+                swapsDone++;
             }
         }
 
-        // 5. OPTIONAL: EMPTY ROAD INJECTION
-        if (SwapNewTraffic && swapsDone == 0 && allVehicles.Length < 25)
-        {
-            SpawnNewOnEmptyRoad();
-        }
     }
 
+  
+
     // ==========================================
-    //        NEW: SMART RAYCASTING METHOD
+    //           AGGRESSIVE SWAP LOGIC
     // ==========================================
     private bool IsSafeToSwap(Vehicle v, float distSq, Vector3 camPos)
     {
-        // 1. HORIZON CHECK: If it's super far (> 300m), always swap. 
-        // We don't care about visibility at this distance, it's just a pixel.
+        // 1. FORCE SWAP > 200m (Visible or not, we change it)
         if (distSq > _horizonDistSq) return true;
 
-        // 2. FRUSTUM CHECK: Is it even on my screen?
-        // If it's behind me or to the side (not visible), swap it.
+        // 2. BEHIND US check
         if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f))
         {
             return true;
         }
 
-        // 3. RAYCAST CHECK (The Open Road Fix)
-        // If we are here, the car is < 300m AND within our screen view.
-        // We must check if it is physically blocked by a hill, building, or wall.
-
-        // Cast to TIRES (0.4f up)
+        // 3. RAYCAST (Mid-Range 60m - 200m)
+        // If TIRES are blocked, swap it. (Allows swapping on hills/dips)
         bool lowBlocked = World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
 
-        // Cast to ROOF (1.4f up)
-        bool highBlocked = World.Raycast(camPos, v.Position + new Vector3(0, 0, 1.4f), IntersectFlags.Map).DidHit;
-
-        // If BOTH checks hit a map object, the car is behind cover. Safe to swap.
-        // If EITHER hits nothing, the player has line-of-sight. UNSAFE to swap.
-        if (lowBlocked && highBlocked)
-        {
-            return true;
-        }
+        if (lowBlocked) return true;
 
         return false;
     }
@@ -228,12 +222,20 @@ public class TrafficMP : Script
             CarMod.ApplyStyle(newVehicle, candidate.Behavior, candidate.ModelName);
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (VehicleDrivingFlags)786603);
 
+            if (ShowBlips || _debugMode) CreateBlip(newVehicle, candidate.ModelName);
+            if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {candidate.ModelName}", true);
+
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
 
             _presentModels.Add(newHash);
 
             model.MarkAsNoLongerNeeded();
+            int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
+            if (comboCount > 0)
+            {
+                Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
+            }
             return true;
         }
 
@@ -241,51 +243,44 @@ public class TrafficMP : Script
         return false;
     }
 
-    private void SpawnNewOnEmptyRoad()
+    // ==========================================
+    //           BLIP & DEBUG SYSTEM
+    // ==========================================
+    private void CreateBlip(Vehicle v, string name)
     {
-        Ped player = Game.Player.Character;
-        Vector3 spawnPos = player.Position + (player.ForwardVector * 180f);
+        Blip b = v.AddBlip();
+        b.Sprite = BlipSprite.Standard;
+        b.Color = BlipColor.Green;
+        b.Scale = 0.5f;
+        b.Name = name;
+        b.IsShortRange = true;
+        if (!_debugMode && !ShowBlips) b.Alpha = 0;
+        _activeBlips.Add(b);
+    }
 
-        OutputArgument outPos = new OutputArgument();
-        OutputArgument outHead = new OutputArgument();
-
-        if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, spawnPos.X, spawnPos.Y, spawnPos.Z, outPos, outHead, 1, 3.0f, 0))
+    private void CleanupBlips()
+    {
+        for (int i = _activeBlips.Count - 1; i >= 0; i--)
         {
-            Vector3 finalPos = outPos.GetResult<Vector3>();
-            float heading = outHead.GetResult<float>();
-
-            if (Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, finalPos.X, finalPos.Y, finalPos.Z, 5.0f)) return;
-
-            SpawnCandidate candidate = GetCandidateForLocation(finalPos);
-
-            int newHash = Game.GenerateHash(candidate.ModelName);
-            if (_presentModels.Contains(newHash)) return;
-
-            if (string.IsNullOrEmpty(candidate.ModelName)) return;
-
-            Model model = new Model(candidate.ModelName);
-            model.Request(10);
-            if (model.IsLoaded)
+            if (!_activeBlips[i].Exists() || _activeBlips[i].Entity == null || !_activeBlips[i].Entity.Exists())
             {
-                Vehicle v = World.CreateVehicle(model, finalPos, heading);
-                if (v != null)
-                {
-                    v.Mods.LicensePlate = MARKER_PLATE;
-                    Ped driver = v.CreateRandomPedOnSeat(VehicleSeat.Driver);
-                    if (driver != null && driver.Exists())
-                    {
-                        driver.Task.CruiseWithVehicle(v, 20f, (VehicleDrivingFlags)786603);
-                        driver.MarkAsNoLongerNeeded();
-                    }
-                    else
-                    {
-                        v.Delete();
-                    }
+                if (_activeBlips[i].Exists()) _activeBlips[i].Delete();
+                _activeBlips.RemoveAt(i);
+            }
+        }
+    }
 
-                    if (v.Exists()) v.MarkAsNoLongerNeeded();
-                    _presentModels.Add(newHash);
+    private void DrawDebugInfo()
+    {
+        Vehicle[] vehs = World.GetAllVehicles();
+        foreach (Vehicle v in vehs)
+        {
+            if (v.Mods.LicensePlate == MARKER_PLATE)
+            {
+                if (v.IsOnScreen)
+                {
+                    World.DrawMarker(MarkerType.ChevronUpx1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow);
                 }
-                model.MarkAsNoLongerNeeded();
             }
         }
     }
@@ -302,6 +297,8 @@ public class TrafficMP : Script
         if (VehList.models_lowriders != null) _behaviorRegistry.Add(VehList.models_lowriders, SpawnBehavior.RandomSpec);
         if (VehList.models_general_common != null) _behaviorRegistry.Add(VehList.models_general_common, SpawnBehavior.Spec);
         if (VehList.models_general_rare != null) _behaviorRegistry.Add(VehList.models_general_rare, SpawnBehavior.Stock);
+        if (VehList.models_rural != null) _behaviorRegistry.Add(VehList.models_rural, SpawnBehavior.Spec);
+        if (VehList.models_wacky != null) _behaviorRegistry.Add(VehList.models_wacky, SpawnBehavior.RandomSpec);
     }
 
     private void InitializeZones()
@@ -314,19 +311,19 @@ public class TrafficMP : Script
         ruralProfile.AddIngredient(VehList.models_wacky, 10);
 
         ZoneProfile richProfile = new ZoneProfile("RICH");
-        richProfile.AddIngredient(VehList.models_supers_common, 40);
-        richProfile.AddIngredient(VehList.models_classics_common, 40);
-        richProfile.AddIngredient(VehList.models_city, 20);
+        richProfile.AddIngredient(VehList.models_supers_common, 5);
+        richProfile.AddIngredient(VehList.models_classics_common, 5);
+        richProfile.AddIngredient(VehList.models_city, 90);
 
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO");
-        ghettoProfile.AddIngredient(VehList.models_lowriders, 50);
-        ghettoProfile.AddIngredient(VehList.models_general_common, 40);
-        ghettoProfile.AddIngredient(VehList.models_general_rare, 10);
+        ghettoProfile.AddIngredient(VehList.models_lowriders, 5);
+        ghettoProfile.AddIngredient(VehList.models_general_common, 55);
+        ghettoProfile.AddIngredient(VehList.models_general_rare, 40);
 
         ZoneProfile urbanProfile = new ZoneProfile("URBAN");
-        urbanProfile.AddIngredient(VehList.models_city, 50);
-        urbanProfile.AddIngredient(VehList.models_general_common, 30);
-        urbanProfile.AddIngredient(VehList.models_general_rare, 20);
+        urbanProfile.AddIngredient(VehList.models_city, 30);
+        urbanProfile.AddIngredient(VehList.models_general_common, 40);
+        urbanProfile.AddIngredient(VehList.models_general_rare, 30);
 
         ZoneProfile generalProfile = new ZoneProfile("GENERAL");
         generalProfile.AddIngredient(VehList.models_general_common, 50);
