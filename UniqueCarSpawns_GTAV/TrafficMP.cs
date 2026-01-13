@@ -20,11 +20,13 @@ public class TrafficMP : Script
     private int PeripheralDist = 80;
 
     // 3. PERFORMANCE
-    private int CheckInterval = 250;
+    // 250ms is perfect. The lag came from doing too much work inside that 250ms.
+    private int CheckInterval = 500;
     private int MaxSwapsPerCycle = 1;
 
     // 4. LOGIC
     private int MaxDuplicates = 1;       // 1 = Unique. 2 = Pairs.
+    private bool SwapNewTraffic = false; // Injection Disabled
     private bool ShowBlips = true;
 
     // =============================================================
@@ -87,7 +89,6 @@ public class TrafficMP : Script
         if (e.KeyCode == System.Windows.Forms.Keys.F11)
         {
             _debugMode = !_debugMode;
-            // FIX 1: Updated Notification call
             GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
             foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0;
         }
@@ -98,6 +99,9 @@ public class TrafficMP : Script
         foreach (var b in _activeBlips) if (b.Exists()) b.Delete();
     }
 
+    // ==========================================
+    //      OPTIMIZED MAIN LOOP (Early Exit)
+    // ==========================================
     private void RunIntelligentReplacement()
     {
         Ped player = Game.Player.Character;
@@ -105,15 +109,22 @@ public class TrafficMP : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
 
+        // NOTE: GetAllVehicles is unavoidable, but we iterate it efficiently.
         Vehicle[] allVehicles = World.GetAllVehicles();
 
         _presentModels.Clear();
         Dictionary<int, int> modelCounts = new Dictionary<int, int>();
-        List<Vehicle> candidates = new List<Vehicle>();
 
-        // 1. SCAN
-        foreach (Vehicle v in allVehicles)
+        int swapsThisFrame = 0;
+
+        // SINGLE PASS LOOP
+        // We scan and swap in the same loop. 
+        // As soon as swapsThisFrame hits the limit, we STOP the loop.
+        for (int i = 0; i < allVehicles.Length; i++)
         {
+            Vehicle v = allVehicles[i];
+
+            // 1. Basic Validity Checks (Fastest)
             if (v == null || !v.Exists()) continue;
 
             int hash = v.Model.Hash;
@@ -121,6 +132,10 @@ public class TrafficMP : Script
 
             if (modelCounts.ContainsKey(hash)) modelCounts[hash]++;
             else modelCounts[hash] = 1;
+
+            // If we already hit our swap budget, we just continue counting models (for the PresentModels list)
+            // but we SKIP all Raycasting and logic.
+            if (swapsThisFrame >= MaxSwapsPerCycle) continue;
 
             if (v.Driver == null || v.Driver.IsPlayer || v.Mods.LicensePlate == MARKER_PLATE) continue;
 
@@ -133,22 +148,18 @@ public class TrafficMP : Script
 
             if (needsSwap)
             {
+                // 2. Expensive Checks (Raycasts)
+                // Only run this if we really intend to swap this car
                 if (IsSafeToSwap(v, distSq, camPos, camDir))
                 {
-                    candidates.Add(v);
+                    // 3. Attempt Swap
+                    if (TransformVehicle(v))
+                    {
+                        swapsThisFrame++;
+                        // The loop continues solely to fill _presentModels for the next frame's awareness,
+                        // but logic is skipped by the check above.
+                    }
                 }
-            }
-        }
-
-        // 2. SWAP
-        int swapsDone = 0;
-        for (int i = candidates.Count - 1; i >= 0; i--)
-        {
-            if (swapsDone >= MaxSwapsPerCycle) break;
-
-            if (TransformVehicle(candidates[i]))
-            {
-                swapsDone++;
             }
         }
     }
@@ -162,7 +173,6 @@ public class TrafficMP : Script
 
         if (string.IsNullOrEmpty(candidate.ModelName)) return false;
 
-        // FIX 3: Updated Hash generation to Native call
         int newHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, candidate.ModelName);
 
         if (_presentModels.Contains(newHash) && MaxDuplicates == 1) return false;
@@ -170,6 +180,7 @@ public class TrafficMP : Script
         Model model = new Model(candidate.ModelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
 
+        // Ultra-fast request. If it's not ready in 5ms, skip it to save frames.
         model.Request(5);
         if (!model.IsLoaded) return false;
 
@@ -296,7 +307,6 @@ public class TrafficMP : Script
         {
             if (v.Mods.LicensePlate == MARKER_PLATE && v.IsOnScreen)
             {
-                // FIX 2: Updated MarkerType
                 World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow);
             }
         }
@@ -314,14 +324,15 @@ public class TrafficMP : Script
         ruralProfile.AddIngredient(VehList.models_wacky, 10, SpawnBehavior.RandomSpec);
 
         ZoneProfile richProfile = new ZoneProfile("RICH");
-        richProfile.AddIngredient(VehList.models_supers_common, 20, SpawnBehavior.Spec);
-        richProfile.AddIngredient(VehList.models_classics_common, 20, SpawnBehavior.Spec);
-        richProfile.AddIngredient(VehList.models_city, 80, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_supers_common, 5, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_classics_common, 5, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_veh_rich, 70, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_veh_mid, 20, SpawnBehavior.Spec);
 
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO");
-        ghettoProfile.AddIngredient(VehList.models_lowriders, 10, SpawnBehavior.RandomSpec);
-        ghettoProfile.AddIngredient(VehList.models_general_common, 70, SpawnBehavior.Spec);
-        ghettoProfile.AddIngredient(VehList.models_general_rare, 20, SpawnBehavior.Stock);
+        ghettoProfile.AddIngredient(VehList.models_lowriders, 50, SpawnBehavior.RandomSpec);
+        ghettoProfile.AddIngredient(VehList.models_general_common, 40, SpawnBehavior.Spec);
+        ghettoProfile.AddIngredient(VehList.models_general_rare, 10, SpawnBehavior.Stock);
 
         ZoneProfile urbanProfile = new ZoneProfile("URBAN");
         urbanProfile.AddIngredient(VehList.models_city, 30, SpawnBehavior.Spec);
@@ -331,6 +342,7 @@ public class TrafficMP : Script
         ZoneProfile generalProfile = new ZoneProfile("GENERAL");
         generalProfile.AddIngredient(VehList.models_general_common, 50, SpawnBehavior.Spec);
         generalProfile.AddIngredient(VehList.models_general_rare, 50, SpawnBehavior.Stock);
+
 
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
         AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN");
@@ -344,7 +356,7 @@ public class TrafficMP : Script
     public struct SpawnCandidate { public string ModelName; public SpawnBehavior Behavior; }
 
     // ==========================================
-    //      OPTIMIZED ZONE PROFILE (THE FIX)
+    //      OPTIMIZED ZONE PROFILE
     // ==========================================
     public class ZoneProfile
     {
@@ -392,7 +404,6 @@ public class TrafficMP : Script
                 string tryModel = selected.List[_rnd.Next(selected.List.Count)];
                 if (exclusions.Contains(tryModel)) continue;
 
-                // FIX 3: Updated Hash generation to Native call
                 int tryHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, tryModel);
 
                 if (currentSpawns.Contains(tryHash))
