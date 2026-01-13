@@ -20,13 +20,10 @@ public class TrafficMP : Script
     private int PeripheralDist = 80;
 
     // 3. PERFORMANCE
-    // 250ms is perfect. The lag came from doing too much work inside that 250ms.
-    private int CheckInterval = 500;
+    private int CheckInterval = 250;
     private int MaxSwapsPerCycle = 1;
 
     // 4. LOGIC
-    private int MaxDuplicates = 1;       // 1 = Unique. 2 = Pairs.
-    private bool SwapNewTraffic = false; // Injection Disabled
     private bool ShowBlips = true;
 
     // =============================================================
@@ -43,15 +40,12 @@ public class TrafficMP : Script
     private float _fovealDistSq;
     private float _peripheralDistSq;
 
-    private bool _debugMode = false;
+    private bool _debugMode = false; // F11 to Toggle
 
     // Registry & Zones
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
     private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
-
-    // HashSet for O(1) Lookups (Is this car already here?)
-    private HashSet<int> _presentModels = new HashSet<int>();
 
     private List<Blip> _activeBlips = new List<Blip>();
     private Random _rnd = new Random();
@@ -99,9 +93,6 @@ public class TrafficMP : Script
         foreach (var b in _activeBlips) if (b.Exists()) b.Delete();
     }
 
-    // ==========================================
-    //      OPTIMIZED MAIN LOOP (Early Exit)
-    // ==========================================
     private void RunIntelligentReplacement()
     {
         Ped player = Game.Player.Character;
@@ -109,78 +100,69 @@ public class TrafficMP : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
 
-        // NOTE: GetAllVehicles is unavoidable, but we iterate it efficiently.
         Vehicle[] allVehicles = World.GetAllVehicles();
+        List<Vehicle> candidates = new List<Vehicle>();
 
-        _presentModels.Clear();
-        Dictionary<int, int> modelCounts = new Dictionary<int, int>();
-
-        int swapsThisFrame = 0;
-
-        // SINGLE PASS LOOP
-        // We scan and swap in the same loop. 
-        // As soon as swapsThisFrame hits the limit, we STOP the loop.
-        for (int i = 0; i < allVehicles.Length; i++)
+        // 1. SCAN (No Duplicate Logic anymore)
+        foreach (Vehicle v in allVehicles)
         {
-            Vehicle v = allVehicles[i];
-
-            // 1. Basic Validity Checks (Fastest)
             if (v == null || !v.Exists()) continue;
 
-            int hash = v.Model.Hash;
-            if (!_presentModels.Contains(hash)) _presentModels.Add(hash);
-
-            if (modelCounts.ContainsKey(hash)) modelCounts[hash]++;
-            else modelCounts[hash] = 1;
-
-            // If we already hit our swap budget, we just continue counting models (for the PresentModels list)
-            // but we SKIP all Raycasting and logic.
-            if (swapsThisFrame >= MaxSwapsPerCycle) continue;
-
+            // Skip already swapped cars, player cars, etc.
             if (v.Driver == null || v.Driver.IsPlayer || v.Mods.LicensePlate == MARKER_PLATE) continue;
 
             float distSq = v.Position.DistanceToSquared(playerPos);
 
+            // Basic Filters
             if (distSq < _minTransformDistSq) continue;
             if (IsExcludedCategory(v)) continue;
 
-            bool needsSwap = (modelCounts[hash] > MaxDuplicates);
-
-            if (needsSwap)
+            // If it is visible/safe to swap, add it to the list.
+            // We don't care if it's unique or a duplicate.
+            if (IsSafeToSwap(v, distSq, camPos, camDir))
             {
-                // 2. Expensive Checks (Raycasts)
-                // Only run this if we really intend to swap this car
-                if (IsSafeToSwap(v, distSq, camPos, camDir))
-                {
-                    // 3. Attempt Swap
-                    if (TransformVehicle(v))
-                    {
-                        swapsThisFrame++;
-                        // The loop continues solely to fill _presentModels for the next frame's awareness,
-                        // but logic is skipped by the check above.
-                    }
-                }
+                candidates.Add(v);
+            }
+        }
+
+        // 2. SHUFFLE (Randomize Victims)
+        // This ensures we don't just swap the nearest ones every time.
+        if (candidates.Count > 0)
+        {
+            ShuffleList(candidates);
+        }
+
+        // 3. SWAP
+        int swapsDone = 0;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (swapsDone >= MaxSwapsPerCycle) break;
+
+            if (TransformVehicle(candidates[i]))
+            {
+                swapsDone++;
             }
         }
     }
 
     // ==========================================
-    //           SMART FILTERING LOGIC
+    //           SELECTION LOGIC (Card Deck)
     // ==========================================
     private bool TransformVehicle(Vehicle oldVehicle)
     {
-        SpawnCandidate candidate = GetCandidateForLocation(oldVehicle.Position);
+        // 1. Get List for Zone
+        SelectionLayer layer = GetLayerForLocation(oldVehicle.Position);
+        if (layer.List == null) return false;
 
-        if (string.IsNullOrEmpty(candidate.ModelName)) return false;
+        // 2. Use VehicleSelector (Deck of Cards Logic)
+        // This guarantees variety in what we SPAWN, even if we are aggressive about removing vanilla cars.
+        string modelName = VehicleSelector.GetNext(layer.List, _excludedModels);
 
-        int newHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, candidate.ModelName);
+        if (string.IsNullOrEmpty(modelName)) return false;
 
-        if (_presentModels.Contains(newHash) && MaxDuplicates == 1) return false;
-
-        Model model = new Model(candidate.ModelName);
+        Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
 
-        // Ultra-fast request. If it's not ready in 5ms, skip it to save frames.
         model.Request(5);
         if (!model.IsLoaded) return false;
 
@@ -201,18 +183,16 @@ public class TrafficMP : Script
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
             oldVehicle.Delete();
 
-            CarMod.ApplyStyle(newVehicle, candidate.Behavior, candidate.ModelName);
+            CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
 
             driver.BlockPermanentEvents = true;
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
 
-            if (ShowBlips || _debugMode) CreateBlip(newVehicle, candidate.ModelName);
-            if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {candidate.ModelName}", true);
+            if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
+            if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {modelName}", true);
 
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
-
-            _presentModels.Add(newHash);
 
             model.MarkAsNoLongerNeeded();
 
@@ -226,20 +206,29 @@ public class TrafficMP : Script
         return false;
     }
 
-    // ==========================================
-    //           ZONE & LIST LOGIC
-    // ==========================================
+    private void ShuffleList<T>(List<T> list)
+    {
+        int n = list.Count;
+        while (n > 1)
+        {
+            n--;
+            int k = _rnd.Next(n + 1);
+            T value = list[k];
+            list[k] = list[n];
+            list[n] = value;
+        }
+    }
 
-    private SpawnCandidate GetCandidateForLocation(Vector3 pos)
+    private SelectionLayer GetLayerForLocation(Vector3 pos)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
-        if (string.IsNullOrEmpty(zone) || _bannedZones.Contains(zone)) return new SpawnCandidate();
+        if (string.IsNullOrEmpty(zone) || _bannedZones.Contains(zone)) return new SelectionLayer();
 
         if (_zoneRegistry.ContainsKey(zone))
         {
-            return _zoneRegistry[zone].PickCandidate(_excludedModels, _presentModels);
+            return _zoneRegistry[zone].PickWeightedLayer();
         }
-        return new SpawnCandidate();
+        return new SelectionLayer();
     }
 
     // ==========================================
@@ -313,10 +302,13 @@ public class TrafficMP : Script
     }
 
     // ==========================================
-    //           ZONE SETUP (OPTIMIZED)
+    //           ZONE SETUP (DISCONNECTED)
     // ==========================================
     private void InitializeZones()
     {
+        // IMPORTANT: We use 'new HashSet<string>(VehList.xxx)' to create COPIES.
+        // This ensures VehicleSelector creates a unique Queue for TrafficMP.
+
         ZoneProfile ruralProfile = new ZoneProfile("RURAL");
         ruralProfile.AddIngredient(VehList.models_rural, 50, SpawnBehavior.Spec);
         ruralProfile.AddIngredient(VehList.models_general_common, 30, SpawnBehavior.Spec);
@@ -353,20 +345,12 @@ public class TrafficMP : Script
 
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
 
-    public struct SpawnCandidate { public string ModelName; public SpawnBehavior Behavior; }
+    public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; }
 
-    // ==========================================
-    //      OPTIMIZED ZONE PROFILE
-    // ==========================================
     public class ZoneProfile
     {
         public string Name;
-        private struct Ingredient
-        {
-            public List<string> List;
-            public int Weight;
-            public SpawnBehavior Behavior;
-        }
+        private struct Ingredient { public HashSet<string> List; public int Weight; public SpawnBehavior Behavior; }
         private List<Ingredient> _ingredients = new List<Ingredient>();
         private int _totalWeight = 0;
         private Random _rnd = new Random();
@@ -376,47 +360,22 @@ public class TrafficMP : Script
         public void AddIngredient(HashSet<string> list, int weight, SpawnBehavior behavior)
         {
             if (list == null) return;
-            _ingredients.Add(new Ingredient { List = list.ToList(), Weight = weight, Behavior = behavior });
+            _ingredients.Add(new Ingredient { List = list, Weight = weight, Behavior = behavior });
             _totalWeight += weight;
         }
 
-        public SpawnCandidate PickCandidate(HashSet<string> exclusions, HashSet<int> currentSpawns)
+        public SelectionLayer PickWeightedLayer()
         {
-            if (_ingredients.Count == 0) return new SpawnCandidate();
+            if (_ingredients.Count == 0) return new SelectionLayer();
 
             int roll = _rnd.Next(0, _totalWeight);
             int current = 0;
-            Ingredient selected = _ingredients[0];
-
             foreach (var item in _ingredients)
             {
                 current += item.Weight;
-                if (roll < current)
-                {
-                    selected = item;
-                    break;
-                }
+                if (roll < current) return new SelectionLayer { List = item.List, Behavior = item.Behavior };
             }
-
-            string pickedModel = "";
-            for (int i = 0; i < 3; i++)
-            {
-                string tryModel = selected.List[_rnd.Next(selected.List.Count)];
-                if (exclusions.Contains(tryModel)) continue;
-
-                int tryHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, tryModel);
-
-                if (currentSpawns.Contains(tryHash))
-                {
-                    pickedModel = tryModel;
-                    continue;
-                }
-
-                return new SpawnCandidate { ModelName = tryModel, Behavior = selected.Behavior };
-            }
-
-            if (string.IsNullOrEmpty(pickedModel)) return new SpawnCandidate();
-            return new SpawnCandidate { ModelName = pickedModel, Behavior = selected.Behavior };
+            return new SelectionLayer { List = _ingredients[0].List, Behavior = _ingredients[0].Behavior };
         }
     }
 }
