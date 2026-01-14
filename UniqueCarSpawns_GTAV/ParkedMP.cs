@@ -224,7 +224,7 @@ public class SpawnMP : Script
         }
         // Start Invisible for fading logic
         car.Opacity = 0;
-
+        
         int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, car);
         if (comboCount > 0)
         {

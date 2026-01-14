@@ -17,8 +17,8 @@ public class TrafficMP : Script
     private int MaxVisibleHeroes = 1;    // Max custom cars visible at once
 
     // --- 2. DIRECTOR CAMERA (The "Where" Logic) ---
-    private float MinSpawnDist = 110f;   // Closest allowed swap (Meters). Lower = Pop-in risk.
-    private float MaxSpawnDist = 300f;   // Furthest allowed swap.
+    private float MinSpawnDist = 140f;   // <--- UPDATED: Pushed back to prevent pop-in.
+    private float MaxSpawnDist = 350f;   // <--- UPDATED: Extended range to find cars further out.
     private float SpawnFOV = 35f;        // Viewing Angle (Degrees). Lower = Center screen only.
 
     // --- 3. SCORING WEIGHTS (The "Why" Logic) ---
@@ -132,7 +132,9 @@ public class TrafficMP : Script
         foreach (Vehicle v in allVehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || v.Mods.LicensePlate == MARKER_PLATE) continue;
-            if (IsExcludedCategory(v)) continue;
+
+            // --- EXCLUSION LOGIC (SAFE NODE CHECK) ---
+            if (IsExcludedCategory(v, player.Position)) continue;
 
             float score = GetCinematicScore(v, camPos, camDir, playerVel);
 
@@ -250,9 +252,38 @@ public class TrafficMP : Script
         return new SelectionLayer();
     }
 
-    private bool IsExcludedCategory(Vehicle v)
+    // ==========================================
+    //      EXCLUSION LOGIC (SAFE NODE CHECK)
+    // ==========================================
+    private bool IsExcludedCategory(Vehicle v, Vector3 playerPos)
     {
         if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane) return true;
+
+        // --- 1. NODE FLAG CHECK (Dirt/Offroad) ---
+        // Uses OutputArgument to handle memory safely in C#
+        OutputArgument outDensity = new OutputArgument();
+        OutputArgument outFlags = new OutputArgument();
+        OutputArgument outNodePos = new OutputArgument();
+        OutputArgument outNodeHeading = new OutputArgument();
+
+        // Check for DIRT flags
+        if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags))
+        {
+            int flags = outFlags.GetResult<int>();
+            if ((flags & (int)VehicleNodeFlags.Dirt) != 0 || (flags & (int)VehicleNodeFlags.SwitchedOff) != 0) return true;
+        }
+
+        // Check for HEIGHT difference (Bridges/Tunnels)
+        // Uses GET_CLOSEST_VEHICLE_NODE_WITH_HEADING (Safe alternative to GET_VEHICLE_NODE_POSITION)
+        if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, v.Position.X, v.Position.Y, v.Position.Z, outNodePos, outNodeHeading, 1, 3.0f, 0f))
+        {
+            Vector3 nodePos = outNodePos.GetResult<Vector3>();
+
+            // If the road the car is on is > 10m above/below the player, it's a bridge/tunnel. SKIP.
+            if (Math.Abs(nodePos.Z - playerPos.Z) > 10.0f) return true;
+        }
+        // ------------------------------------------
+
         VehicleClass vc = v.ClassType;
         if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
         if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus)) return true;
@@ -265,10 +296,12 @@ public class TrafficMP : Script
     {
         Blip b = v.AddBlip();
         b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.White;
-        b.Scale = 0.5f;
+        b.Color = BlipColor.Blue;
+        b.Scale = 0.7f;
         b.Name = name;
         b.IsShortRange = true;
+        Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
+
         if (!_debugMode && !ShowBlips) b.Alpha = 0;
         _activeBlips.Add(b);
     }
@@ -297,9 +330,6 @@ public class TrafficMP : Script
         }
     }
 
-    // ==========================================
-    //           ZONE SETUP (RESTORED)
-    // ==========================================
     private void InitializeZones()
     {
         ZoneProfile ruralProfile = new ZoneProfile("RURAL");
@@ -311,12 +341,11 @@ public class TrafficMP : Script
         ZoneProfile richProfile = new ZoneProfile("RICH");
         richProfile.AddIngredient(new HashSet<string>(VehList.models_supers_common), 50, SpawnBehavior.Spec);
         richProfile.AddIngredient(new HashSet<string>(VehList.models_classics_common), 50, SpawnBehavior.Spec);
-   //     richProfile.AddIngredient(new HashSet<string>(VehList.models_city), 50, SpawnBehavior.Spec);
 
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO");
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_lowriders), 50, SpawnBehavior.RandomSpec);
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 40, SpawnBehavior.Spec);
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 10, SpawnBehavior.Stock);
+        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_lowriders), 100, SpawnBehavior.RandomSpec);
+      //  ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 40, SpawnBehavior.Spec);
+    //    ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 10, SpawnBehavior.Stock);
 
         ZoneProfile urbanProfile = new ZoneProfile("URBAN");
         urbanProfile.AddIngredient(new HashSet<string>(VehList.models_city), 30, SpawnBehavior.Spec);
@@ -328,7 +357,7 @@ public class TrafficMP : Script
         generalProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 50, SpawnBehavior.Stock);
 
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN");
+        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP");
         AssignToProfile(generalProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO");
@@ -368,5 +397,17 @@ public class TrafficMP : Script
             }
             return new SelectionLayer { List = _ingredients[0].List, Behavior = _ingredients[0].Behavior };
         }
+    }
+
+    [Flags]
+    public enum VehicleNodeFlags
+    {
+        None = 0,
+        SwitchedOff = 1,
+        Highway = 2,
+        Arg3 = 4,
+        Arg4 = 8,
+        Dirt = 32,
+        Arg6 = 64
     }
 }
