@@ -12,23 +12,19 @@ public class TrafficMP : Script
     //                 TUNING DASHBOARD
     // =============================================================
 
-    // --- 1. PACING ---
-    private int SpawnCooldown = 5000;    // Time between swaps (ms)
-    private int MaxVisibleHeroes = 1;    // Max custom cars visible at once
+    private int SpawnCooldown = 5000;
+    private int MaxVisibleHeroes = 1;
 
-    // --- 2. DIRECTOR CAMERA (The "Where" Logic) ---
-    private float MinSpawnDist = 140f;   // <--- UPDATED: Pushed back to prevent pop-in.
-    private float MaxSpawnDist = 350f;   // <--- UPDATED: Extended range to find cars further out.
-    private float SpawnFOV = 35f;        // Viewing Angle (Degrees). Lower = Center screen only.
+    private float MinSpawnDist = 130f;
+    private float MaxSpawnDist = 240f;
+    private float SpawnFOV = 35f;
 
-    // --- 3. SCORING WEIGHTS (The "Why" Logic) ---
-    private float ScoreThreshold = 50f;  // Minimum score required to trigger a swap
-    private float ScoreOncoming = 100f;  // Bonus for cars driving TOWARDS you
-    private float ScoreOvertake = 20f;   // Bonus for cars driving SAME direction
-    private float ScoreVisible = 50f;    // Bonus if car is currently on screen
+    private float ScoreThreshold = 50f;
+    private float ScoreOncoming = 100f;
+    private float ScoreOvertake = 20f;
+    private float ScoreVisible = 50f;
 
-    // --- 4. SYSTEM ---
-    private int CheckInterval = 250;     // Scan frequency (ms)
+    private int CheckInterval = 250;
     private bool ShowBlips = true;
 
     // =============================================================
@@ -102,16 +98,16 @@ public class TrafficMP : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
         Vector3 playerVel = player.Velocity;
+        Vector3 playerDir = player.ForwardVector;
 
         Vehicle[] allVehicles = World.GetAllVehicles();
 
-        // 1. SCENE CHECK (Are there heroes nearby?)
+        // 1. SCENE CHECK
         int heroesOnSet = 0;
         foreach (Vehicle v in allVehicles)
         {
             if (v.Exists() && v.Mods.LicensePlate == MARKER_PLATE)
             {
-                // Using MinSpawnDist as the "Safety Zone" for existing heroes too
                 if (v.IsOnScreen || v.Position.DistanceTo(player.Position) < MinSpawnDist)
                 {
                     heroesOnSet++;
@@ -133,10 +129,9 @@ public class TrafficMP : Script
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || v.Mods.LicensePlate == MARKER_PLATE) continue;
 
-            // --- EXCLUSION LOGIC (SAFE NODE CHECK) ---
             if (IsExcludedCategory(v, player.Position)) continue;
 
-            float score = GetCinematicScore(v, camPos, camDir, playerVel);
+            float score = GetCinematicScore(v, camPos, camDir, playerDir, playerVel);
 
             if (score > bestScore)
             {
@@ -148,51 +143,35 @@ public class TrafficMP : Script
         // 3. ACTION
         if (bestCandidate != null && bestScore > ScoreThreshold)
         {
-            if (TransformVehicle(bestCandidate))
+            // CHECK: Is the winner on a dirt road?
+            bool isDirt = IsVehicleOnDirt(bestCandidate);
+
+            if (TransformVehicle(bestCandidate, isDirt))
             {
                 _nextSpawnTime = Game.GameTime + SpawnCooldown;
             }
         }
     }
 
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel)
-    {
-        float score = 0f;
-        float dist = v.Position.DistanceTo(camPos);
-
-        // A. TUNABLE DISTANCE CHECKS
-        if (dist < MinSpawnDist) return 0f;
-        if (dist > MaxSpawnDist) return 0f;
-
-        // B. TUNABLE FOV CHECK
-        Vector3 toCar = (v.Position - camPos).Normalized;
-        float angle = Vector3.Angle(camDir, toCar);
-        if (angle > SpawnFOV) return 0f;
-
-        // C. TUNABLE MOVEMENT SCORING
-        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
-        if (closingSpeed < -0.5f) score += ScoreOncoming;
-        else if (closingSpeed > 0.5f) score += ScoreOvertake;
-
-        // D. VISIBILITY CHECK (Raycast is still hardcoded as it's physics)
-        bool visible = !World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
-        if (!visible) return 0f;
-
-        if (v.IsOnScreen) score += ScoreVisible;
-
-        // E. DISTANCE WEIGHT (Further is better)
-        // This encourages selecting cars at the edge of the MinSpawnDist
-        score += dist * 0.5f;
-
-        return score;
-    }
-
     // ==========================================
     //           SELECTION LOGIC
     // ==========================================
-    private bool TransformVehicle(Vehicle oldVehicle)
+    private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
-        SelectionLayer layer = GetLayerForLocation(oldVehicle.Position);
+        SelectionLayer layer;
+
+        // LOGIC: If on Dirt, force the hidden "OFFROAD" profile.
+        // Otherwise, use the standard Zone Registry.
+        if (onDirt && _zoneRegistry.ContainsKey("_OVERRIDE_OFFROAD_"))
+        {
+            layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickWeightedLayer();
+            GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true, false);
+        }
+        else
+        {
+            layer = GetLayerForLocation(oldVehicle.Position);
+        }
+
         if (layer.List == null) return false;
 
         string modelName = VehicleSelector.GetNext(layer.List, _excludedModels);
@@ -257,50 +236,92 @@ public class TrafficMP : Script
     // ==========================================
     private bool IsExcludedCategory(Vehicle v, Vector3 playerPos)
     {
+        // 1. HARD BANS (Planes, Helis, Trains, Boats)
         if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane) return true;
 
-        // --- 1. NODE FLAG CHECK (Dirt/Offroad) ---
-        // Uses OutputArgument to handle memory safely in C#
-        OutputArgument outDensity = new OutputArgument();
-        OutputArgument outFlags = new OutputArgument();
-        OutputArgument outNodePos = new OutputArgument();
-        OutputArgument outNodeHeading = new OutputArgument();
+        // 2. CYCLE BAN
+        // This stops Bicycles (BMX) from being swapped, but allows Motorcycles (Sanchez)
+        if (v.ClassType == VehicleClass.Cycles) return true;
 
-        // Check for DIRT flags
-        if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags))
-        {
-            int flags = outFlags.GetResult<int>();
-            if ((flags & (int)VehicleNodeFlags.Dirt) != 0 || (flags & (int)VehicleNodeFlags.SwitchedOff) != 0) return true;
-        }
-
-        // Check for HEIGHT difference (Bridges/Tunnels)
-        // Uses GET_CLOSEST_VEHICLE_NODE_WITH_HEADING (Safe alternative to GET_VEHICLE_NODE_POSITION)
-        if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, v.Position.X, v.Position.Y, v.Position.Z, outNodePos, outNodeHeading, 1, 3.0f, 0f))
-        {
-            Vector3 nodePos = outNodePos.GetResult<Vector3>();
-
-            // If the road the car is on is > 10m above/below the player, it's a bridge/tunnel. SKIP.
-            if (Math.Abs(nodePos.Z - playerPos.Z) > 10.0f) return true;
-        }
-        // ------------------------------------------
+        // 3. SCENARIO BAN (FIXED)
+        // Changed VehiclePopulationType -> EntityPopulationType
+        if (v.PopulationType == EntityPopulationType.RandomScenario) return true;
 
         VehicleClass vc = v.ClassType;
         if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
         if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus)) return true;
         if (v.Model.Hash == unchecked((int)VehicleHash.Taxi)) return true;
         if (IgnoreBig && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true;
+
         return false;
     }
 
-    private void CreateBlip(Vehicle v, string name)
+    private bool IsVehicleOnDirt(Vehicle v)
+    {
+        OutputArgument outDensity = new OutputArgument();
+        OutputArgument outFlags = new OutputArgument();
+
+        if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags))
+        {
+            int flags = outFlags.GetResult<int>();
+            // Check for Dirt flag (Bit 5 / 32)
+            if ((flags & (int)VehicleNodeFlags.Dirt) != 0) return true;
+        }
+        return false;
+    }
+
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel)
+    {
+        float score = 0f;
+        float dist = v.Position.DistanceTo(camPos);
+
+        if (dist < MinSpawnDist) return 0f;
+        if (dist > MaxSpawnDist) return 0f;
+
+        Vector3 toCar = (v.Position - camPos).Normalized;
+        float angleCam = Vector3.Angle(camDir, toCar);
+        float anglePlayer = Vector3.Angle(playerDir, toCar);
+
+        if (angleCam > SpawnFOV && anglePlayer > SpawnFOV) return 0f;
+
+        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
+        if (closingSpeed < -0.5f) score += ScoreOncoming;
+        else if (closingSpeed > 0.5f) score += ScoreOvertake;
+
+        bool visible = !World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
+        if (!visible) return 0f;
+
+        if (v.IsOnScreen) score += ScoreVisible;
+        score += dist * 0.5f;
+
+        return score;
+    }
+
+    private void CreateBlip(Vehicle v, string modelKey)
     {
         Blip b = v.AddBlip();
         b.Sprite = BlipSprite.Standard;
         b.Color = BlipColor.Blue;
         b.Scale = 0.7f;
-        b.Name = name;
         b.IsShortRange = true;
         Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
+
+        // --- NAME LOGIC (UPDATED FOR SHVDN v3) ---
+        // 1. Get the GXT Label (e.g., "BANSHEE2")
+        string gxtLabel = Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash);
+
+        // 2. Translate Label to English (e.g., "Banshee 900R") using GetLocalizedString
+        string friendlyName = Game.GetLocalizedString(gxtLabel);
+
+        // 3. Fallback: If name is missing or "NULL", use "Vehicle"
+        if (string.IsNullOrEmpty(friendlyName) || friendlyName.ToUpper() == "NULL")
+        {
+            b.Name = "Vehicle";
+        }
+        else
+        {
+            b.Name = friendlyName;
+        }
 
         if (!_debugMode && !ShowBlips) b.Alpha = 0;
         _activeBlips.Add(b);
@@ -308,11 +329,19 @@ public class TrafficMP : Script
 
     private void CleanupBlips()
     {
+        Ped player = Game.Player.Character;
         for (int i = _activeBlips.Count - 1; i >= 0; i--)
         {
-            if (!_activeBlips[i].Exists() || _activeBlips[i].Entity == null || !_activeBlips[i].Entity.Exists())
+            Blip b = _activeBlips[i];
+            if (!b.Exists() || b.Entity == null || !b.Entity.Exists())
             {
-                if (_activeBlips[i].Exists()) _activeBlips[i].Delete();
+                if (b.Exists()) b.Delete();
+                _activeBlips.RemoveAt(i);
+                continue;
+            }
+            if (player.IsInVehicle((Vehicle)b.Entity))
+            {
+                b.Delete();
                 _activeBlips.RemoveAt(i);
             }
         }
@@ -332,6 +361,7 @@ public class TrafficMP : Script
 
     private void InitializeZones()
     {
+        // --- STANDARD ZONES ---
         ZoneProfile ruralProfile = new ZoneProfile("RURAL");
         ruralProfile.AddIngredient(new HashSet<string>(VehList.models_rural), 50, SpawnBehavior.Spec);
         ruralProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 30, SpawnBehavior.Spec);
@@ -339,13 +369,14 @@ public class TrafficMP : Script
         ruralProfile.AddIngredient(new HashSet<string>(VehList.models_wacky), 10, SpawnBehavior.RandomSpec);
 
         ZoneProfile richProfile = new ZoneProfile("RICH");
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_supers_common), 50, SpawnBehavior.Spec);
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_classics_common), 50, SpawnBehavior.Spec);
+        richProfile.AddIngredient(new HashSet<string>(VehList.models_supers_common), 40, SpawnBehavior.Spec);
+        richProfile.AddIngredient(new HashSet<string>(VehList.models_classics_common), 40, SpawnBehavior.Spec);
+        richProfile.AddIngredient(new HashSet<string>(VehList.models_city), 20, SpawnBehavior.Spec);
 
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO");
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_lowriders), 100, SpawnBehavior.RandomSpec);
-      //  ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 40, SpawnBehavior.Spec);
-    //    ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 10, SpawnBehavior.Stock);
+        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_lowriders), 60, SpawnBehavior.RandomSpec);
+        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 30, SpawnBehavior.Spec);
+        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 10, SpawnBehavior.Stock);
 
         ZoneProfile urbanProfile = new ZoneProfile("URBAN");
         urbanProfile.AddIngredient(new HashSet<string>(VehList.models_city), 30, SpawnBehavior.Spec);
@@ -356,11 +387,21 @@ public class TrafficMP : Script
         generalProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 50, SpawnBehavior.Spec);
         generalProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 50, SpawnBehavior.Stock);
 
+        // --- NEW: SPECIAL OFFROAD PROFILE ---
+        // This is not attached to a Zone Name. It is attached to the Dirt Flag.
+        ZoneProfile offroadProfile = new ZoneProfile("OFFROAD");
+        offroadProfile.AddIngredient(new HashSet<string>(VehList.models_offroad), 70, SpawnBehavior.Spec);
+        offroadProfile.AddIngredient(new HashSet<string>(VehList.models_rural), 30, SpawnBehavior.Spec); // Bajas, Buggies
+
+
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "PBLUFF", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE");
+        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "VINE", "DTVINE", "WVINE", "CHIL", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE", "PBLUFF", "CHU", "BHAMCA");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP");
         AssignToProfile(generalProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO");
+
+        // Manually register the special profile
+        _zoneRegistry["_OVERRIDE_OFFROAD_"] = offroadProfile;
     }
 
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
