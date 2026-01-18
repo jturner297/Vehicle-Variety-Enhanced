@@ -280,9 +280,10 @@ public static class CarMod
             case SpawnBehavior.VIP:
                 // LUXURY / STANCE
                 ApplyVIPVisuals(v);
-                if (VehList.models_armoured.Contains(modelName))
+               if (VehList.models_armoured.Contains(modelName))
                 {
                     SetColors(v, 12, 12, 0, 12); // matte black
+                    v.Mods.TrimColor = (VehicleColor)34;
                 }
                 v.Mods.Livery = -1; // Force Clean
                 break;

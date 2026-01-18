@@ -371,48 +371,47 @@ public class TrafficMP : Script
 
     private void InitializeZones()
     {
+        // 1. RURAL PROFILE
         ZoneProfile ruralProfile = new ZoneProfile("RURAL");
-        ruralProfile.AddIngredient(new HashSet<string>(VehList.models_rural), 50, SpawnBehavior.Spec);
-        ruralProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 30, SpawnBehavior.Spec);
-        ruralProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 10, SpawnBehavior.Stock);
-        ruralProfile.AddIngredient(new HashSet<string>(VehList.models_wacky), 10, SpawnBehavior.RandomSpec);
+        // FIX: Removed "new HashSet<string>(...)" wrapper. Passing direct Master Reference.
+        ruralProfile.AddIngredient(VehList.models_rural, 50, SpawnBehavior.Spec);
+        ruralProfile.AddIngredient(VehList.models_general_common, 30, SpawnBehavior.Spec);
+        ruralProfile.AddIngredient(VehList.models_general_rare, 10, SpawnBehavior.Stock);
+        ruralProfile.AddIngredient(VehList.models_wacky, 10, SpawnBehavior.RandomSpec);
 
+        // 2. RICH PROFILE
         ZoneProfile richProfile = new ZoneProfile("RICH");
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_super), 35, SpawnBehavior.Spec);
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_classics), 35, SpawnBehavior.Spec);
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_luxury), 20, SpawnBehavior.VIP);
-        richProfile.AddIngredient(new HashSet<string>(VehList.models_armoured), 10, SpawnBehavior.VIP);
+        richProfile.AddIngredient(VehList.models_super, 35, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_classics, 35, SpawnBehavior.Spec);
+        richProfile.AddIngredient(VehList.models_luxury, 25, SpawnBehavior.VIP);
+        richProfile.AddIngredient(VehList.models_armoured, 5, SpawnBehavior.VIP);
 
+        // 3. GHETTO PROFILE
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO");
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_lowriders),60, SpawnBehavior.RandomSpec);
-        ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_muscle), 40, SpawnBehavior.Muscle);
-        // ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 30, SpawnBehavior.BalancedSpec);
-        //  ghettoProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 20, SpawnBehavior.BalancedSpec);
+        ghettoProfile.AddIngredient(VehList.models_lowriders, 60, SpawnBehavior.RandomSpec);
+        ghettoProfile.AddIngredient(VehList.models_muscle, 40, SpawnBehavior.Muscle);
 
+        // 4. URBAN PROFILE
         ZoneProfile urbanProfile = new ZoneProfile("URBAN");
-        urbanProfile.AddIngredient(new HashSet<string>(VehList.models_luxury), 40, SpawnBehavior.VIP);
-        urbanProfile.AddIngredient(new HashSet<string>(VehList.models_tuner), 30, SpawnBehavior.Tuner);
-        urbanProfile.AddIngredient(new HashSet<string>(VehList.models_muscle), 30, SpawnBehavior.Tuner);
-        //  urbanProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 50, SpawnBehavior.BalancedSpec);
-        //    urbanProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 20, SpawnBehavior.BalancedSpec);
+        urbanProfile.AddIngredient(VehList.models_luxury, 40, SpawnBehavior.VIP);
+        urbanProfile.AddIngredient(VehList.models_tuner, 30, SpawnBehavior.Tuner);
+        urbanProfile.AddIngredient(VehList.models_muscle, 30, SpawnBehavior.Muscle);
 
+        // 5. INDUSTRY PROFILE
         ZoneProfile industryProfile = new ZoneProfile("INDUSTRY");
-        industryProfile.AddIngredient(new HashSet<string>(VehList.models_general_common), 50, SpawnBehavior.Spec);
-        industryProfile.AddIngredient(new HashSet<string>(VehList.models_general_rare), 50, SpawnBehavior.Spec);
+        industryProfile.AddIngredient(VehList.models_industry, 100, SpawnBehavior.Spec);
+      //  industryProfile.AddIngredient(VehList.models_general_common, 50, SpawnBehavior.Spec);
+      //  industryProfile.AddIngredient(VehList.models_general_rare, 50, SpawnBehavior.Spec);
 
+        // 6. OFFROAD OVERRIDE
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD");
-        offroadProfile.AddIngredient(new HashSet<string>(VehList.models_offroad), 100, SpawnBehavior.Spec);
+        offroadProfile.AddIngredient(VehList.models_offroad, 100, SpawnBehavior.Muscle);
 
-
-
+        // ASSIGNMENTS
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
         AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "DTVINE", "WVINE", "CHIL", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE", "PBLUFF", "CHU", "BHAMCA");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP", "VINE");
-  
-
-
-
         AssignToProfile(industryProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA");
 
         _zoneRegistry["_OVERRIDE_OFFROAD_"] = offroadProfile;

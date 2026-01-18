@@ -535,7 +535,7 @@ public class VehList
                 "rt3000",
                 "sentinel3", //sentinel classic
              "penumbra2", //penumbraff
-                "yosemite3",
+                "yosemite2",
                         "banshee2",
 
 
@@ -573,7 +573,9 @@ public class VehList
     "remus",
     "warrener2",
     "elegy",
-        "comet3"
+        "comet3",
+        "jugular"
+
     };
 
     public static HashSet<string> models_muscle = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -736,131 +738,74 @@ public class VehList
 
 
 
+    public static HashSet<string> models_industry = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//general city cars 
 
-
-
-    public static HashSet<string> veh_poor = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-        "asbo", "asea", "asterope", "asterope2", "blade", "blista2", "bobcatxl", "boor", "buccaneer", "calico",
-        "cavalcade", "chino", "clique", "club", "dominator10", "dominator7", "dukes", "dynasty", "emperor",
-        "emperor2", "faction", "fagaloa", "fq2", "futo", "futo2", "hellion", "impaler", "ingot", "intruder",
-        "issi3", "kanjo", "kanjosj", "landstalker", "manana", "minivan", "moonbeam", "nebula", "nightshade",
-        "phoenix", "picador", "prairie", "premier", "primo", "rancherxl", "regina", "remus", "retinue",
-        "rhapsody", "ruiner", "savestra", "seminole2", "sentinel3", "serrano", "slamvan", "stalion", "stanier",
-        "stratum", "sultan", "sultan2", "sultan3", "surfer", "surfer3", "tahoma", "tampa", "tornado3", "tulip",
-        "vamos", "vigero", "virgo3", "voodoo2", "warrener", "warrener2", "weevil", "yosemite", "yosemite3",
-        "youga", "youga2", "zion3", "hustler"
-    };
-
-    public static HashSet<string> veh_mid = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-        "baller", "baller2", "bison", "bjxl", "blista", "buffalo", "cavalcade2", "chavosv6", "deviant",
-        "dilettante", "dominator", "dominator3", "dominator8", "dubsta", "elegy", "elegy2", "eudora", "euros",
-        "f620", "fq2", "fugitive", "fusilade", "gauntlet", "gauntlet3", "glendale", "granger", "gresley",
-        "habanero", "hermes", "intruder", "issi2", "jester3", "kuruma", "mesa", "oracle", "panto", "patriot",
-        "penumbra", "penumbra2", "peyote", "pigalle", "premier", "radi", "retinue2", "rocoto", "rt3000",
-        "sabregt", "sadler", "schafter2", "seminole", "sentinel2", "serrano", "sultanrs", "surfer", "surge",
-        "tornado", "tornado2", "virgo", "voodoo", "washington", "youga", "z190", "zr350", "zion", "zion2", "ellie"
-
-
-
-    };
-
-
-    
-
-
-
-
-    public static HashSet<string> veh_rich =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-    "baller4",
-    "banshee",
-    "bestiagts",
+   "asbo",
+    "asterope2",
+    "boor",
     "brioso",
-    "brioso2",
-    "bullet",
-    "carbonizzare",
-    "casco",
-    "cinquemila",
-    "cog55",
-    "cogcabrio",
-    "cognoscenti",
-    "comet2",
-    "comet3",
-    "comet5",
-    "coquette",
-    "coquette2",
-    "coquette3",
-    "coquette6",
-    "cyclone",
-    "cypher",
-    "drafter",
-    "elegy2",
-    "exemplar",
-    "feltzer2",
+    "calico",
+    "cheburek",
+    "chavosv6",
+    "clique2",
+    "club",
+    "contender",
+    "dominator10",
+    "dominator3",
+    "dominator7",
+    "dominator8",
+    "dorado",
+    "dynasty",
+    "enduro",
+    "eudora",
+    "everon",
+    "esskey",
+    "faction",
+    "firebolt",
     "fr36",
-    "furoregt",
-    "growler",
-    "huntley",
-    "infernus",
-    "italigtb",
-    "italigto",
-    "jester",
-    "jugular",
+    "futo2",
+    "guardian",
+    "hakuchou2",
+    "hellion",
+    "hermes",
+    "hustler",
+    "impaler",
+    "issi3",
+    "jester3",
+    "journey2",
+    "kamacho",
+    "kanjo",
+    "kanjosj",
     "khamelion",
-    "komoda",
-    "lynx",
-    "massacro",
-    "michelli",
-    "neon",
-    "ninef",
-    "ninef2",
-    "novak",
-    "panthere",
-    "paragon",
-    "pariah",
-    "penetrator",
-    "pfister811",
-    "raiden",
-    "rapidgt",
-    "rapidgt2",
-    "rapidgt3",
-    "rebla",
-    "revolter",
-    "sc1",
-    "schafter4",
-    "schlagen",
-    "schwarzer",
-    "sentinel",
-    "seven70",
-    "specter",
-    "stinger",
-    "superd",
-    "surano",
-    "s95",
-    "vacca",
-    "vectre",
-    "verlierer2",
-    "viseris",
-    "voltic",
-    "vstr",
-    "windsor",
-    "windsor2",
-    "xls",
-
- /*   // Additional (non-duplicates)
-    "banshee2",
-    "euros",
-    "monroe",
-    "stingergt",
-    "mamba",
-    "jb7002",
-    "zentorno",
-    "turismor",
-    "cheetah",
-    "entityxf",
-    "adder"
-    */};
-
+    "kuruma",
+    "manchez2",
+    "moonbeam",
+    "monstrociti",
+    "nebula",
+    "nightshade",
+    "penumbra2",
+    "previon",
+    "remus",
+    "retinue",
+    "retinue2",
+    "riata",
+    "rumpo3",
+    "rt3000",
+    "savestra",
+    "seminole2",
+    "sentinel3",
+    "slamvan",
+    "sultan2",
+    "surfer3",
+    "tulip",
+    "vamos",
+    "virgo",
+    "yosemite",
+    "yosemite3",
+    "youga2",
+    "youga3",
+    "z190",
+    "zion3",
+    };
 
 }
