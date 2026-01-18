@@ -2,17 +2,29 @@
 using GTA.Native;
 using System;
 using System.Collections.Generic;
+using System.Net.Http.Headers;
 
 public enum SpawnBehavior
 {
     Stock,      // No visual or performance mods, factory look.
     Spec,       // Max Performance. Visuals are either Clean, Hero-Specific, or List-Specific (Higgins/Armoured).
-    RandomSpec  // Max Performance. Visuals are Randomized (or Cult-Specific if in Cult list).
+    RandomSpec,  // Max Performance. Visuals are Randomized (or Cult-Specific if in Cult list).
+    Tuner,      // STREET RACER: 80% chance. Body kits, Spoilers, Liveries.
+    VIP,        // LUXURY: Clean look. Rims, Low Suspension, Tint. NO Body kits.
+    Muscle      // DRAG/POWER: Blowers (Hoods), Exhausts, Muscle Wheels. NO GT Spoilers.
 }
 
 public static class CarMod
 {
     private static Random random = new Random();
+
+    private static readonly Dictionary<string, HashSet<int>> LiveryBlacklist = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase)
+    {
+     //   { "monstrociti", new HashSet<int> { 5, 10, 11 } },
+       { "eudora", new HashSet<int> { 10 } },
+       { "monstrociti", new HashSet<int> { 10, 11 } },
+        // Add more here: { "modelname", new HashSet<int> { 1, 2, 3 } },
+    };
 
     // ==========================================
     //           HERO CONFIGURATIONS
@@ -202,65 +214,87 @@ public static class CarMod
             v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
         }
 
-        // 4. RANDOMSPEC LOGIC (Maintained your Plane/Heli check)
-        if (behavior == SpawnBehavior.RandomSpec)
+        switch(behavior)
         {
-            // TWEAK: CULT Logic (Epsilon Blue)
-            if (VehList.models_cult.Contains(modelName))
-            {
-                SetColors(v, 157, 157, 1, 0);
-                v.Mods[VehicleModType.Livery].Index = -1;
-                ApplyRandomVisuals(v);
-            }
-            else
-            {
-                // SAFETY CHECK: Air Vehicles (No Body Mods = No Weapons)
-                if (v.ClassType == VehicleClass.Helicopters || v.ClassType == VehicleClass.Planes)
+            case SpawnBehavior.RandomSpec:
+                // TWEAK: CULT Logic (Epsilon Blue)
+                if (VehList.models_cult.Contains(modelName))
                 {
-                    RandomizeLivery(v);
-                    // Note: If you want the Conada fix we discussed, insert it here.
-                    // Currently keeping it EXACTLY as your upload.
-                }
-                else // Cars/Bikes/Boats
-                {
+                    SetColors(v, 157, 157, 1, 0);
+                    v.Mods[VehicleModType.Livery].Index = -1;
                     ApplyRandomVisuals(v);
-                    RandomizeLivery(v);
                 }
-            }
-        }
-        // 5. SPEC LOGIC (Hero / Group Themes)
-        else if (behavior == SpawnBehavior.Spec)
-        {
-            // A. Check Hero Dictionary (The new efficient way)
-            // Replaces the old "ApplyHeroSpecs" switch statement
-            bool foundSpecific = ApplyHeroSpecs(v, modelName);
-
-            // B. If no specific config found, check the Group Lists
-            if (!foundSpecific)
-            {
-                // HIGGINS
-                if (VehList.models_higgins.Contains(modelName))
+                else
                 {
-                    if (modelName == "conada")
+                    // SAFETY CHECK: Air Vehicles (No Body Mods = No Weapons)
+                    if (v.ClassType == VehicleClass.Helicopters || v.ClassType == VehicleClass.Planes)
                     {
-                        v.Mods.PrimaryColor = (VehicleColor)89;
-                        v.Mods.SecondaryColor = (VehicleColor)6;
-                        v.Mods[VehicleModType.Livery].Index = 9;
+                        RandomizeLivery(v, modelName);
+                        // Note: If you want the Conada fix we discussed, insert it here.
+                        // Currently keeping it EXACTLY as your upload.
                     }
-                    v.Mods.PearlescentColor = VehicleColor.MetallicMidnightSilver;
+                    else // Cars/Bikes/Boats
+                    {
+                        ApplyRandomVisuals(v);
+                        RandomizeLivery(v, modelName);
+                    }
                 }
-                // ARMOURED
-                else if (VehList.models_armoured.Contains(modelName))
+                break;
+            case SpawnBehavior.Spec:
+                // A. Check Hero Dictionary (The new efficient way)
+                // Replaces the old "ApplyHeroSpecs" switch statement
+                bool foundSpecific = ApplyHeroSpecs(v, modelName);
+
+                // B. If no specific config found, check the Group Lists
+                if (!foundSpecific)
+                {
+                    // HIGGINS
+                    if (VehList.models_higgins.Contains(modelName))
+                    {
+                        if (modelName == "conada")
+                        {
+                            v.Mods.PrimaryColor = (VehicleColor)89;
+                            v.Mods.SecondaryColor = (VehicleColor)6;
+                            v.Mods[VehicleModType.Livery].Index = 9;
+                        }
+                        v.Mods.PearlescentColor = VehicleColor.MetallicMidnightSilver;
+                    }
+                    // ARMOURED
+                    else if (VehList.models_armoured.Contains(modelName))
+                    {
+                        SetColors(v, 12, 12, 0, 12); // matte black
+                    }
+                    // HELICOPTERS (Generic)
+                    else if (VehList.models_helicopter.Contains(modelName))
+                    {
+                        RandomizeLivery(v, modelName);
+                    }
+                }
+                break;
+            case SpawnBehavior.Tuner:
+                // JDM / STREET RACER
+                ApplyTunerVisuals(v);
+                RandomizeLivery(v, modelName);
+                break;
+
+            case SpawnBehavior.VIP:
+                // LUXURY / STANCE
+                ApplyVIPVisuals(v);
+                if (VehList.models_armoured.Contains(modelName))
                 {
                     SetColors(v, 12, 12, 0, 12); // matte black
                 }
-                // HELICOPTERS (Generic)
-                else if (VehList.models_helicopter.Contains(modelName))
-                {
-                    RandomizeLivery(v);
-                }
-            }
+                v.Mods.Livery = -1; // Force Clean
+                break;
+
+            case SpawnBehavior.Muscle:
+                // DRAG / CLASSIC
+                ApplyMuscleVisuals(v);
+                RandomizeLivery(v, modelName); // Stripes allowed
+                break;
+
         }
+
 
         // Ensure collision loading for heavier edits
         Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, v, true);
@@ -295,7 +329,7 @@ public static class CarMod
 
         foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
         {
-            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns) continue;
+            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns || modType == VehicleModType.Roof) continue;
 
             int count = v.Mods[modType].Count;
             if (count > 0)
@@ -305,7 +339,30 @@ public static class CarMod
         }
     }
 
-    public static void RandomizeLivery(Vehicle v, int limit = -1)
+
+    public static void ApplyBalancedVisuals(Vehicle v)
+    {
+        var performanceTypes = new HashSet<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
+
+        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+        {
+            // BANS: Performance, Liveries, Horns, AND ROOFS
+            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns || modType == VehicleModType.Roof) continue;
+
+            int count = v.Mods[modType].Count;
+            if (count > 0)
+            {
+                // 50% CHANCE: Flip a coin (0 or 1). Only change if 0.
+                if (random.Next(0, 2) == 0)
+                {
+                    v.Mods[modType].Index = random.Next(0, count);
+                }
+                // Else: Do nothing (leave as stock)
+            }
+        }
+    }
+
+   /* public static void RandomizeLivery(Vehicle v, int limit = -1)
     {
         int count = v.Mods.LiveryCount;
         if (count > 0)
@@ -313,7 +370,123 @@ public static class CarMod
             int max = (limit > 0) ? Math.Min(count, limit) : count;
             v.Mods.Livery = random.Next(0, max);
         }
+    }*/
+
+    public static void RandomizeLivery(Vehicle v, string modelName, int limit = -1)
+    {
+        int count = v.Mods.LiveryCount;
+        if (count > 0)
+        {
+            // Calculate how many liveries we are allowed to check (handles 'limit' logic)
+            int max = (limit > 0) ? Math.Min(count, limit) : count;
+
+            // List to hold valid Livery IDs
+            List<int> validLiveries = new List<int>();
+
+            // Check if this specific car has bans in the Blacklist
+            HashSet<int> bannedIndices = null;
+            if (LiveryBlacklist.ContainsKey(modelName))
+            {
+                bannedIndices = LiveryBlacklist[modelName];
+            }
+
+            // Loop through available liveries and add them to 'validLiveries' if not banned
+            for (int i = 0; i < max; i++)
+            {
+                if (bannedIndices != null && bannedIndices.Contains(i))
+                {
+                    continue; // Skip this one, it's blacklisted
+                }
+                validLiveries.Add(i);
+            }
+
+            // Pick a random valid livery
+            if (validLiveries.Count > 0)
+            {
+                v.Mods.Livery = validLiveries[random.Next(0, validLiveries.Count)];
+            }
+        }
     }
+
+
+
+    public static void ApplyTunerVisuals(Vehicle v)
+    {
+        // 80% chance to mod everything. "Flashy"
+        var types = new HashSet<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
+        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+        {
+            if (types.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns || modType == VehicleModType.Roof) continue;
+
+            int count = v.Mods[modType].Count;
+            if (count > 0)
+            {
+                if (random.Next(0, 100) < 80) // 80% Chance
+                    v.Mods[modType].Index = random.Next(0, count);
+            }
+        }
+    }
+
+    public static void ApplyVIPVisuals(Vehicle v)
+    {
+        // RULES: Great Wheels, Dark Tint, Low Suspension. 
+        // BANNED: Spoilers, Bumpers, Skirts, Hoods.
+
+        // 1. Suspension (Low)
+        v.Mods[VehicleModType.Suspension].Index = 3;
+
+        // 2. Window Tint (Limo)
+        v.Mods.WindowTint = VehicleWindowTint.DarkSmoke;
+
+        // 3. Wheels (High End or Sport)
+       if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
+        {
+
+            v.Mods.RimColor = (VehicleColor)0;
+            if (random.Next(0, 2) == 0)
+            {
+                v.Mods.WheelType = VehicleWheelType.HighEnd;
+                v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
+            }
+            else
+            {
+                v.Mods.WheelType = VehicleWheelType.Sport;
+                v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
+            }
+        }
+     
+
+        // 4. BANNED: Do NOT touch Body Kits (Bumpers/Spoilers)
+        // Leaving them stock ensures the "Luxury" look stays intact.
+    }
+
+    public static void ApplyMuscleVisuals(Vehicle v)
+    {
+        // RULES: Big Hoods (Blowers), Loud Exhausts, Muscle Wheels.
+        // BANNED: Spoilers (No GT Wings).
+
+        // 1. Wheels (Muscle)
+        v.Mods.WheelType = VehicleWheelType.Muscle;
+        v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 18);
+
+        // 2. Hoods (High chance for blowers)
+        if (v.Mods[VehicleModType.Hood].Count > 0)
+        {
+            if (random.Next(0, 100) < 60) // 60% chance
+                v.Mods[VehicleModType.Hood].Index = random.Next(0, v.Mods[VehicleModType.Hood].Count);
+        }
+
+        // 3. Exhausts (Loud)
+        if (v.Mods[VehicleModType.Exhaust].Count > 0)
+        {
+            if (random.Next(0, 100) < 70) // 70% chance
+                v.Mods[VehicleModType.Exhaust].Index = random.Next(0, v.Mods[VehicleModType.Exhaust].Count);
+        }
+
+        // 4. Spoilers -> FORCE STOCK (Index -1) to prevent Rice Wings
+        v.Mods[VehicleModType.Spoilers].Index = -1;
+    }
+
 
     // ==========================================
     //              HELPER METHODS
