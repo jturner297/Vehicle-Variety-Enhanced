@@ -2,7 +2,6 @@
 using GTA.Native;
 using System;
 using System.Collections.Generic;
-using System.Net.Http.Headers;
 
 public enum SpawnBehavior
 {
@@ -214,7 +213,7 @@ public static class CarMod
             v.Mods[VehicleToggleModType.XenonHeadlights].IsInstalled = true;
         }
 
-        switch(behavior)
+        switch (behavior)
         {
             case SpawnBehavior.RandomSpec:
                 // TWEAK: CULT Logic (Epsilon Blue)
@@ -280,11 +279,11 @@ public static class CarMod
             case SpawnBehavior.VIP:
                 // LUXURY / STANCE
                 ApplyVIPVisuals(v);
-               if (VehList.models_armoured.Contains(modelName))
+               /* if (VehList.models_armoured.Contains(modelName))
                 {
                     SetColors(v, 12, 12, 0, 12); // matte black
                     v.Mods.TrimColor = (VehicleColor)34;
-                }
+                }*/
                 v.Mods.Livery = -1; // Force Clean
                 break;
 
@@ -326,20 +325,12 @@ public static class CarMod
 
     public static void ApplyRandomVisuals(Vehicle v)
     {
-        var performanceTypes = new HashSet<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
-
-        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
+        var types = new HashSet<VehicleModType> { VehicleModType.FrontBumper, VehicleModType.RearBumper, VehicleModType.SideSkirt, VehicleModType.Spoilers, VehicleModType.Hood, VehicleModType.Exhaust };
+        foreach (var type in types)
         {
-            if (performanceTypes.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns || modType == VehicleModType.Roof) continue;
-
-            int count = v.Mods[modType].Count;
-            if (count > 0)
-            {
-                v.Mods[modType].Index = random.Next(0, count);
-            }
+            ApplySmartMod(v, type, 100, 100); // 100% chance, Keep 100% of list
         }
     }
-
 
     public static void ApplyBalancedVisuals(Vehicle v)
     {
@@ -363,15 +354,7 @@ public static class CarMod
         }
     }
 
-   /* public static void RandomizeLivery(Vehicle v, int limit = -1)
-    {
-        int count = v.Mods.LiveryCount;
-        if (count > 0)
-        {
-            int max = (limit > 0) ? Math.Min(count, limit) : count;
-            v.Mods.Livery = random.Next(0, max);
-        }
-    }*/
+
 
     public static void RandomizeLivery(Vehicle v, string modelName, int limit = -1)
     {
@@ -410,39 +393,56 @@ public static class CarMod
     }
 
 
+    private static void ApplySmartMod(Vehicle v, VehicleModType type, int chance, int keepPct)
+    {
+        int count = v.Mods[type].Count;
+
+        // Safety check: Does the car have parts? Did we roll the lucky number?
+        if (count > 0 && random.Next(0, 100) < chance)
+        {
+            // NEW LOGIC: Use integer math (e.g. 20 * 90 / 100 = 18)
+            int maxIndex = (count * keepPct) / 100;
+
+            // Safety: Ensure we have at least 1 option if percentage is tiny
+            if (maxIndex < 1) maxIndex = 1;
+            if (maxIndex > count) maxIndex = count;
+
+            v.Mods[type].Index = random.Next(0, maxIndex);
+        }
+        else
+        {
+            // Clean Logic: Force stock if the check failed
+            v.Mods[type].Index = -1;
+        }
+    }
+
 
     public static void ApplyTunerVisuals(Vehicle v)
     {
-        // 80% chance to mod everything. "Flashy"
-        var types = new HashSet<VehicleModType> { VehicleModType.Engine, VehicleModType.Brakes, VehicleModType.Transmission, VehicleModType.Suspension, VehicleModType.Armor };
-        foreach (VehicleModType modType in Enum.GetValues(typeof(VehicleModType)))
-        {
-            if (types.Contains(modType) || modType == VehicleModType.Livery || modType == VehicleModType.Horns || modType == VehicleModType.Roof) continue;
 
-            int count = v.Mods[modType].Count;
-            if (count > 0)
-            {
-                if (random.Next(0, 100) < 80) // 80% Chance
-                    v.Mods[modType].Index = random.Next(0, count);
-            }
-        }
+
+        // 1. Core Body Mods (80% chance, Keep 100% of parts)
+        ApplySmartMod(v, VehicleModType.FrontBumper, 80, 100);
+        ApplySmartMod(v, VehicleModType.RearBumper, 80, 100);
+        ApplySmartMod(v, VehicleModType.SideSkirt, 80, 100);
+        ApplySmartMod(v, VehicleModType.Hood, 80, 100);
+        ApplySmartMod(v, VehicleModType.Exhaust, 80, 100);
+
+        // 2. Spoilers (80% chance, Keep 70% - Bans the top 30% huge wings)
+        ApplySmartMod(v, VehicleModType.Spoilers, 80, 70);
     }
 
     public static void ApplyVIPVisuals(Vehicle v)
     {
-        // RULES: Great Wheels, Dark Tint, Low Suspension. 
-        // BANNED: Spoilers, Bumpers, Skirts, Hoods.
-
         // 1. Suspension (Low)
         v.Mods[VehicleModType.Suspension].Index = 3;
 
-        // 2. Window Tint (Limo)
+        // 2. Window Tint (Dark Smoke)
         v.Mods.WindowTint = VehicleWindowTint.DarkSmoke;
 
         // 3. Wheels (High End or Sport)
-       if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
+        if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
-
             v.Mods.RimColor = (VehicleColor)0;
             if (random.Next(0, 2) == 0)
             {
@@ -455,37 +455,27 @@ public static class CarMod
                 v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
             }
         }
-     
 
-        // 4. BANNED: Do NOT touch Body Kits (Bumpers/Spoilers)
-        // Leaving them stock ensures the "Luxury" look stays intact.
+        // 4. Subtle Spoilers ONLY
+        // 50% Chance, Keep 20% (Lip Spoilers only).
+        ApplySmartMod(v, VehicleModType.Spoilers, 50, 20);
     }
 
     public static void ApplyMuscleVisuals(Vehicle v)
     {
-        // RULES: Big Hoods (Blowers), Loud Exhausts, Muscle Wheels.
-        // BANNED: Spoilers (No GT Wings).
-
         // 1. Wheels (Muscle)
         v.Mods.WheelType = VehicleWheelType.Muscle;
         v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 18);
 
-        // 2. Hoods (High chance for blowers)
-        if (v.Mods[VehicleModType.Hood].Count > 0)
-        {
-            if (random.Next(0, 100) < 60) // 60% chance
-                v.Mods[VehicleModType.Hood].Index = random.Next(0, v.Mods[VehicleModType.Hood].Count);
-        }
+        // 2. Hoods (Blowers - 60% chance, Keep 100% of types)
+        ApplySmartMod(v, VehicleModType.Hood, 60, 100);
 
-        // 3. Exhausts (Loud)
-        if (v.Mods[VehicleModType.Exhaust].Count > 0)
-        {
-            if (random.Next(0, 100) < 70) // 70% chance
-                v.Mods[VehicleModType.Exhaust].Index = random.Next(0, v.Mods[VehicleModType.Exhaust].Count);
-        }
+        // 3. Exhausts (Loud - 70% chance, Keep 100%)
+        ApplySmartMod(v, VehicleModType.Exhaust, 70, 100);
 
-        // 4. Spoilers -> FORCE STOCK (Index -1) to prevent Rice Wings
-        v.Mods[VehicleModType.Spoilers].Index = -1;
+        // 4. Spoilers (Ducktails ONLY)
+        // 60% Chance, Keep 35% (Bans GT Wings).
+        ApplySmartMod(v, VehicleModType.Spoilers, 60, 40);
     }
 
 

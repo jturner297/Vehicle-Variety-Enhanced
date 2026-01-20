@@ -1,72 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 public static class VehicleSelector
 {
-    private static Dictionary<HashSet<string>, Queue<string>> _queues = new Dictionary<HashSet<string>, Queue<string>>();
+    // Storage: [List Object] -> [Context String] -> [Queue]
+    private static Dictionary<HashSet<string>, Dictionary<string, Queue<string>>> _queues =
+        new Dictionary<HashSet<string>, Dictionary<string, Queue<string>>>();
 
-    // THIS is the secret sauce: Remembering the last 4 cars
-    private static Dictionary<HashSet<string>, List<string>> _recentHistory = new Dictionary<HashSet<string>, List<string>>();
     private static Random _rnd = new Random();
-    private const int HISTORY_SIZE = 4;
 
-    public static string GetNext(HashSet<string> list, HashSet<string> exclusions = null)
+    // --------------------------------------------------------
+    // UNIFIED METHOD
+    // --------------------------------------------------------
+    // We removed the overload. Now 'null' (from ParkedMP) can ONLY be a string.
+    public static string GetNext(HashSet<string> list, string context)
     {
         if (list == null || list.Count == 0) return null;
 
-        for (int attempts = 0; attempts < 10; attempts++)
+        // 1. Handle ParkedMP Compatibility
+        // ParkedMP passes 'null'. We treat that as the "Parked" deck.
+        if (string.IsNullOrEmpty(context))
         {
-            if (!_queues.ContainsKey(list) || _queues[list].Count == 0)
-            {
-                RefillQueue(list, exclusions);
-            }
-
-            if (_queues[list].Count == 0) return null;
-
-            string candidate = _queues[list].Peek();
-
-            if (exclusions != null && exclusions.Contains(candidate))
-            {
-                string skipped = _queues[list].Dequeue();
-                _queues[list].Enqueue(skipped);
-                continue;
-            }
-
-            string selected = _queues[list].Dequeue();
-            AddToHistory(list, selected);
-            return selected;
+            context = "Parked";
         }
-        return null;
+
+        // 2. Ensure the LIST entry exists
+        if (!_queues.ContainsKey(list))
+        {
+            _queues[list] = new Dictionary<string, Queue<string>>();
+        }
+
+        // 3. Ensure the CONTEXT Queue exists (and is not empty)
+        if (!_queues[list].ContainsKey(context) || _queues[list][context].Count == 0)
+        {
+            RefillQueue(list, context);
+        }
+
+        // 4. Safety Check (in case refill failed)
+        if (_queues[list][context].Count == 0) return null;
+
+        // 5. Deal the card
+        return _queues[list][context].Dequeue();
     }
 
-    private static void RefillQueue(HashSet<string> list, HashSet<string> exclusions)
+    // --------------------------------------------------------
+    // INTERNAL LOGIC
+    // --------------------------------------------------------
+    private static void RefillQueue(HashSet<string> list, string context)
     {
+        // Create a new independent batch
         List<string> batch = new List<string>(list);
-        if (batch.Count == 0) return;
 
+        // Shuffle this specific batch
         Shuffle(batch);
 
-        // Anti-Repeat: If the new batch starts with a car we saw recently, SWAP IT.
-        if (_recentHistory.ContainsKey(list))
-        {
-            List<string> history = _recentHistory[list];
-            if (batch.Count > 1 && history.Contains(batch[0]))
-            {
-                int safeIndex = _rnd.Next(1, batch.Count);
-                string temp = batch[0];
-                batch[0] = batch[safeIndex];
-                batch[safeIndex] = temp;
-            }
-        }
-        _queues[list] = new Queue<string>(batch);
-    }
-
-    private static void AddToHistory(HashSet<string> list, string model)
-    {
-        if (!_recentHistory.ContainsKey(list)) _recentHistory[list] = new List<string>();
-        _recentHistory[list].Add(model);
-        if (_recentHistory[list].Count > HISTORY_SIZE) _recentHistory[list].RemoveAt(0);
+        // Assign it to the specific Context slot
+        _queues[list][context] = new Queue<string>(batch);
     }
 
     private static void Shuffle<T>(IList<T> list)
