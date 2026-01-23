@@ -46,7 +46,7 @@ public class TrafficMP : Script
     // RESTORED: This list protects Traffic from spawning Parked-Only cars
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
 
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "TERMINA", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
     private List<Blip> _activeBlips = new List<Blip>();
@@ -234,6 +234,7 @@ public class TrafficMP : Script
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
             if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {modelName}", true, false);
 
+            newVehicle.PlaceOnGround();
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
             model.MarkAsNoLongerNeeded();
@@ -370,10 +371,9 @@ public class TrafficMP : Script
     {
         // 1. RURAL PROFILE
         ZoneProfile ruralProfile = new ZoneProfile("RURAL", _excludedModels);
-        ruralProfile.AddIngredient(VehList.models_rural, SpawnBehavior.Spec);
-        ruralProfile.AddIngredient(VehList.models_general_common, SpawnBehavior.Spec);
-        ruralProfile.AddIngredient(VehList.models_general_rare, SpawnBehavior.Stock);
+        ruralProfile.AddIngredient(VehList.models_rural, SpawnBehavior.Muscle);
         ruralProfile.AddIngredient(VehList.models_wacky, SpawnBehavior.RandomSpec);
+        ruralProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Muscle);
 
         // 2. RICH PROFILE (Now safely filters bad cars automatically)
         ZoneProfile richProfile = new ZoneProfile("RICH", _excludedModels);
@@ -381,6 +381,11 @@ public class TrafficMP : Script
         richProfile.AddIngredient(VehList.models_classics, SpawnBehavior.Spec);
         richProfile.AddIngredient(VehList.models_luxury, SpawnBehavior.VIP);
         richProfile.AddIngredient(VehList.models_armoured, SpawnBehavior.VIP);
+
+        // 3. HILLS PROFILE 
+        ZoneProfile vinewoodHillsProfile = new ZoneProfile("VINEWOODHILLS", _excludedModels);
+        vinewoodHillsProfile.AddIngredient(VehList.models_super, SpawnBehavior.Spec);
+        vinewoodHillsProfile.AddIngredient(VehList.models_classics, SpawnBehavior.Spec);
 
         // 3. GHETTO PROFILE
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO", _excludedModels);
@@ -395,7 +400,7 @@ public class TrafficMP : Script
 
         // 5. INDUSTRY PROFILE
         ZoneProfile industryProfile = new ZoneProfile("INDUSTRY", _excludedModels);
-        industryProfile.AddIngredient(VehList.models_industry, SpawnBehavior.Spec);
+        industryProfile.AddIngredient(VehList.models_industry, SpawnBehavior.Muscle);
 
         // 6. OFFROAD OVERRIDE
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD", _excludedModels);
@@ -403,7 +408,8 @@ public class TrafficMP : Script
 
         // ASSIGNMENTS
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "DTVINE", "WVINE", "CHIL", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE", "PBLUFF", "CHU", "BHAMCA");
+        AssignToProfile(richProfile, "RICHM", "ROCKF", "DTVINE", "WVINE",  "GOLF",  "DELPE","MORN", "MOVIE", "PBLUFF", "CHU");
+        AssignToProfile(vinewoodHillsProfile, "RGLEN", "CHIL", "OBSERV", "GALLI", "BAYTRE", "BHAMCA");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP", "VINE");
         AssignToProfile(industryProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA");

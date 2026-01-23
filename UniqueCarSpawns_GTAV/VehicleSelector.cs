@@ -4,9 +4,9 @@ using System.Collections.Generic;
 public static class VehicleSelector
 {
     // Storage: [List Object] -> [Context String] -> [Queue]
-    private static Dictionary<HashSet<string>, Dictionary<string, Queue<string>>> _queues =
+    private static Dictionary<HashSet<string>, Dictionary<string, Queue<string>>> _queues = 
         new Dictionary<HashSet<string>, Dictionary<string, Queue<string>>>();
-
+        
     private static Random _rnd = new Random();
 
     // --------------------------------------------------------
@@ -19,7 +19,7 @@ public static class VehicleSelector
 
         // 1. Handle ParkedMP Compatibility
         // ParkedMP passes 'null'. We treat that as the "Parked" deck.
-        if (string.IsNullOrEmpty(context))
+        if (string.IsNullOrEmpty(context)) 
         {
             context = "Parked";
         }
