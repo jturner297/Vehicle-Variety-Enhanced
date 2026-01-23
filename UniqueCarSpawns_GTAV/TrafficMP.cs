@@ -46,7 +46,7 @@ public class TrafficMP : Script
     // RESTORED: This list protects Traffic from spawning Parked-Only cars
     private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
 
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "ELYSIAN", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
+    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
     private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
 
     private List<Blip> _activeBlips = new List<Blip>();
@@ -371,9 +371,11 @@ public class TrafficMP : Script
     {
         // 1. RURAL PROFILE
         ZoneProfile ruralProfile = new ZoneProfile("RURAL", _excludedModels);
-        ruralProfile.AddIngredient(VehList.models_rural, SpawnBehavior.Muscle);
+      //  ruralProfile.AddIngredient(VehList.models_rural, SpawnBehavior.Muscle);
         ruralProfile.AddIngredient(VehList.models_wacky, SpawnBehavior.RandomSpec);
-        ruralProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Muscle);
+        ruralProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Beater);
+        ruralProfile.AddIngredient(VehList.models_beaters, SpawnBehavior.Beater);
+        ruralProfile.AddIngredient(VehList.models_offroad, SpawnBehavior.Beater);
 
         // 2. RICH PROFILE (Now safely filters bad cars automatically)
         ZoneProfile richProfile = new ZoneProfile("RICH", _excludedModels);
@@ -381,11 +383,6 @@ public class TrafficMP : Script
         richProfile.AddIngredient(VehList.models_classics, SpawnBehavior.Spec);
         richProfile.AddIngredient(VehList.models_luxury, SpawnBehavior.VIP);
         richProfile.AddIngredient(VehList.models_armoured, SpawnBehavior.VIP);
-
-        // 3. HILLS PROFILE 
-        ZoneProfile vinewoodHillsProfile = new ZoneProfile("VINEWOODHILLS", _excludedModels);
-        vinewoodHillsProfile.AddIngredient(VehList.models_super, SpawnBehavior.Spec);
-        vinewoodHillsProfile.AddIngredient(VehList.models_classics, SpawnBehavior.Spec);
 
         // 3. GHETTO PROFILE
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO", _excludedModels);
@@ -400,19 +397,18 @@ public class TrafficMP : Script
 
         // 5. INDUSTRY PROFILE
         ZoneProfile industryProfile = new ZoneProfile("INDUSTRY", _excludedModels);
-        industryProfile.AddIngredient(VehList.models_industry, SpawnBehavior.Muscle);
+        industryProfile.AddIngredient(VehList.models_beaters, SpawnBehavior.Beater);
 
         // 6. OFFROAD OVERRIDE
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD", _excludedModels);
-        offroadProfile.AddIngredient(VehList.models_offroad, SpawnBehavior.Muscle);
+        offroadProfile.AddIngredient(VehList.models_offroad, SpawnBehavior.Beater);
 
         // ASSIGNMENTS
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "ROCKF", "DTVINE", "WVINE",  "GOLF",  "DELPE","MORN", "MOVIE", "PBLUFF", "CHU");
-        AssignToProfile(vinewoodHillsProfile, "RGLEN", "CHIL", "OBSERV", "GALLI", "BAYTRE", "BHAMCA");
+        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "DTVINE", "WVINE", "CHIL", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE", "PBLUFF", "CHU", "BHAMCA");
         AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
         AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP", "VINE");
-        AssignToProfile(industryProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA");
+        AssignToProfile(industryProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN");
 
         _zoneRegistry["_OVERRIDE_OFFROAD_"] = offroadProfile;
     }

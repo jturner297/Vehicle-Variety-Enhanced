@@ -10,7 +10,8 @@ public enum SpawnBehavior
     RandomSpec,  // Max Performance. Visuals are Randomized (or Cult-Specific if in Cult list).
     Tuner,      // STREET RACER: 80% chance. Body kits, Spoilers, Liveries.
     VIP,        // LUXURY: Clean look. Rims, Low Suspension, Tint. NO Body kits.
-    Muscle      // DRAG/POWER: Blowers (Hoods), Exhausts, Muscle Wheels. NO GT Spoilers.
+    Muscle,      // DRAG/POWER: Blowers (Hoods), Exhausts, Muscle Wheels. NO GT Spoilers.
+    Beater
 }
 
 public static class CarMod
@@ -35,6 +36,7 @@ public static class CarMod
         // --- MODEL FIXES ---
         { "turismo2", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
         { "banshee3", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
+        { "infernus2", v => v.Mods[VehicleModType.Spoilers].Index = 0 },
         { "kuruma2", v =>   SetColors(v, 12, 12, 0, 12) },
         // --- SPEED RACER (Mach 5) ---
         { "scramjet", v => {
@@ -279,18 +281,26 @@ public static class CarMod
             case SpawnBehavior.VIP:
                 // LUXURY / STANCE
                 ApplyVIPVisuals(v);
-               /* if (VehList.models_armoured.Contains(modelName))
-                {
-                    SetColors(v, 12, 12, 0, 12); // matte black
-                    v.Mods.TrimColor = (VehicleColor)34;
-                }*/
-                v.Mods.Livery = -1; // Force Clean
+                v.Mods[VehicleModType.Livery].Index = -1;
+                /* if (random.Next(0, 2) == 0)
+               {
+                   RandomizeLivery(v, modelName, 20);
+               }
+               else
+               {
+                   v.Mods[VehicleModType.Livery].Index = -1;
+               }*/
                 break;
 
             case SpawnBehavior.Muscle:
                 // DRAG / CLASSIC
                 ApplyMuscleVisuals(v);
                 RandomizeLivery(v, modelName); // Stripes allowed
+                break;
+            case SpawnBehavior.Beater:
+                // DRAG / CLASSIC
+                v.Mods.Livery = -1; // Force Clean
+                ApplyBeaterVisuals(v);
                 break;
 
         }
@@ -356,42 +366,47 @@ public static class CarMod
 
 
 
-    public static void RandomizeLivery(Vehicle v, string modelName, int limit = -1)
+    public static void RandomizeLivery(Vehicle v, string modelName, int keepPct = 100)
     {
-        int count = v.Mods.LiveryCount;
+        int count = v.Mods.LiveryCount; //
         if (count > 0)
         {
-            // Calculate how many liveries we are allowed to check (handles 'limit' logic)
-            int max = (limit > 0) ? Math.Min(count, limit) : count;
+            // 1. Calculate the Percentage Limit (SmartMod Logic)
+            // e.g. If count is 10 and keepPct is 20, maxIndex becomes 2.
+            int maxIndex = (count * keepPct) / 100;
 
-            // List to hold valid Livery IDs
+            // Safety: Always check at least 1 livery if the car has them, 
+            // but don't exceed the actual count.
+            if (maxIndex < 1) maxIndex = 1;
+            if (maxIndex > count) maxIndex = count;
+
+            // 2. Filter Valid Liveries (Blacklist Logic)
             List<int> validLiveries = new List<int>();
 
-            // Check if this specific car has bans in the Blacklist
             HashSet<int> bannedIndices = null;
             if (LiveryBlacklist.ContainsKey(modelName))
             {
                 bannedIndices = LiveryBlacklist[modelName];
             }
 
-            // Loop through available liveries and add them to 'validLiveries' if not banned
-            for (int i = 0; i < max; i++)
+            // Loop ONLY up to the calculated percentage (maxIndex)
+            for (int i = 0; i < maxIndex; i++)
             {
+                // Skip if this specific livery ID is blacklisted
                 if (bannedIndices != null && bannedIndices.Contains(i))
                 {
-                    continue; // Skip this one, it's blacklisted
+                    continue;
                 }
                 validLiveries.Add(i);
             }
 
-            // Pick a random valid livery
+            // 3. Apply a random livery from the valid list
             if (validLiveries.Count > 0)
             {
                 v.Mods.Livery = validLiveries[random.Next(0, validLiveries.Count)];
             }
         }
     }
-
 
     private static void ApplySmartMod(Vehicle v, VehicleModType type, int chance, int keepPct)
     {
@@ -444,7 +459,7 @@ public static class CarMod
         if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
             v.Mods.RimColor = (VehicleColor)0;
-            if (random.Next(0, 2) == 0)
+          /*  if (random.Next(0, 2) == 0)
             {
                 v.Mods.WheelType = VehicleWheelType.HighEnd;
                 v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
@@ -453,12 +468,12 @@ public static class CarMod
             {
                 v.Mods.WheelType = VehicleWheelType.Sport;
                 v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
-            }
+            }*/
         }
 
         // 4. Subtle Spoilers ONLY
         // 50% Chance, Keep 20% (Lip Spoilers only).
-        ApplySmartMod(v, VehicleModType.Spoilers, 50, 20);
+        ApplySmartMod(v, VehicleModType.Spoilers, 50, 40);
     }
 
     public static void ApplyMuscleVisuals(Vehicle v)
@@ -478,7 +493,39 @@ public static class CarMod
         ApplySmartMod(v, VehicleModType.Spoilers, 60, 40);
     }
 
+    public static void ApplyBeaterVisuals(Vehicle v)
+    {
 
+        // --- WHEELS (The Foundation) ---
+
+
+        // --- KEY BEATER PARTS (High Priority) ---
+        ApplySmartMod(v, VehicleModType.Roof, 80, 100); // Roof Racks / Luggage (Essential for the look)
+        ApplySmartMod(v, VehicleModType.Grille, 60, 100); // Broken or Custom Grilles
+        ApplySmartMod(v, VehicleModType.Exhaust, 50, 30);  // Small/Rusty tips (Limit to first 30% to avoid giant canons)
+        ApplySmartMod(v, VehicleModType.Horns, 40, 100); // Truck horns / Joke horns
+
+        // --- BODY KITS (Conservative) ---
+        ApplySmartMod(v, VehicleModType.FrontBumper, 50, 40);  // Limit to 40% to avoid Carbon Splitters
+        ApplySmartMod(v, VehicleModType.RearBumper, 50, 40);
+        ApplySmartMod(v, VehicleModType.SideSkirt, 40, 30);  // Skirts often look too "racy", keep low limit
+
+        // --- DETAIL PARTS (The "Junk" Look) ---
+        ApplySmartMod(v, VehicleModType.Hood, 40, 50);  // Rusted hoods / removed hoods
+        ApplySmartMod(v, VehicleModType.Fender, 40, 100); // Vents / Arches
+
+
+        // --- ACCESSORIES (Trucks & Classics) ---
+        ApplySmartMod(v, VehicleModType.Trim, 50, 100); // Exterior Trim / Chrome
+        ApplySmartMod(v, VehicleModType.Aerials, 70, 100); // Antennas (Great for rural vibe)
+
+
+
+        // --- THE DANGER ZONE (Race Parts) ---
+        // If you enable Spoilers, keep the limit VERY low (10-20%) to only catch "Lip" spoilers.
+        // Anything higher usually hits "GT Wing" territory.
+        ApplySmartMod(v, VehicleModType.Spoilers, 10, 15);
+    }
     // ==========================================
     //              HELPER METHODS
     // ==========================================

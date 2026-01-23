@@ -45,13 +45,6 @@ public class VehList
     "brigham",
     };
 
-    public static HashSet<string> models_cheburek = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-    "cheburek",
-    "ratbike",
-   "clique2",
-   "peyote2",
-   "weevil2"
-    };
 
     public static HashSet<string> models_studio = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "scramjet", //speedracer
@@ -72,26 +65,7 @@ public class VehList
     "benson2"
     };
 
-    public static HashSet<string> models_compacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-    "brioso",
-    "brioso2",
-    "brioso3",
-    "weevil",
-    "club",
-    "kanjo",
-    "asbo",
-    "issi3"
-    };
 
-    public static HashSet<string> models_coupes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-    "kanjosj",
-    "postlude",
-    "previon",
-    "windsor2",
-    "windsor",
-    "fr36",
-    "eurosX32",
-    };
 
 
 
@@ -114,14 +88,7 @@ public class VehList
      "SabreGT2",
         "virgo2"
     };
-    public static HashSet<string> models_poor = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-        "greenwood",
-        "retinue2",
-    "dynasty",
-    "cheburek",
-    "fagaloa",
-    "greenwood",
-    };
+
 
     public static HashSet<string> models_helicopter = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "conada",
@@ -155,20 +122,7 @@ public class VehList
           "outlaw"
     };
 
-    /*public static HashSet<string> models_beach_cars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-     "locust",
-          "ruston",
-          "raptor",
-          "stryder",
-          "dubsta3",
-          "everon",
-          "brawler",
-          "kamacho",
-          "monstrociti",
-          "vagrant",
-          "outlaw"
 
-    };*/
 
 
 
@@ -277,9 +231,6 @@ public class VehList
     "streamer216"
     };
 
-    public static HashSet<string> models_submarine = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-    "avisa",
-    };
 
 
     public static HashSet<string> models_super = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these cars do not spawn in natural-popgroups traffic and dont have a dedicated rockstar spawn
@@ -398,18 +349,14 @@ public class VehList
          "torero",
          "turismo2",
          "tropos",
+                "monroe",
+       "stingergt",
+       "casco",
+      "jb7002",
 
     };
 
-    /*
-   public static HashSet<string> models_classics_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-       "monroe",
-       "stingergt",
-       "mamba",
-       "commet3",
-       "casco",
-      "jb7002",
-   }; */
+
 
 
     public static HashSet<string> models_wacky = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -459,74 +406,10 @@ public class VehList
     };
 
 
-    public static HashSet<string> models_general_rare = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these spawn everywhere desert and city
 
-        "asterope2",
-
-
-        "chavosv6",
-        "z190",
-
-
-        "fr36",
-        "futo2", //futo gtx
-        "hellion",
-
-        "kanjosj",
-        "khamelion",
-        "moonbeam",
-        "nebula",
-
-        "retinue",
-
-        "seminole2",
-
-        "sultan2",
-
-        "vstr",
-
-        "zr350",
-        "youga2", //youga classic
-   
-        "hakuchou2", //sports bike
-            "wolfsbane",
-                "zombiea",
-         "hermes",
-
-    };
-    public static HashSet<string> models_general_common = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these spawn everywhere desert and city
-         "asbo",
-                 "kanjo",
-                         "brioso",
-        "calico",
-        "club",
-        "dominator7", //dominator gtx
-        "dominator8", //dominator gtt
-        "dominator3", //dominator asp
-                "eudora",
-        "faction",
-                "impaler",
-        "jester3", //jester classic
-              "kuruma",
-                "nightshade",
-        "previon",
-        "remus",
-                "rt3000",
-                "sentinel3", //sentinel classic
-        "slamvan",
-                "tulip",
-        "virgo",
-                "zion3", //zion classic
-             "penumbra2", //penumbraff
-                            "issi3",
-        "dynasty",
-        "hustler",
-                "yosemite",
-    };
 
     public static HashSet<string> models_tuner = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these spawn everywhere desert and city
                  "kanjo",
-                         "brioso",
         "calico",
         "jester3", //jester classic
               "kuruma",
@@ -571,7 +454,7 @@ public class VehList
     "dominator7",
 
     "remus",
-    "warrener2",
+    "sentinel4",
     "elegy",
         "comet3",
         "jugular"
@@ -589,99 +472,109 @@ public class VehList
     "dominator7",
     "dominator8",
     "dukes3",
-    "dynasty",
+ //   "dynasty",
     "ellie",
-    "eudora",
-    "faction",
+  //  "faction",
    // "fr36",
  //   "futo2",
     "gauntlet3",
     "gauntlet5",
     "greenwood",
-    "hellion",
+  //  "hellion",
     "hermes",
     "hustler",
     "impaler",
-    "issi3",
-    "kanjo",
-    "kanjosj",
+ //   "issi3",
+//    "kanjo",
+//    "kanjosj",
  //   "moonbeam",
-    "nebula",
+  //  "nebula",
     "nightshade",
     "ruiner4",
   //  "slamvan",
     "tahoma",
-    "tampa",
+   // "tampa",
     "tulip",
     "vamos",
-    "virgo",
+//    "virgo",
     "yosemite",
     "yosemite2",
     "youga2"
     };
 
 
-    public static HashSet<string> models_luxury = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in most urban areas, more prevalent in rich zones (city only)
+    public static HashSet<string> models_luxury = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
      //   "banshee2",
         "bestiagts",
      //   "brioso",
-        "cinquemila",
+      //  "cinquemila",
         "cog55",
         "cognoscenti",
-        "comet5",
-        "coquette6",
-        "cypher",
+     //   "comet5",
+       // "coquette6",
+       "cypher",
         "drafter",
-                "euros",
+             //   "euros",
      //   "fr36",
-        "growler",
-        "italigtb",
+      //  "growler",
+        "italigtb2",
         "italigto",
-        "jugular",
-        "komoda",
+       // "jugular",
+     //   "komoda",
         "lynx",
-        "neon",
+      //  "neon",
         "novak",
         "panthere",
         "paragon",
         "pariah",
-        "raiden",
+        //"raiden",
         "rebla",
         "revolter",
         "schlagen",
         "seven70",
-        "specter",
+        "specter2",
         "s95",
-        "vectre",
-        "verlierer2",
-      //  "vstr",
+      //  "vectre",
+      //  "verlierer2",
+        "vstr",
         "windsor",
         "windsor2",
-        "xls",
-        "diablous",
-         "shinobi",
-            "faggio", //faggio sport
-                "defiler", //spots bike
-                        "coquette3",
-                        //new stuff from classics and super rare
-                               "monroe",
-       "stingergt",
+       // "xls",
+                       // "coquette3",
+                       
        "mamba",
        "comet3",
-       "casco",
-      "jb7002",
              "zentorno",
        "turismor",
        "cheetah",
        "entityxf",
-       "vacca",
-        "adder",
        "sc1",
        "penetrator",
-       "pfister811",
        "cyclone",
        "locust",
        "ruston"
+    };
+    public static HashSet<string> models_beaters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
+        "asbo",
+        "dukes3",
+        "kanjo",
+        "boor",
+        "cheburek", 
+        "clique2",
+        "club",
+        "dynasty",
+        "eudora", 
+        "fagaloa",
+        "futo2",
+        "youga2",
+        "issi3",
+        "kanjosj",
+        "nebula",
+        "retinue2",
+        "sentinel3",
+        "warrener2",
+        "zion3",
+
     };
 
     public static HashSet<string> models_rural = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
@@ -717,95 +610,29 @@ public class VehList
     public static HashSet<string> models_offroad = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
         "boor",
         "brawler",
-        "esskey",
+        "comet4",
+        "contender",
+        "everon",
+        "firebolt",
+        "hellion",
+        "journey2",
         "kamacho",
         "monstrociti",
+        "outlaw",
+        "patriot3",
         "riata",
         "rumpo3",
         "seminole2",
-        "enduro",
-        "manchez2",
-        "bf400",
-        "hellion",
-        "journey2",
+        "squaddie",
         "outlaw",
-        "vagrant",
-        "verus",
-        "manchez",
-        "manchez3"
+       "vagrant",
+               "yosemite3",
+               "youga3"
 
     };
 
 
 
-    public static HashSet<string> models_industry = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//general city cars 
 
-   "asbo",
-    "asterope2",
-    "boor",
-    "brioso",
-    "calico",
-    "cheburek",
-    "chavosv6",
-    "clique2",
-    "club",
-    "contender",
-    "dominator10",
-    "dominator3",
-    "dominator7",
-    "dominator8",
-    "dorado",
-    "dynasty",
-    "enduro",
-    "eudora",
-    "everon",
-    "esskey",
-    "faction",
-    "firebolt",
-    "fr36",
-    "futo2",
-    "guardian",
-    "hakuchou2",
-    "hellion",
-    "hermes",
-    "hustler",
-    "impaler",
-    "issi3",
-    "jester3",
-    "journey2",
-    "kamacho",
-    "kanjo",
-    "kanjosj",
-    "khamelion",
-    "kuruma",
-    "manchez2",
-    "moonbeam",
-    "monstrociti",
-    "nebula",
-    "nightshade",
-    "penumbra2",
-    "previon",
-    "remus",
-    "retinue",
-    "retinue2",
-    "riata",
-    "rumpo3",
-    "rt3000",
-    "savestra",
-    "seminole2",
-    "sentinel3",
-    "slamvan",
-    "sultan2",
-    "surfer3",
-    "tulip",
-    "vamos",
-    "virgo",
-    "yosemite",
-    "yosemite3",
-    "youga2",
-    "youga3",
-    "z190",
-    "zion3",
-    };
-
+  
 }
