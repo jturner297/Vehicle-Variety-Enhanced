@@ -13,7 +13,7 @@ public class TrafficMP : Script
     //                 TUNING DASHBOARD
     // =============================================================
 
-    private int SpawnCooldown = 5000;
+    private int SpawnCooldown = 10000;
     private int MaxVisibleHeroes = 1;
 
     private float MinSpawnDist = 130f;
@@ -367,41 +367,44 @@ public class TrafficMP : Script
         }
     }
 
+ 
+
     private void InitializeZones()
     {
-        // 1. RURAL PROFILE
+        // 1. RURAL PROFILE (Smart Mixing)
         ZoneProfile ruralProfile = new ZoneProfile("RURAL", _excludedModels);
-      //  ruralProfile.AddIngredient(VehList.models_rural, SpawnBehavior.Muscle);
-        ruralProfile.AddIngredient(VehList.models_wacky, SpawnBehavior.RandomSpec);
-        ruralProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Beater);
-        ruralProfile.AddIngredient(VehList.models_beaters, SpawnBehavior.Beater);
-        ruralProfile.AddIngredient(VehList.models_offroad, SpawnBehavior.Beater);
+        // We give them IDs: "BEATER", "HEAVY", "TOURIST", "BIKE"
+        ruralProfile.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec);
+        ruralProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater);
+        ruralProfile.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        ruralProfile.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater);
 
-        // 2. RICH PROFILE (Now safely filters bad cars automatically)
+        // 2. RICH PROFILE
         ZoneProfile richProfile = new ZoneProfile("RICH", _excludedModels);
-        richProfile.AddIngredient(VehList.models_super, SpawnBehavior.Spec);
-        richProfile.AddIngredient(VehList.models_classics, SpawnBehavior.Spec);
-        richProfile.AddIngredient(VehList.models_luxury, SpawnBehavior.VIP);
-        richProfile.AddIngredient(VehList.models_armoured, SpawnBehavior.VIP);
+        richProfile.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
+        richProfile.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec);
+        richProfile.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        richProfile.AddIngredient("SUV", VehList.models_armoured, SpawnBehavior.VIP);
 
         // 3. GHETTO PROFILE
         ZoneProfile ghettoProfile = new ZoneProfile("GHETTO", _excludedModels);
-        ghettoProfile.AddIngredient(VehList.models_lowriders, SpawnBehavior.RandomSpec);
-        ghettoProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Muscle);
+        ghettoProfile.AddIngredient("LOWRIDER", VehList.models_lowriders, SpawnBehavior.RandomSpec);
+        ghettoProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
 
         // 4. URBAN PROFILE
         ZoneProfile urbanProfile = new ZoneProfile("URBAN", _excludedModels);
-        urbanProfile.AddIngredient(VehList.models_luxury, SpawnBehavior.VIP);
-        urbanProfile.AddIngredient(VehList.models_tuner, SpawnBehavior.Tuner);
-        urbanProfile.AddIngredient(VehList.models_muscle, SpawnBehavior.Muscle);
+        urbanProfile.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        urbanProfile.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Tuner);
+        urbanProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
 
         // 5. INDUSTRY PROFILE
         ZoneProfile industryProfile = new ZoneProfile("INDUSTRY", _excludedModels);
-        industryProfile.AddIngredient(VehList.models_beaters, SpawnBehavior.Beater);
+        industryProfile.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        // Note: Industry only has 1 category. The logic safely falls back to allowing repeats here.
 
         // 6. OFFROAD OVERRIDE
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD", _excludedModels);
-        offroadProfile.AddIngredient(VehList.models_offroad, SpawnBehavior.Beater);
+        offroadProfile.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater);
 
         // ASSIGNMENTS
         AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
@@ -420,9 +423,13 @@ public class TrafficMP : Script
     public class ZoneProfile
     {
         public string Name;
-        private HashSet<string> _zoneSpecificList = new HashSet<string>();
-        private Dictionary<string, SpawnBehavior> _behaviorMap = new Dictionary<string, SpawnBehavior>();
+        // NEW: We store distinct ingredients instead of one mixed list
+        private List<Ingredient> _ingredients = new List<Ingredient>();
         private HashSet<string> _blacklist;
+
+        // NEW: Memory to track the last category used
+        private string _lastCategoryId = "";
+        private Random _rnd = new Random();
 
         public ZoneProfile(string name, HashSet<string> blacklist)
         {
@@ -430,38 +437,65 @@ public class TrafficMP : Script
             _blacklist = blacklist;
         }
 
-        public void AddIngredient(HashSet<string> list, SpawnBehavior behavior)
+        // UPDATED: Now requires a unique ID for the category (e.g., "TUNER")
+        public void AddIngredient(string id, HashSet<string> list, SpawnBehavior behavior)
         {
-            if (list == null) return;
+            if (list == null || list.Count == 0) return;
 
+            // Filter blacklist immediately
+            HashSet<string> filteredList = new HashSet<string>();
             foreach (string model in list)
             {
-                // Filter exclusions during setup
                 if (_blacklist != null && _blacklist.Contains(model)) continue;
+                filteredList.Add(model);
+            }
 
-                _zoneSpecificList.Add(model);
-
-                if (!_behaviorMap.ContainsKey(model))
+            if (filteredList.Count > 0)
+            {
+                _ingredients.Add(new Ingredient
                 {
-                    _behaviorMap[model] = behavior;
-                }
+                    Id = id,
+                    List = filteredList,
+                    Behavior = behavior
+                });
             }
         }
 
         public SelectionLayer PickLayer()
         {
-            // UPDATE: We now pass "Traffic" as the context.
-            // This ensures we pull from the Traffic Deck, not the Parked Deck.
-            string selectedModel = VehicleSelector.GetNext(_zoneSpecificList, "Traffic");
+            if (_ingredients.Count == 0) return new SelectionLayer();
 
-            if (selectedModel == null) return new SelectionLayer();
+            // 1. "NO REPEATS" LOGIC
+            // Filter out the category we just used.
+            // Result: If we just spawned a Tuner, Tuners are removed from this specific draw.
+            var candidates = _ingredients.Where(i => i.Id != _lastCategoryId).ToList();
+
+            // Safety: If candidates is empty (e.g., Profile only has 1 category total), use everything.
+            if (candidates.Count == 0) candidates = _ingredients;
+
+            // 2. Pick a random Category from the remaining valid ones
+            Ingredient selected = candidates[_rnd.Next(candidates.Count)];
+
+            // 3. Update History
+            _lastCategoryId = selected.Id;
+
+            // 4. Get the actual car
+            string modelName = VehicleSelector.GetNext(selected.List, "Traffic");
 
             return new SelectionLayer
             {
-                List = new HashSet<string> { selectedModel },
-                Behavior = _behaviorMap[selectedModel],
+                List = new HashSet<string> { modelName },
+                Behavior = selected.Behavior,
                 SourceProfile = this.Name
             };
+        }
+
+        // Helper Class
+        private class Ingredient
+        {
+            public string Id;
+            public HashSet<string> List;
+            public SpawnBehavior Behavior;
         }
     }
 

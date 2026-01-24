@@ -528,7 +528,7 @@ public class VehList
         "paragon",
         "pariah",
         //"raiden",
-        "rebla",
+      //  "rebla",
         "revolter",
         "schlagen",
         "seven70",
@@ -577,38 +577,9 @@ public class VehList
 
     };
 
-    public static HashSet<string> models_rural = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
-        "boor",
-        "brawler",
-        "cheburek",
-        "clique2",
-        "dominator10", //fx
-        "dorado",
-        "esskey",
-        "firebolt",
-        "gauntlet5", //gauntlet classic custom
-        "journey2",
-        "kamacho",
-        "monstrociti",
-        "retinue2",
-        "riata",
-        "rumpo3",
-        "savestra",
-        "seminole2",
-        "vamos",
-        "yosemite3",
-        "youga3",
-        "enduro",
-        "gargoyle",
-        "manchez2",
-        "sovereign",
-        "bf400",
-
-    };
 
 
     public static HashSet<string> models_offroad = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {//these will spawn in rural areas, more prevalent in rich zones (desert only)
-        "boor",
         "brawler",
         "comet4",
         "contender",

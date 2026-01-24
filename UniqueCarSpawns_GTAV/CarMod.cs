@@ -208,7 +208,7 @@ public static class CarMod
 
         // 2. APPLY PERFORMANCE (Maintained your specific static indexes)
         ApplyPerformance(v);
-
+        ClearNeon(v);
         // 3. GLOBAL DEFAULTS
         if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
@@ -280,16 +280,9 @@ public static class CarMod
 
             case SpawnBehavior.VIP:
                 // LUXURY / STANCE
-                ApplyVIPVisuals(v);
-                v.Mods[VehicleModType.Livery].Index = -1;
-                /* if (random.Next(0, 2) == 0)
-               {
-                   RandomizeLivery(v, modelName, 20);
-               }
-               else
-               {
-                   v.Mods[VehicleModType.Livery].Index = -1;
-               }*/
+                ApplyVIPVisuals(v, modelName);
+
+
                 break;
 
             case SpawnBehavior.Muscle:
@@ -447,7 +440,7 @@ public static class CarMod
         ApplySmartMod(v, VehicleModType.Spoilers, 80, 70);
     }
 
-    public static void ApplyVIPVisuals(Vehicle v)
+    public static void ApplyVIPVisuals(Vehicle v, string modelName)
     {
         // 1. Suspension (Low)
         v.Mods[VehicleModType.Suspension].Index = 3;
@@ -459,21 +452,31 @@ public static class CarMod
         if (v.ClassType == VehicleClass.Super || v.ClassType == VehicleClass.Sports)
         {
             v.Mods.RimColor = (VehicleColor)0;
-          /*  if (random.Next(0, 2) == 0)
-            {
-                v.Mods.WheelType = VehicleWheelType.HighEnd;
-                v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
-            }
-            else
-            {
-                v.Mods.WheelType = VehicleWheelType.Sport;
-                v.Mods[VehicleModType.FrontWheel].Index = random.Next(0, 20);
-            }*/
+
         }
+
+
+        ApplySmartMod(v, VehicleModType.FrontBumper, 100, 50);
+        ApplySmartMod(v, VehicleModType.RearBumper, 100, 50);
+        ApplySmartMod(v, VehicleModType.SideSkirt, 100, 50);
+        ApplySmartMod(v, VehicleModType.Hood, 50, 30);
+        ApplySmartMod(v, VehicleModType.Roof, 30, 20);
+        ApplySmartMod(v, VehicleModType.Exhaust, 100, 100);
 
         // 4. Subtle Spoilers ONLY
         // 50% Chance, Keep 20% (Lip Spoilers only).
-        ApplySmartMod(v, VehicleModType.Spoilers, 50, 40);
+        ApplySmartMod(v, VehicleModType.Spoilers, 100, 40);
+       
+        // Livery
+        if (random.Next(0, 2) == 0)
+        {
+            RandomizeLivery(v, modelName, 20);
+        }
+        else
+        {
+            v.Mods[VehicleModType.Livery].Index = -1;
+        }
+
     }
 
     public static void ApplyMuscleVisuals(Vehicle v)
@@ -547,5 +550,13 @@ public static class CarMod
     private static void EnableExtras(Vehicle v, params int[] extraIds)
     {
         foreach (int id in extraIds) if (v.ExtraExists(id)) v.ToggleExtra(id, true);
+    }
+    private static void ClearNeon(Vehicle v)
+    {
+        // Explicitly turn off all 4 neon tubes
+        v.Mods.SetNeonLightsOn(VehicleNeonLight.Left, false);
+        v.Mods.SetNeonLightsOn(VehicleNeonLight.Right, false);
+        v.Mods.SetNeonLightsOn(VehicleNeonLight.Front, false);
+        v.Mods.SetNeonLightsOn(VehicleNeonLight.Back, false);
     }
 }
