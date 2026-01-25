@@ -353,6 +353,7 @@ public class VehList
        "stingergt",
        "casco",
       "jb7002",
+            "ardent",
 
     };
 
@@ -505,7 +506,7 @@ public class VehList
 
     public static HashSet<string> models_luxury = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
      //   "banshee2",
-        "bestiagts",
+        //"bestiagts",
      //   "brioso",
       //  "cinquemila",
         "cog55",
@@ -571,7 +572,6 @@ public class VehList
         "kanjosj",
         "nebula",
         "retinue2",
-        "sentinel3",
         "warrener2",
         "zion3",
 
