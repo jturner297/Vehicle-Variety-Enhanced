@@ -16,11 +16,11 @@ public class TrafficColors : Script
 
     // PACING: Only change 40% of traffic. 
     private int _swapChance = 50;
-
+    private bool _usePureRandom = true;
     // BLACKLIST: Specific models to IGNORE (e.g. Utility/Service vehicles)
     private HashSet<string> _excludedModelNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "boxville", "boxville2", "taxi", "trash", "trash2", "boxville4"
+        "boxville", "boxville2", "taxi", "trash", "trash2", "boxville4", "tractor2", "tractor"
     };
 
     // =============================================================
@@ -36,7 +36,6 @@ public class TrafficColors : Script
 
     public TrafficColors()
     {
-        // FIX 1: Use Native GET_HASH_KEY instead of obsolete Game.GenerateHash
         foreach (string name in _excludedModelNames)
         {
             int hash = Function.Call<int>(Hash.GET_HASH_KEY, name);
@@ -54,11 +53,17 @@ public class TrafficColors : Script
         {
             _debugMode = !_debugMode;
             string status = _debugMode ? "~g~ON" : "~r~OFF";
-
-            // FIX 2: Use PostTicker instead of obsolete Show
-            GTA.UI.Notification.PostTicker($"TrafficColors Debug: {status} (Tracked: {_processedVehicles.Count})", true);
-
+            string mode = _usePureRandom ? "Pure Random" : "Carcols";
+            GTA.UI.Notification.PostTicker($"TrafficColors: {status} | Mode: {mode} | Tracked: {_processedVehicles.Count}", true);
             ToggleBlipVisibility(_debugMode);
+        }
+
+        // Quick Toggle for testing modes in-game
+        if (e.KeyCode == Keys.F12 && _debugMode)
+        {
+            _usePureRandom = !_usePureRandom;
+            string mode = _usePureRandom ? "~b~Pure Random" : "~y~Carcols Preset";
+            GTA.UI.Notification.PostTicker($"TrafficColors Mode Switched: {mode}", true);
         }
     }
 
@@ -87,47 +92,82 @@ public class TrafficColors : Script
 
         foreach (Vehicle v in allVehicles)
         {
-            // --- BASIC CHECKS ---
             if (v == null || !v.Exists()) continue;
-
             if (_processedVehicles.Contains(v.Handle)) continue;
 
-            // --- PROTECTION LAYER ---
+            // Protection
             if (v.Driver == Game.Player.Character) continue;
             if (lastVehicle != null && v.Handle == lastVehicle.Handle) continue;
             if (v.IsPersistent) continue;
             if (Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) continue;
 
-            // --- EXCLUSIONS ---
-            if (v.ClassType == VehicleClass.Emergency) continue;
-            if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane) continue;
+            // Exclusion
+            // 1. Check Categories
+            // We group these boolean checks for speed and readability
+            bool isRestrictedClass =
+                v.ClassType == VehicleClass.Emergency ||
+                v.ClassType == VehicleClass.Utility ||
+                v.ClassType == VehicleClass.Service ||
+                v.ClassType == VehicleClass.Industrial ||
+                v.ClassType == VehicleClass.Military ||
+                v.ClassType == VehicleClass.Commercial ||
+                v.ClassType == VehicleClass.Cycles; // Added Cycles (Bikes shouldn't get random paint)
 
-            // Model Blacklist Check
-            if (_excludedHashes.Contains(v.Model.Hash))
+            // 2. Check Types
+            bool isRestrictedType =
+                v.Model.IsTrain ||
+                v.Model.IsBoat ||
+                v.Model.IsHelicopter ||
+                v.Model.IsPlane;
+
+            // 3. Check Blacklist (Specific Models)
+            bool isBlacklisted = _excludedHashes.Contains(v.Model.Hash);
+
+            // 4. MASTER EXCLUSION
+            if (isRestrictedClass || isRestrictedType || isBlacklisted)
             {
+                // CRITICAL: Mark it as processed! 
+                // We tell the script: "We have seen this car, and we decided to ignore it."
+                // This prevents re-checking it every single frame.
                 _processedVehicles.Add(v.Handle);
                 continue;
             }
 
-            // --- ACTION (THE PACING FIX) ---
+            // Action
             if (_rnd.Next(0, 100) < _swapChance)
             {
-                ApplyRandomCombination(v);
+                ApplyColorLogic(v);
                 if (_debugMode) AddDebugBlip(v);
             }
 
-            // Mark as done so we don't re-roll constantly
             _processedVehicles.Add(v.Handle);
         }
     }
 
-    private void ApplyRandomCombination(Vehicle v)
+    private void ApplyColorLogic(Vehicle v)
     {
-        int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
-        if (comboCount > 0)
+        if (_usePureRandom)
         {
-            int randomID = _rnd.Next(0, comboCount);
-            Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, v, randomID);
+            // --- PURE RANDOM MODE ---
+            // Pick ONE color ID (0 to 159)
+            int randomColor = _rnd.Next(0, 160);
+
+            // Apply to Primary and Secondary
+            Function.Call(Hash.SET_VEHICLE_COLOURS, v, randomColor, randomColor);
+
+            // Apply to Pearlescent (Arg 2) and Wheel (Arg 3)
+            // We set Pearl to same color to make it look "Deep/Factory" rather than "Clown"
+            Function.Call(Hash.SET_VEHICLE_EXTRA_COLOURS, v, randomColor, 0);
+        }
+        else
+        {
+            // --- PRESET MODE (Carcols) ---
+            int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, v);
+            if (comboCount > 0)
+            {
+                int randomID = _rnd.Next(0, comboCount);
+                Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, v, randomID);
+            }
         }
     }
 
@@ -169,13 +209,6 @@ public class TrafficColors : Script
 
     private void DrawDebugMarkers()
     {
-        Vehicle[] nearbyVehs = World.GetNearbyVehicles(Game.Player.Character.Position, 80.0f);
-        foreach (Vehicle v in nearbyVehs)
-        {
-            if (_processedVehicles.Contains(v.Handle))
-            {
-                // Only drawing logic for debug
-            }
-        }
+        // Debug marker logic is purely visual, no need to over-process
     }
 }
