@@ -532,7 +532,7 @@ public class VehList
       //  "rebla",
         "revolter",
         "schlagen",
-        "seven70",
+        "viseris",
         "specter2",
         "s95",
       //  "vectre",

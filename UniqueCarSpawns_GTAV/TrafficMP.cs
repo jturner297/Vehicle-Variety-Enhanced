@@ -58,7 +58,26 @@ public class TrafficMP : Script
     private List<Blip> _activeBlips = new List<Blip>();
     private Random _rnd = new Random();
 
-
+    private HashSet<string> _urbanZones = new HashSet<string>
+    { 
+        // DOWNTOWN & CITY CENTER
+        "AIRP", "PBOX", "TEXTI", "SKID", "DOWNT", "LOSPUER", "DELSOL", "KOREAT", "STAD", "LEGSQU",
+        
+        // VINEWOOD & HILLS (Crucial for preventing Supercars on hiking trails)
+        "VINE", "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA", "RGLEN", "CHIL", "BAYTRE", "GALLI", "OBSERV",
+        
+        // SOUTH LS (GHETTO)
+        "CHAMH", "DAVIS", "RANCHO", "STRAW", "BANNIN",
+        
+        // ELITE & COASTAL
+        "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN", "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE",
+        
+        // HIPSTER
+        "MIRR", "EAST_V",
+        
+        // INDUSTRIAL
+        "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
+    };
 
     public TrafficMP()
     {
@@ -169,23 +188,39 @@ public class TrafficMP : Script
     {
         SelectionLayer layer;
 
+        // 1. GET ZONE DATA
+        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVehicle.Position.X, oldVehicle.Position.Y, oldVehicle.Position.Z);
+
+        // 2. URBAN SHIELD CHECK
+        bool isUrban = _urbanZones.Contains(currentZone);
+
+        // --- THE FIX: BAN OFFROAD SWAPS IN CITY ---
+        // If we are in the City, but the game detects "Dirt"...
+        // 1. It might be a hiking trail (We don't want Supercars there).
+        // 2. It might be a glitch/false positive on pavement (We don't want Offroad cars there).
+        // SOLUTION: Abort the swap. Leave the original car alone.
+        if (isUrban && onDirt) return false;
+        // ------------------------------------------
+
+        // 3. APPLY LOGIC
         if (onDirt && _zoneRegistry.ContainsKey("_OVERRIDE_OFFROAD_"))
         {
+            // We are in the Countryside (because isUrban is false), so apply Dirt Override.
             layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickLayer();
             layer.SourceProfile = "OFFROAD (Dirt Override)";
         }
         else
         {
+            // Standard Paved Road Swap
             layer = GetLayerForLocation(oldVehicle.Position);
         }
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
-        // --- NEW: HISTORY CHECK (Anti-Repeat) ---
+        // --- HISTORY CHECK (Anti-Repeat) ---
         string modelName = null;
         int attempts = 0;
 
-        // Try 3 times to find a car NOT in recent history
         while (attempts < 3)
         {
             string candidate = VehicleSelector.GetNext(layer.List, "Traffic");
@@ -194,15 +229,15 @@ public class TrafficMP : Script
             if (!_recentSpawnHistory.Contains(candidate))
             {
                 modelName = candidate;
-                break; // Found a fresh car!
+                break;
             }
             attempts++;
         }
-        // Fallback: If all attempts failed, just take a random one
         if (modelName == null) modelName = VehicleSelector.GetNext(layer.List, "Traffic");
         if (modelName == null) return false;
 
         // -----------------------------------------
+        // (Rest of the spawning logic remains exactly the same below)
 
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
@@ -220,9 +255,7 @@ public class TrafficMP : Script
 
         if (newVehicle != null)
         {
-            _activeSwaps.Add(newVehicle); // Register
-
-            // Add to History Buffer
+            _activeSwaps.Add(newVehicle);
             _recentSpawnHistory.Add(modelName);
             if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
