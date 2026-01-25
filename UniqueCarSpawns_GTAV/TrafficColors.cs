@@ -14,6 +14,15 @@ public class TrafficColors : Script
 
     private int _checkInterval = 250;
 
+    // PACING: Only change 40% of traffic. 
+    private int _swapChance = 50;
+
+    // BLACKLIST: Specific models to IGNORE (e.g. Utility/Service vehicles)
+    private HashSet<string> _excludedModelNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "boxville", "boxville2", "taxi", "trash", "trash2", "boxville4"
+    };
+
     // =============================================================
 
     private int _nextCheckTime = 0;
@@ -23,8 +32,17 @@ public class TrafficColors : Script
     private HashSet<int> _processedVehicles = new HashSet<int>();
     private List<Blip> _activeBlips = new List<Blip>();
 
+    private HashSet<int> _excludedHashes = new HashSet<int>();
+
     public TrafficColors()
     {
+        // FIX 1: Use Native GET_HASH_KEY instead of obsolete Game.GenerateHash
+        foreach (string name in _excludedModelNames)
+        {
+            int hash = Function.Call<int>(Hash.GET_HASH_KEY, name);
+            _excludedHashes.Add(hash);
+        }
+
         Tick += OnTick;
         KeyDown += OnKeyDown;
         Aborted += OnAborted;
@@ -36,7 +54,10 @@ public class TrafficColors : Script
         {
             _debugMode = !_debugMode;
             string status = _debugMode ? "~g~ON" : "~r~OFF";
-            GTA.UI.Notification.Show($"TrafficColors Debug: {status} (Tracked: {_processedVehicles.Count})");
+
+            // FIX 2: Use PostTicker instead of obsolete Show
+            GTA.UI.Notification.PostTicker($"TrafficColors Debug: {status} (Tracked: {_processedVehicles.Count})", true);
+
             ToggleBlipVisibility(_debugMode);
         }
     }
@@ -62,42 +83,41 @@ public class TrafficColors : Script
     private void ProcessTraffic()
     {
         Vehicle[] allVehicles = World.GetAllVehicles();
-
-        // Grab the player's last vehicle ONCE per loop to save processing
         Vehicle lastVehicle = Game.Player.LastVehicle;
 
         foreach (Vehicle v in allVehicles)
         {
             // --- BASIC CHECKS ---
             if (v == null || !v.Exists()) continue;
+
             if (_processedVehicles.Contains(v.Handle)) continue;
 
-            // --- PROTECTION LAYER (Updated) ---
-
-            // 1. Is the player driving it?
+            // --- PROTECTION LAYER ---
             if (v.Driver == Game.Player.Character) continue;
-
-            // 2. NEW: Is this the last car the player used?
-            // This protects your car during cutscenes or immediately after you exit.
             if (lastVehicle != null && v.Handle == lastVehicle.Handle) continue;
-
-            // 3. Persistence Check
-            // Protects mission vehicles and saved cars.
             if (v.IsPersistent) continue;
-
-            // 4. Mission Entity Check
             if (Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) continue;
 
             // --- EXCLUSIONS ---
             if (v.ClassType == VehicleClass.Emergency) continue;
             if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane) continue;
 
-            // --- ACTION ---
-            ApplyRandomCombination(v);
+            // Model Blacklist Check
+            if (_excludedHashes.Contains(v.Model.Hash))
+            {
+                _processedVehicles.Add(v.Handle);
+                continue;
+            }
 
-            // --- MARK AS DONE ---
+            // --- ACTION (THE PACING FIX) ---
+            if (_rnd.Next(0, 100) < _swapChance)
+            {
+                ApplyRandomCombination(v);
+                if (_debugMode) AddDebugBlip(v);
+            }
+
+            // Mark as done so we don't re-roll constantly
             _processedVehicles.Add(v.Handle);
-            AddDebugBlip(v);
         }
     }
 
@@ -154,14 +174,7 @@ public class TrafficColors : Script
         {
             if (_processedVehicles.Contains(v.Handle))
             {
-                World.DrawMarker(
-                    MarkerType.Chevron1,
-                    v.Position + new Vector3(0, 0, 1.5f),
-                    Vector3.Zero,
-                    Vector3.Zero,
-                    new Vector3(0.5f, 0.5f, 0.5f),
-                    Color.Purple
-                );
+                // Only drawing logic for debug
             }
         }
     }
