@@ -13,8 +13,7 @@ public class TrafficMP : Script
     //                 TUNING DASHBOARD
     // =============================================================
 
-    private int SpawnCooldown = 10000;
-    private int MaxVisibleHeroes = 1;
+    private int SpawnCooldown = 1000;
 
     private float MinSpawnDist = 130f;
     private float MaxSpawnDist = 240f;
@@ -28,6 +27,9 @@ public class TrafficMP : Script
     private int CheckInterval = 250;
     private bool ShowBlips = true;
     private bool EnableFileLogging = true;
+
+    private int MaxActiveSwaps = 2; 
+    private List<Vehicle> _activeSwaps = new List<Vehicle>(); // The "Registry"
 
     // =============================================================
 
@@ -64,6 +66,42 @@ public class TrafficMP : Script
     private void OnTick(object sender, EventArgs e)
     {
         if (_debugMode) DrawDebugInfo();
+
+        Ped player = Game.Player.Character;
+
+        // --- OPTIMIZED REGISTRY CLEANUP ---
+        for (int i = _activeSwaps.Count - 1; i >= 0; i--)
+        {
+            Vehicle v = _activeSwaps[i];
+
+            // Case A: The car no longer exists (blew up or too far away)
+            if (!v.Exists())
+            {
+                _activeSwaps.RemoveAt(i);
+                _nextSpawnTime = Game.GameTime + SpawnCooldown;
+                continue;
+            }
+
+            // Case B: The player has stolen the car (The "ParkedMP" Handoff)
+            if (player.IsInVehicle(v))
+            {
+                // 1. Clean the Blip immediately (don't wait for CleanupBlips)
+                if (v.AttachedBlip != null) v.AttachedBlip.Delete();
+
+                // 2. Tell the game: "This is the player's problem now, not the script's"
+                v.MarkAsNoLongerNeeded();
+
+                // 3. Remove from our tracking list to open the slot
+                _activeSwaps.RemoveAt(i);
+
+                // 4. Trigger Cooldown
+                _nextSpawnTime = Game.GameTime + SpawnCooldown;
+
+                if (_debugMode) GTA.UI.Notification.PostTicker("~b~TrafficMP: Car stolen. Handoff complete.", true, false);
+            }
+        }
+        // ----------------------------------
+
         if (Game.GameTime < _nextCheckTime) return;
 
         try
@@ -75,7 +113,6 @@ public class TrafficMP : Script
 
         _nextCheckTime = Game.GameTime + CheckInterval;
     }
-
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
     {
         if (e.KeyCode == System.Windows.Forms.Keys.F11)
@@ -98,6 +135,13 @@ public class TrafficMP : Script
     {
         if (Game.GameTime < _nextSpawnTime) return;
 
+        if (_activeSwaps.Count >= MaxActiveSwaps)
+        {
+            _nextSpawnTime = Game.GameTime + 1000; // Check again in a second
+            return;
+        }
+
+
         Ped player = Game.Player.Character;
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
@@ -106,24 +150,8 @@ public class TrafficMP : Script
 
         Vehicle[] allVehicles = World.GetAllVehicles();
 
-        // 1. SCENE CHECK
-        int heroesOnSet = 0;
-        foreach (Vehicle v in allVehicles)
-        {
-            if (v.Exists() && IsSwapped(v))
-            {
-                if (v.IsOnScreen || v.Position.DistanceTo(player.Position) < MinSpawnDist)
-                {
-                    heroesOnSet++;
-                }
-            }
-        }
 
-        if (heroesOnSet >= MaxVisibleHeroes)
-        {
-            _nextSpawnTime = Game.GameTime + SpawnCooldown;
-            return;
-        }
+
 
         // 2. CASTING CALL
         Vehicle bestCandidate = null;
@@ -213,6 +241,7 @@ public class TrafficMP : Script
 
         if (newVehicle != null)
         {
+            _activeSwaps.Add(newVehicle);
             newVehicle.Velocity = oldVehicle.Velocity;
             newVehicle.ForwardSpeed = oldVehicle.Speed;
             newVehicle.IsEngineRunning = true;
@@ -371,48 +400,67 @@ public class TrafficMP : Script
 
     private void InitializeZones()
     {
-        // 1. RURAL PROFILE (Smart Mixing)
-        ZoneProfile ruralProfile = new ZoneProfile("RURAL", _excludedModels);
-        // We give them IDs: "BEATER", "HEAVY", "TOURIST", "BIKE"
-        ruralProfile.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec);
-        ruralProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater);
-        ruralProfile.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
-        ruralProfile.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater);
 
-        // 2. RICH PROFILE
-        ZoneProfile richProfile = new ZoneProfile("RICH", _excludedModels);
-        richProfile.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
-        richProfile.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec);
-        richProfile.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
-        richProfile.AddIngredient("SUV", VehList.models_armoured, SpawnBehavior.VIP);
+        ZoneProfile Hippy = new ZoneProfile("HIPSTER", _excludedModels); //Mirror Park - East Vinewood
+       // Hippy.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.Beater);
+        Hippy.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater);
+        Hippy.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        Hippy.AddIngredient("BEATER", VehList.models_tuner, SpawnBehavior.Beater);
+        AssignToProfile(Hippy, "MIRR", "EAST_V");
 
-        // 3. GHETTO PROFILE
-        ZoneProfile ghettoProfile = new ZoneProfile("GHETTO", _excludedModels);
-        ghettoProfile.AddIngredient("LOWRIDER", VehList.models_lowriders, SpawnBehavior.RandomSpec);
-        ghettoProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
+        ZoneProfile Gangster = new ZoneProfile("GHETTO", _excludedModels);
+        Gangster.AddIngredient("LOWRIDER", VehList.models_lowriders, SpawnBehavior.RandomSpec);
+        Gangster.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
+        AssignToProfile(Gangster, "CHAMH", "DAVIS", "RANCHO", "STRAW");
 
-        // 4. URBAN PROFILE
-        ZoneProfile urbanProfile = new ZoneProfile("URBAN", _excludedModels);
-        urbanProfile.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
-        urbanProfile.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Tuner);
-        urbanProfile.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
+        ZoneProfile Downtown = new ZoneProfile("DOWNTOWN", _excludedModels); //everything
+        Downtown.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        Downtown.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Tuner);
+        Downtown.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);
+        Downtown.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
+        AssignToProfile(Downtown, "VINE", "PBOX", "TEXTI", "SKID", "DOWNT", "LOSPUER", "DELSOL", "KOREAT", "AIRP", "STAD");
 
-        // 5. INDUSTRY PROFILE
-        ZoneProfile industryProfile = new ZoneProfile("INDUSTRY", _excludedModels);
-        industryProfile.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
-        // Note: Industry only has 1 category. The logic safely falls back to allowing repeats here.
+        ZoneProfile Vinewood = new ZoneProfile("VINEWOOD", _excludedModels); //Flashy 
+        Vinewood.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
+        Vinewood.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec);
+        Vinewood.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        Vinewood.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Tuner);
+        Vinewood.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle);     
+        AssignToProfile(Vinewood, "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA");
+       
+        ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
+        Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec);
+        Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
 
-        // 6. OFFROAD OVERRIDE
+
+        ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
+        Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
+        Elite.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP);
+        AssignToProfile(Elite, "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN");
+
+
+        ZoneProfile VinewoodHills = new ZoneProfile("HILLS", _excludedModels);
+        VinewoodHills.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec);
+        VinewoodHills.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec);
+        AssignToProfile(VinewoodHills, "RGLEN", "CHIL", "BAYTRE", "GALLI", "OBSERV");
+
+        ZoneProfile Industry = new ZoneProfile("INDUSTRIAL", _excludedModels);
+        Industry.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        Industry.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater);
+        Industry.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Beater);
+        AssignToProfile(Industry, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN");
+
+        ZoneProfile CountrySide = new ZoneProfile("COUNTRYSIDE", _excludedModels);
+        CountrySide.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        CountrySide.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec);
+        CountrySide.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater);
+        CountrySide.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater);
+        CountrySide.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater);
+        AssignToProfile(CountrySide, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE", "TONGVAV", "SLAB");
+        
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD", _excludedModels);
         offroadProfile.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater);
-
-        // ASSIGNMENTS
-        AssignToProfile(ruralProfile, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE");
-        AssignToProfile(richProfile, "RICHM", "RGLEN", "ROCKF", "DTVINE", "WVINE", "CHIL", "GOLF", "OBSERV", "DELPE", "GALLI", "BAYTRE", "MORN", "MOVIE", "PBLUFF", "CHU", "BHAMCA");
-        AssignToProfile(ghettoProfile, "CHAMH", "DAVIS", "RANCHO", "STRAW");
-        AssignToProfile(urbanProfile, "DOWNT", "TEXTI", "SKID", "PBOX", "LEGSQU", "KOREAT", "VESP", "VCANA", "DELSOL", "MIRR", "EAST_V", "ALTA", "HAWICK", "BURTON", "LOSPUER", "AIRP", "VINE");
-        AssignToProfile(industryProfile, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN");
-
         _zoneRegistry["_OVERRIDE_OFFROAD_"] = offroadProfile;
     }
 
