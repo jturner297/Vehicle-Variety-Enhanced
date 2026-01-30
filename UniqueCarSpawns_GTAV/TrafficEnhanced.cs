@@ -1,9 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using GTA;
+﻿using GTA;
 using GTA.Math;
 using GTA.Native;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 
 public class TrafficEnhanced : Script
 {
@@ -23,6 +24,8 @@ public class TrafficEnhanced : Script
     private float _fovealDist = 240f;  // Max distance for high-detail swapping
     private float _periphDist = 60f;   // Peripheral vision safety buffer
 
+    private int MaxSwapsPerCycle = 3; // Allows more scale than MP, but prevents lag
+    private float ScoreThreshold = 40f;
     // Driving Style
     private int _driveStyle = 786603;
 
@@ -51,7 +54,10 @@ public class TrafficEnhanced : Script
         _periphDistSq = _periphDist * _periphDist;
 
         InitializeZones();
+
+        // REGISTRATION: Register OUR tag AND the TrafficMP tag to ensure visibility
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
+        Function.Call(Hash.DECOR_REGISTER, MP_TAG, 3);
 
         Tick += OnTick;
         KeyDown += OnKeyDown;
@@ -92,46 +98,6 @@ public class TrafficEnhanced : Script
         catch (Exception) { }
 
         _nextCheck = Game.GameTime + _checkInterval;
-    }
-
-    private void ProcessAmbientTraffic()
-    {
-        Vehicle[] vehicles = World.GetAllVehicles();
-        Ped player = Game.Player.Character;
-        Vector3 playerPos = player.Position;
-        Vector3 camPos = GameplayCamera.Position;
-        Vector3 camDir = GameplayCamera.Direction;
-
-        foreach (Vehicle v in vehicles)
-        {
-            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
-
-            // If already processed (Swapped OR Ignored), skip.
-            if (IsSwapped(v) || IsExcluded(v)) continue;
-
-            float distSq = v.Position.DistanceToSquared(playerPos);
-
-            // 1. STATIC SAFETY BUBBLE
-            // If it's too close, never touch it.
-            if (distSq < _minSafeDistSq) continue;
-
-            // 2. INTELLIGENT VISIBILITY
-            // Is it hidden enough to swap without popping?
-            if (!IsHidden(v, distSq, camPos, camDir)) continue;
-
-            // 3. THE "ASSIST" LOGIC
-            // We roll the dice once. 
-            // If it fails (90% chance), we tag it as "Processed" (Value 0).
-            // This ensures we leave most vanilla traffic alone and don't re-check them.
-            if (_rnd.Next(0, 100) > _swapChance)
-            {
-                Function.Call(Hash.DECOR_SET_INT, v, AMB_TAG, 0); // 0 = "Vanilla Approved"
-                continue;
-            }
-
-            // If we passed all checks, do the swap.
-            AttemptSwap(v);
-        }
     }
 
     private bool IsHidden(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
@@ -225,6 +191,75 @@ public class TrafficEnhanced : Script
         }
     }
 
+    private void ProcessAmbientTraffic()
+    {
+        Vehicle[] vehicles = World.GetAllVehicles();
+        Ped player = Game.Player.Character;
+        Vector3 playerPos = player.Position;
+        Vector3 camPos = GameplayCamera.Position;
+        Vector3 camDir = GameplayCamera.Direction;
+
+        // Use a list to find the best candidates this tick
+        List<ScoredVehicle> candidates = new List<ScoredVehicle>();
+
+        foreach (Vehicle v in vehicles)
+        {
+            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
+
+            // Critical Check: Is it already swapped or protected?
+            if (IsSwapped(v) || IsExcluded(v)) continue;
+
+            float distSq = v.Position.DistanceToSquared(playerPos);
+
+            // Safety: Still use the "Hidden" check to prevent popping
+            if (distSq < _minSafeDistSq) continue;
+            if (!IsHidden(v, distSq, camPos, camDir)) continue;
+
+            // Apply TrafficMP's scoring logic
+            float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
+
+            if (score > ScoreThreshold)
+            {
+                candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
+            }
+        }
+
+        // Sort by best score and swap the top few
+        var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
+
+        foreach (var choice in bestChoices)
+        {
+            AttemptSwap(choice.Vehicle);
+        }
+    }
+
+    // 3. THE DIRECTOR SCORING FUNCTION
+    private float CalculateDirectorScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir)
+    {
+        float score = 0f;
+        float dist = v.Position.DistanceTo(camPos);
+
+        Vector3 toCar = (v.Position - camPos).Normalized;
+        float angle = Vector3.Angle(camDir, toCar);
+
+        // Bonus for being in front of the camera but far enough away
+        if (angle < 40f) score += 30f;
+
+        // Bonus for oncoming traffic (Cinematic feel)
+        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerDir.Normalized);
+        if (closingSpeed < -0.5f) score += 50f;
+
+        // Bonus for distance (higher distance = safer swap)
+        score += (dist / 10f);
+
+        return score;
+    }
+
+    private struct ScoredVehicle
+    {
+        public Vehicle Vehicle;
+        public float Score;
+    }
     // =============================================================
     //                 DEBUG & UTILS
     // =============================================================
@@ -295,6 +330,12 @@ public class TrafficEnhanced : Script
 
     private bool IsExcluded(Vehicle v)
     {
+        // PROTECTION: If it has a blip (TrafficMP, Personal Vehicle), DO NOT TOUCH IT.
+        if (v.AttachedBlip != null) return true;
+
+        // PROTECTION: If it is persistent or a mission entity, DO NOT TOUCH IT.
+        if (v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) return true;
+
         VehicleClass vc = v.ClassType;
         if (vc == VehicleClass.Emergency || vc == VehicleClass.Industrial || vc == VehicleClass.Utility ||
             vc == VehicleClass.Cycles || vc == VehicleClass.Boats || vc == VehicleClass.Helicopters ||
