@@ -299,7 +299,7 @@ public class SpawnMP : Script
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
         // F10: ADVANCED COORDINATE LOGGER
-        if (e.KeyCode == Keys.F10)
+       /* if (e.KeyCode == Keys.F10)
         {
             Ped player = Game.Player.Character;
             Vehicle currentCar = player.CurrentVehicle;
@@ -357,7 +357,7 @@ public class SpawnMP : Script
             {
                 GTA.UI.Notification.PostTicker($"~r~Error: {ex.Message}", true);
             }
-        }
+        } */
 
         // F12: FORCE REFRESH
         if (e.KeyCode == Keys.F12)

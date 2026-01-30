@@ -15,13 +15,13 @@ public class TrafficEnhanced : Script
     private const string AMB_TAG = "Ambient_Swap_ID";
 
     // Performance
-    private int _checkInterval = 1000;
-    private int _swapChance = 10;
+    private int _checkInterval = 1000; // Check every second
+    private int _swapChance = 30;      // 10% Chance. We are ASSISTING, not replacing.
 
-    // Smart Frustum (Visibility Logic)
-    private float _minSafeDist = 130f; // BUMPED UP: 40f -> 50f for extra safety
-    private float _fovealDist = 240f;
-    private float _periphDist = 60f;
+    // Visibility Logic (Static Distances)
+    private float _minSafeDist = 130f; // Absolute minimum swap distance
+    private float _fovealDist = 240f;  // Max distance for high-detail swapping
+    private float _periphDist = 60f;   // Peripheral vision safety buffer
 
     // Driving Style
     private int _driveStyle = 786603;
@@ -45,6 +45,7 @@ public class TrafficEnhanced : Script
 
     public TrafficEnhanced()
     {
+        // Pre-calculate squares to avoid Sqrt() calls in the loop
         _minSafeDistSq = _minSafeDist * _minSafeDist;
         _fovealDistSq = _fovealDist * _fovealDist;
         _periphDistSq = _periphDist * _periphDist;
@@ -93,36 +94,6 @@ public class TrafficEnhanced : Script
         _nextCheck = Game.GameTime + _checkInterval;
     }
 
-    private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
-    {
-        if (e.KeyCode == System.Windows.Forms.Keys.F10)
-        {
-            _debugMode = !_debugMode;
-            GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
-
-            foreach (var b in _debugBlips)
-            {
-                if (b.Exists()) b.Alpha = _debugMode ? 255 : 0;
-            }
-
-            if (_debugMode)
-            {
-                foreach (Vehicle v in World.GetAllVehicles())
-                {
-                    if (v.Exists() && Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG))
-                    {
-                        AddDebugBlip(v);
-                    }
-                }
-            }
-        }
-    }
-
-    private void OnAborted(object sender, EventArgs e)
-    {
-        foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
-    }
-
     private void ProcessAmbientTraffic()
     {
         Vehicle[] vehicles = World.GetAllVehicles();
@@ -135,23 +106,63 @@ public class TrafficEnhanced : Script
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
 
-            if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG)) continue;
-            if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) continue;
-            if (IsExcluded(v)) continue;
+            // If already processed (Swapped OR Ignored), skip.
+            if (IsSwapped(v) || IsExcluded(v)) continue;
 
             float distSq = v.Position.DistanceToSquared(playerPos);
 
-            // Replaced with Robust Check
-            if (!IsSafeToSwap(v, distSq, camPos, camDir)) continue;
+            // 1. STATIC SAFETY BUBBLE
+            // If it's too close, never touch it.
+            if (distSq < _minSafeDistSq) continue;
 
+            // 2. INTELLIGENT VISIBILITY
+            // Is it hidden enough to swap without popping?
+            if (!IsHidden(v, distSq, camPos, camDir)) continue;
+
+            // 3. THE "ASSIST" LOGIC
+            // We roll the dice once. 
+            // If it fails (90% chance), we tag it as "Processed" (Value 0).
+            // This ensures we leave most vanilla traffic alone and don't re-check them.
             if (_rnd.Next(0, 100) > _swapChance)
             {
-                Function.Call(Hash.DECOR_SET_INT, v, AMB_TAG, 0);
+                Function.Call(Hash.DECOR_SET_INT, v, AMB_TAG, 0); // 0 = "Vanilla Approved"
                 continue;
             }
 
+            // If we passed all checks, do the swap.
             AttemptSwap(v);
         }
+    }
+
+    private bool IsHidden(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
+    {
+        // A. ENGINE CHECK
+        // If the game engine says the car isn't on screen, trust it.
+        if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f))
+            return true;
+
+        // B. DISTANCE CHECK
+        // If it's super far away (240m+), it's just a blurry LOD. Safe to swap.
+        if (distSq > _fovealDistSq) return true;
+
+        // C. PERIPHERAL CHECK
+        // If it's in the corner of the eye (Angle > 35) AND reasonably far (60m+).
+        Vector3 toCar = (v.Position - camPos).Normalized;
+        float angle = Vector3.Angle(camDir, toCar);
+        if (angle > 35.0f && distSq > _periphDistSq) return true;
+
+        // D. OCCLUSION CHECK
+        // Raycast is expensive, so we do it last. Is there a building between us?
+        return World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
+    }
+
+    private bool IsSwapped(Vehicle v)
+    {
+        // Returns true if tagged by US (TrafficEnhanced) or the HERO SCRIPT (TrafficMP)
+        // If DecorInt is 0, it means we checked it and decided to keep it vanilla.
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG)) return true;
+        return false;
     }
 
     private void AttemptSwap(Vehicle oldVeh)
@@ -172,11 +183,16 @@ public class TrafficEnhanced : Script
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return;
 
-        if (!model.Request(10)) return;
-        if (!oldVeh.Exists()) return;
+        // Request with short timeout to prevent lag
+        model.Request();
+        int timeout = Game.GameTime + 100; // 100ms max wait
+        while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
+        if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return; }
+
+        if (!oldVeh.Exists()) { model.MarkAsNoLongerNeeded(); return; }
 
         Ped driver = oldVeh.Driver;
-        if (driver == null || !driver.Exists()) return;
+        if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return; }
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
@@ -188,8 +204,7 @@ public class TrafficEnhanced : Script
             newVeh.ForwardSpeed = oldVeh.Speed;
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
-
-
+            // Tag as "Swapped" (1)
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
 
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
@@ -210,6 +225,45 @@ public class TrafficEnhanced : Script
         }
     }
 
+    // =============================================================
+    //                 DEBUG & UTILS
+    // =============================================================
+
+    private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
+    {
+        if (e.KeyCode == System.Windows.Forms.Keys.F10)
+        {
+            _debugMode = !_debugMode;
+            GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
+
+            foreach (var b in _debugBlips)
+            {
+                if (b.Exists()) b.Alpha = _debugMode ? 255 : 0;
+            }
+
+            if (_debugMode)
+            {
+                // Scan for existing swaps to re-blip them
+                foreach (Vehicle v in World.GetAllVehicles())
+                {
+                    if (v.Exists() && Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG))
+                    {
+                        // Only blip actual swaps (value 1), not ignored cars (value 0)
+                        if (Function.Call<int>(Hash.DECOR_GET_INT, v, AMB_TAG) == 1)
+                        {
+                            AddDebugBlip(v);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void OnAborted(object sender, EventArgs e)
+    {
+        foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
+    }
+
     private void AddDebugBlip(Vehicle v)
     {
         if (v.AttachedBlip != null) return;
@@ -220,6 +274,7 @@ public class TrafficEnhanced : Script
         b.Scale = 0.6f;
         b.Name = "Ambient Swap";
         b.IsShortRange = true;
+        Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
         _debugBlips.Add(b);
     }
 
@@ -237,53 +292,6 @@ public class TrafficEnhanced : Script
     }
 
     private void AssignToProfile(AmbientProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
-
-    // =============================================================
-    //                 THE INTELLIGENT SCANNER
-    // =============================================================
-    private bool IsSafeToSwap(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
-    {
-        // 1. ABSOLUTE SAFETY BUBBLE
-        if (distSq < _minSafeDistSq) return false;
-
-        // 2. SPHERE CHECK (The "Corner" Fix)
-        // Ask Game Engine: "Is a 4m bubble around this car visible on screen?"
-        // If FALSE, it means the ENTIRE car is hidden/off-screen. Safe to swap immediately.
-        if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f))
-        {
-            return true;
-        }
-
-        // --- If we are here, the car IS visible to the camera ---
-
-        // 3. DISTANCE CULLING
-        // If it's visible but super far away, we can swap it (too small to notice details).
-        if (distSq > _fovealDistSq) return true;
-
-        // 4. PERIPHERAL VISION CHECK
-        // If it's visible, close, but in the corner of our eye?
-        Vector3 toCar = (v.Position - camPos).Normalized;
-        float angle = Vector3.Angle(camDir, toCar);
-
-        if (angle > 35.0f) // Outside central focus
-        {
-            if (distSq > _periphDistSq) return true;
-        }
-
-        // 5. RAYCAST (Last Resort for Windows/Fences)
-        // If we reached here: The car is Visible, Close, and In Focus.
-        // The ONLY way we swap is if it's behind a solid object (Wall/Bus) that IS_SPHERE_VISIBLE missed.
-
-        // Check Low (Bumper)
-        bool hideLow = World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.4f), IntersectFlags.Map).DidHit;
-        if (hideLow)
-        {
-            // Check High (Roof) - Only if low was hidden
-            return World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.9f), IntersectFlags.Map).DidHit;
-        }
-
-        return false;
-    }
 
     private bool IsExcluded(Vehicle v)
     {
