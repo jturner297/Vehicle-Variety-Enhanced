@@ -17,15 +17,16 @@ public class TrafficEnhanced : Script
 
     // Performance
     private int _checkInterval = 1000; // Check every second
-    private int _swapChance = 30;      // 10% Chance. We are ASSISTING, not replacing.
+    private int _swapChance = 30;      // 30% Chance to swap a valid candidate
 
     // Visibility Logic (Static Distances)
     private float _minSafeDist = 130f; // Absolute minimum swap distance
     private float _fovealDist = 240f;  // Max distance for high-detail swapping
     private float _periphDist = 60f;   // Peripheral vision safety buffer
 
-    private int MaxSwapsPerCycle = 3; // Allows more scale than MP, but prevents lag
+    private int MaxSwapsPerCycle = 1; // Swaps per tick
     private float ScoreThreshold = 40f;
+
     // Driving Style
     private int _driveStyle = 786603;
 
@@ -55,7 +56,7 @@ public class TrafficEnhanced : Script
 
         InitializeZones();
 
-        // REGISTRATION: Register OUR tag AND the TrafficMP tag to ensure visibility
+        // REGISTRATION
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
         Function.Call(Hash.DECOR_REGISTER, MP_TAG, 3);
 
@@ -100,35 +101,92 @@ public class TrafficEnhanced : Script
         _nextCheck = Game.GameTime + _checkInterval;
     }
 
-    private bool IsHidden(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
+    // =============================================================
+    //                 SMART SWAPPING LOGIC
+    // =============================================================
+
+    private void ProcessAmbientTraffic()
     {
-        // A. ENGINE CHECK
-        // If the game engine says the car isn't on screen, trust it.
-        if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f))
-            return true;
+        Vehicle[] vehicles = World.GetAllVehicles();
+        Ped player = Game.Player.Character;
+        Vector3 playerPos = player.Position;
+        Vector3 camPos = GameplayCamera.Position;
+        Vector3 camDir = GameplayCamera.Direction;
 
-        // B. DISTANCE CHECK
-        // If it's super far away (240m+), it's just a blurry LOD. Safe to swap.
-        if (distSq > _fovealDistSq) return true;
+        // --- STEP 1: THE CENSUS ---
+        // Count how many of each model currently exist in the world.
+        // We will use this to ruthlessly target duplicates.
+        Dictionary<int, int> modelCensus = new Dictionary<int, int>();
+        foreach (Vehicle v in vehicles)
+        {
+            if (!v.Exists()) continue;
+            int hash = v.Model.Hash;
+            if (modelCensus.ContainsKey(hash)) modelCensus[hash]++;
+            else modelCensus[hash] = 1;
+        }
 
-        // C. PERIPHERAL CHECK
-        // If it's in the corner of the eye (Angle > 35) AND reasonably far (60m+).
-        Vector3 toCar = (v.Position - camPos).Normalized;
-        float angle = Vector3.Angle(camDir, toCar);
-        if (angle > 35.0f && distSq > _periphDistSq) return true;
+        // --- STEP 2: FIND CANDIDATES ---
+        List<ScoredVehicle> candidates = new List<ScoredVehicle>();
 
-        // D. OCCLUSION CHECK
-        // Raycast is expensive, so we do it last. Is there a building between us?
-        return World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
+        foreach (Vehicle v in vehicles)
+        {
+            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
+
+            // Critical Check: Is it already swapped or protected?
+            if (IsSwapped(v) || IsExcluded(v)) continue;
+
+            float distSq = v.Position.DistanceToSquared(playerPos);
+
+            // Safety: Still use the "Hidden" check to prevent popping
+            if (distSq < _minSafeDistSq) continue;
+            if (!IsHidden(v, distSq, camPos, camDir)) continue;
+
+            // Apply Scoring Logic
+            float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
+
+            // --- DIVERSITY BONUS ---
+            // If this model appears more than once in the world, prioritize swapping it!
+            // +200 Score ensures we target duplicates before unique cars.
+            if (modelCensus.ContainsKey(v.Model.Hash) && modelCensus[v.Model.Hash] > 1)
+            {
+                score += 200f;
+            }
+
+            if (score > ScoreThreshold)
+            {
+                candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
+            }
+        }
+
+        // --- STEP 3: EXECUTE SWAPS ---
+        // Sort by best score (Duplicates -> Oncoming -> Distant)
+        var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
+
+        foreach (var choice in bestChoices)
+        {
+            AttemptSwap(choice.Vehicle);
+        }
     }
 
-    private bool IsSwapped(Vehicle v)
+    private float CalculateDirectorScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir)
     {
-        // Returns true if tagged by US (TrafficEnhanced) or the HERO SCRIPT (TrafficMP)
-        // If DecorInt is 0, it means we checked it and decided to keep it vanilla.
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG)) return true;
-        return false;
+        float score = 0f;
+        float dist = v.Position.DistanceTo(camPos);
+
+        Vector3 toCar = (v.Position - camPos).Normalized;
+        float angle = Vector3.Angle(camDir, toCar);
+
+        // Bonus for being in front of the camera but far enough away
+        if (angle < 40f) score += 30f;
+
+        // Bonus for oncoming traffic (Cinematic feel)
+        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerDir.Normalized);
+        if (closingSpeed < -0.5f) score += 50f;
+
+        // Bonus for distance (higher distance = safer swap)
+        score += (dist / 10f);
+
+        return score;
     }
 
     private void AttemptSwap(Vehicle oldVeh)
@@ -149,7 +207,6 @@ public class TrafficEnhanced : Script
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return;
 
-        // Request with short timeout to prevent lag
         model.Request();
         int timeout = Game.GameTime + 100; // 100ms max wait
         while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
@@ -191,78 +248,38 @@ public class TrafficEnhanced : Script
         }
     }
 
-    private void ProcessAmbientTraffic()
+    // =============================================================
+    //                 HELPERS & UTILS
+    // =============================================================
+
+    private bool IsHidden(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
     {
-        Vehicle[] vehicles = World.GetAllVehicles();
-        Ped player = Game.Player.Character;
-        Vector3 playerPos = player.Position;
-        Vector3 camPos = GameplayCamera.Position;
-        Vector3 camDir = GameplayCamera.Direction;
-
-        // Use a list to find the best candidates this tick
-        List<ScoredVehicle> candidates = new List<ScoredVehicle>();
-
-        foreach (Vehicle v in vehicles)
-        {
-            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
-
-            // Critical Check: Is it already swapped or protected?
-            if (IsSwapped(v) || IsExcluded(v)) continue;
-
-            float distSq = v.Position.DistanceToSquared(playerPos);
-
-            // Safety: Still use the "Hidden" check to prevent popping
-            if (distSq < _minSafeDistSq) continue;
-            if (!IsHidden(v, distSq, camPos, camDir)) continue;
-
-            // Apply TrafficMP's scoring logic
-            float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
-
-            if (score > ScoreThreshold)
-            {
-                candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
-            }
-        }
-
-        // Sort by best score and swap the top few
-        var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
-
-        foreach (var choice in bestChoices)
-        {
-            AttemptSwap(choice.Vehicle);
-        }
-    }
-
-    // 3. THE DIRECTOR SCORING FUNCTION
-    private float CalculateDirectorScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir)
-    {
-        float score = 0f;
-        float dist = v.Position.DistanceTo(camPos);
-
+        if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f)) return true;
+        if (distSq > _fovealDistSq) return true;
         Vector3 toCar = (v.Position - camPos).Normalized;
         float angle = Vector3.Angle(camDir, toCar);
-
-        // Bonus for being in front of the camera but far enough away
-        if (angle < 40f) score += 30f;
-
-        // Bonus for oncoming traffic (Cinematic feel)
-        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerDir.Normalized);
-        if (closingSpeed < -0.5f) score += 50f;
-
-        // Bonus for distance (higher distance = safer swap)
-        score += (dist / 10f);
-
-        return score;
+        if (angle > 35.0f && distSq > _periphDistSq) return true;
+        return World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
     }
 
-    private struct ScoredVehicle
+    private bool IsSwapped(Vehicle v)
     {
-        public Vehicle Vehicle;
-        public float Score;
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG)) return true;
+        return false;
     }
-    // =============================================================
-    //                 DEBUG & UTILS
-    // =============================================================
+
+    private bool IsExcluded(Vehicle v)
+    {
+        if (v.AttachedBlip != null) return true;
+        if (v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) return true;
+        VehicleClass vc = v.ClassType;
+        if (vc == VehicleClass.Emergency || vc == VehicleClass.Industrial || vc == VehicleClass.Utility ||
+            vc == VehicleClass.Cycles || vc == VehicleClass.Boats || vc == VehicleClass.Helicopters ||
+            vc == VehicleClass.Planes || vc == VehicleClass.Commercial) return true;
+        if (v.Model.Hash == unchecked((int)VehicleHash.Taxi)) return true;
+        return false;
+    }
 
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
     {
@@ -270,42 +287,28 @@ public class TrafficEnhanced : Script
         {
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
-
-            foreach (var b in _debugBlips)
-            {
-                if (b.Exists()) b.Alpha = _debugMode ? 255 : 0;
-            }
-
+            foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = _debugMode ? 255 : 0; }
             if (_debugMode)
             {
-                // Scan for existing swaps to re-blip them
                 foreach (Vehicle v in World.GetAllVehicles())
                 {
                     if (v.Exists() && Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG))
                     {
-                        // Only blip actual swaps (value 1), not ignored cars (value 0)
-                        if (Function.Call<int>(Hash.DECOR_GET_INT, v, AMB_TAG) == 1)
-                        {
-                            AddDebugBlip(v);
-                        }
+                        if (Function.Call<int>(Hash.DECOR_GET_INT, v, AMB_TAG) == 1) AddDebugBlip(v);
                     }
                 }
             }
         }
     }
 
-    private void OnAborted(object sender, EventArgs e)
-    {
-        foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
-    }
+    private void OnAborted(object sender, EventArgs e) { foreach (var b in _debugBlips) if (b.Exists()) b.Delete(); }
 
     private void AddDebugBlip(Vehicle v)
     {
         if (v.AttachedBlip != null) return;
-
         Blip b = v.AddBlip();
         b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Green;
+        b.Color = BlipColor.Yellow;
         b.Scale = 0.6f;
         b.Name = "Ambient Swap";
         b.IsShortRange = true;
@@ -318,37 +321,17 @@ public class TrafficEnhanced : Script
         for (int i = _debugBlips.Count - 1; i >= 0; i--)
         {
             Blip b = _debugBlips[i];
-            if (!b.Exists() || b.Entity == null || !b.Entity.Exists())
-            {
-                if (b.Exists()) b.Delete();
-                _debugBlips.RemoveAt(i);
-            }
+            if (!b.Exists() || b.Entity == null || !b.Entity.Exists()) { if (b.Exists()) b.Delete(); _debugBlips.RemoveAt(i); }
         }
     }
 
     private void AssignToProfile(AmbientProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
 
-    private bool IsExcluded(Vehicle v)
-    {
-        // PROTECTION: If it has a blip (TrafficMP, Personal Vehicle), DO NOT TOUCH IT.
-        if (v.AttachedBlip != null) return true;
-
-        // PROTECTION: If it is persistent or a mission entity, DO NOT TOUCH IT.
-        if (v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) return true;
-
-        VehicleClass vc = v.ClassType;
-        if (vc == VehicleClass.Emergency || vc == VehicleClass.Industrial || vc == VehicleClass.Utility ||
-            vc == VehicleClass.Cycles || vc == VehicleClass.Boats || vc == VehicleClass.Helicopters ||
-            vc == VehicleClass.Planes || vc == VehicleClass.Commercial) return true;
-        if (v.Model.Hash == unchecked((int)VehicleHash.Taxi)) return true;
-        return false;
-    }
+    private struct ScoredVehicle { public Vehicle Vehicle; public float Score; }
 
     private class AmbientProfile
     {
-        public int RichChance;
-        public int MidChance;
-        public int PoorChance;
+        public int RichChance; public int MidChance; public int PoorChance;
         public AmbientProfile(int rich, int mid, int poor) { RichChance = rich; MidChance = mid; PoorChance = poor; }
     }
 }
