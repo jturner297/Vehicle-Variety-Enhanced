@@ -45,7 +45,9 @@ public class TrafficMP : Script
     private bool IgnoreService = true;
     private bool IgnoreBig = true;
 
-    private const string DECOR_NAME = "TMP_Swap_ID";
+    private const string DECOR_NAME = "TMP_Swap_ID";     // My Tag (Blue Blip)
+    private const string AMB_TAG = "Ambient_Swap_ID";    // Enhanced Tag (Yellow Blip)
+
     private VehicleDrivingFlags DriveStyle = (VehicleDrivingFlags)786603 | (VehicleDrivingFlags)262144;
 
     private int _nextCheckTime = 0;
@@ -82,6 +84,8 @@ public class TrafficMP : Script
     public TrafficMP()
     {
         Function.Call(Hash.DECOR_REGISTER, DECOR_NAME, 3);
+        Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
+
         InitializeZones();
         Tick += OnTick;
         KeyDown += OnKeyDown;
@@ -427,14 +431,28 @@ public class TrafficMP : Script
         private class Ingredient { public string Id; public HashSet<string> List; public SpawnBehavior Behavior; public int Weight; }
     }
 
-    // ==========================================
-    //           BOILERPLATE HELPERS
-    // ==========================================
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
     private void LogSwap(string zoneName, string carModel, SpawnBehavior behavior) { try { File.AppendAllText("TrafficMP_SwapLog.txt", $"[{DateTime.Now:HH:mm:ss}] {zoneName}: {carModel} ({behavior}){Environment.NewLine}"); } catch { } }
     private SelectionLayer GetLayerForLocation(Vector3 pos) { string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z); if (string.IsNullOrEmpty(zone) || _bannedZones.Contains(zone)) return new SelectionLayer(); return _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone].PickLayer() : new SelectionLayer(); }
-    private bool IsExcludedCategory(Vehicle v) { if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true; VehicleClass vc = v.ClassType; if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true; if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true; if (IgnoreBig && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true; return false; }
-    private bool IsSwapped(Vehicle v) { return Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME); }
+
+    private bool IsExcludedCategory(Vehicle v)
+    {
+        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
+        VehicleClass vc = v.ClassType;
+        if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
+        if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
+        if (IgnoreBig && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true;
+        return false;
+    }
+
+    // --- FIX: Check both Tags ---
+    private bool IsSwapped(Vehicle v)
+    {
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME)) return true; // Already MP
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;    // Already Enhanced
+        return false;
+    }
+
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
     private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel) { float score = 0f; float dist = v.Position.DistanceTo(camPos); if (dist < MinSpawnDist || dist > MaxSpawnDist) return 0f; Vector3 toCar = (v.Position - camPos).Normalized; if (Vector3.Angle(camDir, toCar) > SpawnFOV && Vector3.Angle(playerDir, toCar) > SpawnFOV) return 0f; float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized); if (closingSpeed < -0.5f) score += ScoreOncoming; else if (closingSpeed > 0.5f) score += ScoreOvertake; if (v.IsOnScreen && !World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit) score += ScoreVisible; score += dist * 0.5f; return score; }
     private void CreateBlip(Vehicle v, string modelKey) { Blip b = v.AddBlip(); b.Sprite = BlipSprite.Standard; b.Color = BlipColor.Blue; b.Scale = 0.7f; b.IsShortRange = true; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false); b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash)); if (!_debugMode && !ShowBlips) b.Alpha = 0; _activeBlips.Add(b); }

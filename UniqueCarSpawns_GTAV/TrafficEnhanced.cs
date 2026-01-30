@@ -17,7 +17,6 @@ public class TrafficEnhanced : Script
 
     // Performance
     private int _checkInterval = 1000; // Check every second
-    private int _swapChance = 30;      // 30% Chance to swap a valid candidate
 
     // Visibility Logic (Static Distances)
     private float _minSafeDist = 130f; // Absolute minimum swap distance
@@ -67,16 +66,21 @@ public class TrafficEnhanced : Script
 
     private void InitializeZones()
     {
-        AmbientProfile Hippy = new AmbientProfile(10, 50, 40);
-        AmbientProfile Gangster = new AmbientProfile(10, 30, 60);
-        AmbientProfile Downtown = new AmbientProfile(35, 35, 30);
-        AmbientProfile Vinewood = new AmbientProfile(40, 35, 15);
-        AmbientProfile Coastal = new AmbientProfile(60, 30, 10);
-        AmbientProfile Elite = new AmbientProfile(65, 25, 10);
-        AmbientProfile VinewoodHills = new AmbientProfile(85, 10, 5);
-        AmbientProfile Industry = new AmbientProfile(5, 45, 50);
-        AmbientProfile CountrySide = new AmbientProfile(5, 40, 60);
-        _defaultProfile = new AmbientProfile(15, 60, 25);
+        AmbientProfile Hippy = new AmbientProfile(10, 50, 40, 0);
+        AmbientProfile Gangster = new AmbientProfile(10, 30, 60, 0);
+        AmbientProfile Downtown = new AmbientProfile(25, 45, 30, 0);
+        AmbientProfile Vinewood = new AmbientProfile(40, 35, 15, 0);
+        AmbientProfile Coastal = new AmbientProfile(60, 30, 10, 0);
+        AmbientProfile Elite = new AmbientProfile(65, 25, 10, 0);
+        AmbientProfile VinewoodHills = new AmbientProfile(100, 10, 5, 0);
+
+
+        AmbientProfile Industry = new AmbientProfile(5, 60, 100, 0);
+
+
+        AmbientProfile CountrySide = new AmbientProfile(5, 20, 70, 100);
+
+        _defaultProfile = new AmbientProfile(15, 60, 25, 0);
 
         AssignToProfile(Hippy, "MIRR", "EAST_V");
         AssignToProfile(Gangster, "CHAMH", "DAVIS", "RANCHO", "STRAW", "STAD");
@@ -194,12 +198,50 @@ public class TrafficEnhanced : Script
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVeh.Position.X, oldVeh.Position.Y, oldVeh.Position.Z);
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
 
-        int roll = _rnd.Next(0, 100);
-        HashSet<string> targetList;
+        // --- OPTIMIZED WEIGHTED SELECTION (Subtraction Method) ---
+        // This method is cleaner and less prone to math errors than if/elif chains.
 
-        if (roll < profile.RichChance) targetList = VehList.models_rich;
-        else if (roll < profile.RichChance + profile.MidChance) targetList = VehList.models_mid;
-        else targetList = VehList.models_poor;
+        int totalWeight = profile.RichChance + profile.MidChance + profile.PoorChance + profile.CountryChance;
+        if (totalWeight <= 0) return; // Prevent divide by zero
+
+        int roll = _rnd.Next(0, totalWeight);
+        HashSet<string> targetList = null;
+
+        // 1. Check Rich
+        if (roll < profile.RichChance)
+        {
+            targetList = VehList.models_rich;
+        }
+        else
+        {
+            // Subtract the previous weight from the roll and check the next bucket
+            roll -= profile.RichChance;
+
+            // 2. Check Mid
+            if (roll < profile.MidChance)
+            {
+                targetList = VehList.models_mid;
+            }
+            else
+            {
+                roll -= profile.MidChance;
+
+                // 3. Check Poor
+                if (roll < profile.PoorChance)
+                {
+                    targetList = VehList.models_poor;
+                }
+                else
+                {
+                    // 4. Must be Country
+                    targetList = VehList.models_countryside;
+                }
+            }
+        }
+
+        if (targetList == null) return;
+
+        // ---------------------------------------------------------
 
         string modelName = VehicleSelector.GetNext(targetList, "Ambient");
         if (modelName == null) return;
@@ -331,7 +373,7 @@ public class TrafficEnhanced : Script
 
     private class AmbientProfile
     {
-        public int RichChance; public int MidChance; public int PoorChance;
-        public AmbientProfile(int rich, int mid, int poor) { RichChance = rich; MidChance = mid; PoorChance = poor; }
+        public int RichChance; public int MidChance; public int PoorChance; public int CountryChance; // New Ingredient;
+        public AmbientProfile(int rich, int mid, int poor, int country) { RichChance = rich; MidChance = mid; PoorChance = poor; CountryChance = country; }
     }
 }
