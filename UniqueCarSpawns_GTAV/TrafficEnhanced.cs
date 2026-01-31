@@ -22,7 +22,7 @@ public class TrafficEnhanced : Script
     // Visibility Logic (Static Distances)
     private float _minSafeDist = 130f; // Absolute minimum swap distance
     private float _fovealDist = 240f;  // Max distance for high-detail swapping
-    private float _periphDist = 35f;   // Peripheral vision safety buffer
+    private float _periphDist = 60f;   // Peripheral vision safety buffer
 
     private int MaxSwapsPerCycle = 1; // Swaps per tick
     private float ScoreThreshold = 40f;
@@ -70,17 +70,17 @@ public class TrafficEnhanced : Script
     {
         // FORMAT: (Rich, Mid, Poor, Country)
 
-        AmbientProfile Hippy = new AmbientProfile(10, 50, 40, 0);
-        AmbientProfile Gangster = new AmbientProfile(10, 30, 60, 0);
+        AmbientProfile Hippy = new AmbientProfile(10, 70, 100, 0);
+        AmbientProfile Gangster = new AmbientProfile(0, 50, 100, 0);
         AmbientProfile Downtown = new AmbientProfile(25, 45, 30, 0);
-        AmbientProfile Vinewood = new AmbientProfile(40, 35, 15, 0);
-        AmbientProfile Coastal = new AmbientProfile(60, 30, 10, 0);
-        AmbientProfile Elite = new AmbientProfile(65, 25, 10, 0);
-        AmbientProfile VinewoodHills = new AmbientProfile(100, 10, 5, 0);
+        AmbientProfile Vinewood = new AmbientProfile(60, 50, 30, 0);
+        AmbientProfile Coastal = new AmbientProfile(100, 70, 20, 0);
+        AmbientProfile Elite = new AmbientProfile(100, 70, 20, 0);
+        AmbientProfile VinewoodHills = new AmbientProfile(100, 30, 5, 0);
 
-        AmbientProfile Industry = new AmbientProfile(5, 60, 100, 0);
+        AmbientProfile Industry = new AmbientProfile(0, 70, 100, 0);
 
-        AmbientProfile CountrySide = new AmbientProfile(5, 30, 80, 100);
+        AmbientProfile CountrySide = new AmbientProfile(0, 30, 80, 100);
 
         _defaultProfile = new AmbientProfile(15, 60, 25, 0);
 

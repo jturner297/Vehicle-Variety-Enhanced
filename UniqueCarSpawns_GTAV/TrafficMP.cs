@@ -27,11 +27,14 @@ public class TrafficMP : Script
     // SCORING
     private float MinSpawnDist = 130f;
     private float MaxSpawnDist = 240f;
-    private float SpawnFOV = 35f;
+    private float SpawnFOV = 60f; // Wide FOV for windy roads
     private float ScoreThreshold = 50f;
+
+    // BONUSES
     private float ScoreOncoming = 100f;
     private float ScoreOvertake = 20f;
     private float ScoreVisible = 50f;
+    private float ScoreSameRoad = 150f;
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
@@ -44,8 +47,8 @@ public class TrafficMP : Script
     private bool IgnoreService = true;
     private bool IgnoreBig = true;
 
-    private const string DECOR_NAME = "TMP_Swap_ID";     // My Tag (Blue Blip)
-    private const string AMB_TAG = "Ambient_Swap_ID";    // Enhanced Tag (Yellow Blip)
+    private const string DECOR_NAME = "TMP_Swap_ID";
+    private const string AMB_TAG = "Ambient_Swap_ID";
 
     private VehicleDrivingFlags DriveStyle = (VehicleDrivingFlags)786603 | (VehicleDrivingFlags)262144;
 
@@ -86,12 +89,11 @@ public class TrafficMP : Script
 
         Ped player = Game.Player.Character;
 
-        // --- 1. REGISTRY CLEANUP (The "Handoff") ---
+        // --- 1. REGISTRY CLEANUP ---
         for (int i = _activeSwaps.Count - 1; i >= 0; i--)
         {
             Vehicle v = _activeSwaps[i];
 
-            // Clean up invalid vehicles
             if (!v.Exists())
             {
                 _activeSwaps.RemoveAt(i);
@@ -99,18 +101,15 @@ public class TrafficMP : Script
                 continue;
             }
 
-            // Handoff if player steals it
             if (player.IsInVehicle(v))
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 v.MarkAsNoLongerNeeded();
                 _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + SpawnCooldown;
-                if (_debugMode) GTA.UI.Notification.PostTicker("~b~TrafficMP: Car stolen. Handoff complete.", true, false);
                 continue;
             }
 
-            // DISTANCE CLEANUP: If the car drives too far away, forget it so we can spawn a new one.
             if (v.Position.DistanceTo(player.Position) > 400f)
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
@@ -134,12 +133,7 @@ public class TrafficMP : Script
     private void RunDirectorAI()
     {
         if (Game.GameTime < _nextSpawnTime) return;
-
-        if (_activeSwaps.Count >= MaxActiveSwaps)
-        {
-            _nextSpawnTime = Game.GameTime + 1000;
-            return;
-        }
+        if (_activeSwaps.Count >= MaxActiveSwaps) return;
 
         Ped player = Game.Player.Character;
         Vector3 camPos = GameplayCamera.Position;
@@ -147,18 +141,19 @@ public class TrafficMP : Script
         Vector3 playerVel = player.Velocity;
         Vector3 playerDir = player.ForwardVector;
 
-        Vehicle[] allVehicles = World.GetAllVehicles();
+        // Get Player Road ID for comparison
+        int playerRoadID = GetVehicleNodeID(player.Position);
 
+        Vehicle[] allVehicles = World.GetAllVehicles();
         Vehicle bestCandidate = null;
         float bestScore = 0f;
 
         foreach (Vehicle v in allVehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
-
             if (IsExcludedCategory(v)) continue;
 
-            float score = GetCinematicScore(v, camPos, camDir, playerDir, playerVel);
+            float score = GetCinematicScore(v, camPos, camDir, playerDir, playerVel, playerRoadID);
 
             if (score > bestScore)
             {
@@ -170,21 +165,96 @@ public class TrafficMP : Script
         if (bestCandidate != null && bestScore > ScoreThreshold)
         {
             bool isDirt = IsVehicleOnDirt(bestCandidate);
-
             if (TransformVehicle(bestCandidate, isDirt))
             {
                 _nextSpawnTime = Game.GameTime + SpawnCooldown;
             }
-            else
-            {
-                _nextSpawnTime = Game.GameTime + 1000;
-            }
         }
     }
 
+    // --- HELPER: Get Road ID ---
+    private int GetVehicleNodeID(Vector3 pos)
+    {
+        return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
+    }
+
+    // --- MAIN SCORING LOGIC ---
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID)
+    {
+        float score = 0f;
+        Vector3 vPos = v.Position;
+        float dist = vPos.DistanceTo(camPos);
+
+        // 1. CHEAP FILTERS (Fail Fast)
+        if (dist < MinSpawnDist || dist > MaxSpawnDist) return 0f;
+
+        // Slope Check (Replaces strict Z check for hills)
+        float heightDiff = Math.Abs(vPos.Z - camPos.Z);
+        double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
+        if (slopeAngle > 45) return 0f; // Only reject if it's practically vertical (bridges)
+
+        // FOV Check
+        Vector3 toCar = (vPos - camPos).Normalized;
+        if (Vector3.Angle(camDir, toCar) > SpawnFOV) return 0f;
+
+        // 2. LOGIC BONUSES
+
+        // Same Road Bonus
+        int carRoadID = GetVehicleNodeID(vPos);
+        if (playerRoadID != 0 && carRoadID == playerRoadID) score += ScoreSameRoad;
+
+        // Movement Bonus
+        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
+        if (closingSpeed < -0.5f) score += ScoreOncoming;
+        else if (closingSpeed > 0.5f) score += ScoreOvertake;
+
+        // 3. EXPENSIVE VISIBILITY CHECK (The "Super Raycast")
+        // Only run this if we are serious about this car
+        if (IsVehicleVisibleSmart(v, camPos))
+        {
+            score += ScoreVisible;
+        }
+        else
+        {
+            return 0f; // If invisible, it's worthless
+        }
+
+        score += dist * 0.5f;
+        return score;
+    }
+
+    // --- SUPER RAYCAST: Cascading Checks ---
+    private bool IsVehicleVisibleSmart(Vehicle v, Vector3 camPos)
+    {
+        if (!v.IsOnScreen) return false;
+
+        Vector3 min, max;
+        v.Model.GetDimensions(out min, out max);
+
+        // 1. Check Roof (Most likely)
+        Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z + 0.1f));
+        if (!World.Raycast(camPos, roof, IntersectFlags.Map).DidHit) return true;
+
+        // 2. Check Bumpers (Peekers)
+        Vector3 front = v.GetOffsetPosition(new Vector3(0, max.Y, 0.5f));
+        if (!World.Raycast(camPos, front, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 rear = v.GetOffsetPosition(new Vector3(0, min.Y, 0.5f));
+        if (!World.Raycast(camPos, rear, IntersectFlags.Map).DidHit) return true;
+
+        // 3. Check Sides (Cross traffic)
+        Vector3 left = v.GetOffsetPosition(new Vector3(min.X, 0, 0.5f));
+        if (!World.Raycast(camPos, left, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 right = v.GetOffsetPosition(new Vector3(max.X, 0, 0.5f));
+        if (!World.Raycast(camPos, right, IntersectFlags.Map).DidHit) return true;
+
+        return false;
+    }
+
+    // --- TRANSFORMATION & ZONES (Unchanged) ---
     private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
-        // 1. Double check before we do any heavy lifting
         if (IsSwapped(oldVehicle)) return false;
 
         SelectionLayer layer;
@@ -230,7 +300,6 @@ public class TrafficMP : Script
         model.Request();
         int timeout = Game.GameTime + 1000;
 
-        // SAFE YIELDING: Check if oldVehicle is invalid during the wait
         while (!model.IsLoaded && Game.GameTime < timeout)
         {
             Script.Yield();
@@ -238,11 +307,7 @@ public class TrafficMP : Script
         }
 
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
-
-        // 2. Final Sanity Check before modification
         if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
-
-        // 3. RACE CONDITION CHECK: Did TrafficEnhanced steal it while we were loading the model?
         if (IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVehicle.Driver;
@@ -257,39 +322,29 @@ public class TrafficMP : Script
             _recentSpawnHistory.Add(modelName);
             if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
-            // Transfer basics
             newVehicle.IsEngineRunning = true;
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
 
-            // MARK AS MP SWAP IMMEDIATELY
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
 
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
             oldVehicle.Delete();
 
-            // APPLY MODS
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
 
-            // --- SUSPENSION FIX START ---
-            // 1. Force physics to activate so suspension compresses NOW, not later.
             Function.Call(Hash.ACTIVATE_PHYSICS, newVehicle);
             Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
-
-            // 2. Place on ground properly (this calculates height based on the NEW suspension limits)
             Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVehicle);
 
-            // 3. Re-apply velocity AFTER settling to ensure it doesn't lose momentum
             newVehicle.Velocity = oldVehicle.Velocity;
             newVehicle.ForwardSpeed = oldVehicle.Speed;
-            // --- SUSPENSION FIX END ---
 
             driver.BlockPermanentEvents = true;
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
 
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
-            if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {modelName}", true, false);
 
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
@@ -302,10 +357,8 @@ public class TrafficMP : Script
         return false;
     }
 
-    // ... [Zone Initialization Code Omitted for Brevity - It remains the same] ...
     private void InitializeZones()
     {
-        // 1. HIPSTER (Mirror Park) - Dominant: Beater (3), Wacky (2)
         ZoneProfile Hippy = new ZoneProfile("HIPSTER", _excludedModels);
         Hippy.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.Beater, 2);
         Hippy.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater, 2);
@@ -313,13 +366,11 @@ public class TrafficMP : Script
         Hippy.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Beater, 1);
         AssignToProfile(Hippy, "MIRR", "EAST_V");
 
-        // 2. GANGSTER (South LS) - Dominant: Lowrider (4)
         ZoneProfile Gangster = new ZoneProfile("GHETTO", _excludedModels);
         Gangster.AddIngredient("LOWRIDER", VehList.models_lowriders, SpawnBehavior.RandomSpec, 4);
         Gangster.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle, 3);
         AssignToProfile(Gangster, "CHAMH", "DAVIS", "RANCHO", "STRAW", "STAD");
 
-        // 3. DOWNTOWN - Dominant: Luxury (4)
         ZoneProfile Downtown = new ZoneProfile("DOWNTOWN", _excludedModels);
         Downtown.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 4);
         Downtown.AddIngredient("SUV", VehList.models_armoured, SpawnBehavior.VIP, 3);
@@ -328,7 +379,6 @@ public class TrafficMP : Script
         Downtown.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle, 3);
         AssignToProfile(Downtown, "VINE", "PBOX", "TEXTI", "SKID", "DOWNT", "LOSPUER", "DELSOL", "KOREAT", "AIRP");
 
-        // 4. VINEWOOD - Balanced High Life
         ZoneProfile Vinewood = new ZoneProfile("VINEWOOD", _excludedModels);
         Vinewood.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3);
         Vinewood.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
@@ -337,32 +387,27 @@ public class TrafficMP : Script
         Vinewood.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle, 2);
         AssignToProfile(Vinewood, "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA");
 
-        // 5. COASTAL
         ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
         Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
         Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
         AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
 
-        // 6. ELITE 
         ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
         Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3);
         Elite.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
         AssignToProfile(Elite, "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN");
 
-        // 7. HILLS 
         ZoneProfile VinewoodHills = new ZoneProfile("HILLS", _excludedModels);
         VinewoodHills.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 1);
         VinewoodHills.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 1);
         AssignToProfile(VinewoodHills, "RGLEN", "CHIL", "BAYTRE", "GALLI", "OBSERV");
 
-        // 8. INDUSTRIAL
         ZoneProfile Industry = new ZoneProfile("INDUSTRIAL", _excludedModels);
         Industry.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater, 3);
         Industry.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater, 2);
         Industry.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Beater, 2);
         AssignToProfile(Industry, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN");
 
-        // 9. COUNTRYSIDE
         ZoneProfile CountrySide = new ZoneProfile("COUNTRYSIDE", _excludedModels);
         CountrySide.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater, 4);
         CountrySide.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater, 2);
@@ -427,18 +472,14 @@ public class TrafficMP : Script
         return false;
     }
 
-    // --- FIX: Strict Decorator Check ---
     private bool IsSwapped(Vehicle v)
     {
-        // 1. Is it a TrafficMP car?
         if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME)) return true;
-        // 2. Is it a TrafficEnhanced car? (This stops stealing)
         if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
         return false;
     }
 
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel) { float score = 0f; float dist = v.Position.DistanceTo(camPos); if (dist < MinSpawnDist || dist > MaxSpawnDist) return 0f; Vector3 toCar = (v.Position - camPos).Normalized; if (Vector3.Angle(camDir, toCar) > SpawnFOV && Vector3.Angle(playerDir, toCar) > SpawnFOV) return 0f; float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized); if (closingSpeed < -0.5f) score += ScoreOncoming; else if (closingSpeed > 0.5f) score += ScoreOvertake; if (v.IsOnScreen && !World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit) score += ScoreVisible; score += dist * 0.5f; return score; }
     private void CreateBlip(Vehicle v, string modelKey) { Blip b = v.AddBlip(); b.Sprite = BlipSprite.Standard; b.Color = BlipColor.Blue; b.Scale = 0.7f; b.IsShortRange = true; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false); b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash)); if (!_debugMode && !ShowBlips) b.Alpha = 0; _activeBlips.Add(b); }
     private void CleanupBlips() { Ped player = Game.Player.Character; for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity)) { if (b.Exists()) b.Delete(); _activeBlips.RemoveAt(i); } } }
     private void DrawDebugInfo() { foreach (Vehicle v in World.GetAllVehicles()) { if (v.Exists() && IsSwapped(v) && v.IsOnScreen) World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow); } }
