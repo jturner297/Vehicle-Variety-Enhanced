@@ -13,15 +13,14 @@ public class TrafficMP : Script
     //                 TUNING DASHBOARD
     // =============================================================
 
-    private int SpawnCooldown = 2500; // Time between spawns (ms)
-    private int CheckInterval = 250;  // How often to scan for empty slots (ms)
+    private int SpawnCooldown = 2500;
+    private int CheckInterval = 250;
 
     // LIMITS
-    private int MaxActiveSwaps = 2;   // HARD LIMIT: Only 1 special car exists at a time.
+    private int MaxActiveSwaps = 2;
     private List<Vehicle> _activeSwaps = new List<Vehicle>();
 
     // VARIETY CONTROL
-    // We remember the last 10 spawns to prevent back-to-back duplicates
     private List<string> _recentSpawnHistory = new List<string>();
     private int _historyCapacity = 10;
 
@@ -61,23 +60,12 @@ public class TrafficMP : Script
     private Random _rnd = new Random();
 
     private HashSet<string> _urbanZones = new HashSet<string>
-    { 
-        // DOWNTOWN & CITY CENTER
+    {
         "AIRP", "PBOX", "TEXTI", "SKID", "DOWNT", "LOSPUER", "DELSOL", "KOREAT", "STAD", "LEGSQU",
-        
-        // VINEWOOD & HILLS (Crucial for preventing Supercars on hiking trails)
         "VINE", "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA", "RGLEN", "CHIL", "BAYTRE", "GALLI", "OBSERV",
-        
-        // SOUTH LS (GHETTO)
         "CHAMH", "DAVIS", "RANCHO", "STRAW", "BANNIN",
-        
-        // ELITE & COASTAL
         "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN", "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE",
-        
-        // HIPSTER
         "MIRR", "EAST_V",
-        
-        // INDUSTRIAL
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
     };
 
@@ -103,7 +91,7 @@ public class TrafficMP : Script
         {
             Vehicle v = _activeSwaps[i];
 
-            // Case A: Car Despawned
+            // Clean up invalid vehicles
             if (!v.Exists())
             {
                 _activeSwaps.RemoveAt(i);
@@ -111,15 +99,23 @@ public class TrafficMP : Script
                 continue;
             }
 
-            // Case B: Player Stole It
+            // Handoff if player steals it
             if (player.IsInVehicle(v))
             {
-                if (v.AttachedBlip != null) v.AttachedBlip.Delete(); // Clean Blip
-                v.MarkAsNoLongerNeeded(); // Handoff to Game Engine
-                _activeSwaps.RemoveAt(i); // Open the Slot
+                if (v.AttachedBlip != null) v.AttachedBlip.Delete();
+                v.MarkAsNoLongerNeeded();
+                _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + SpawnCooldown;
-
                 if (_debugMode) GTA.UI.Notification.PostTicker("~b~TrafficMP: Car stolen. Handoff complete.", true, false);
+                continue;
+            }
+
+            // DISTANCE CLEANUP: If the car drives too far away, forget it so we can spawn a new one.
+            if (v.Position.DistanceTo(player.Position) > 400f)
+            {
+                if (v.AttachedBlip != null) v.AttachedBlip.Delete();
+                v.MarkAsNoLongerNeeded();
+                _activeSwaps.RemoveAt(i);
             }
         }
 
@@ -139,7 +135,6 @@ public class TrafficMP : Script
     {
         if (Game.GameTime < _nextSpawnTime) return;
 
-        // HARD LIMIT CHECK
         if (_activeSwaps.Count >= MaxActiveSwaps)
         {
             _nextSpawnTime = Game.GameTime + 1000;
@@ -154,13 +149,13 @@ public class TrafficMP : Script
 
         Vehicle[] allVehicles = World.GetAllVehicles();
 
-        // CASTING CALL
         Vehicle bestCandidate = null;
         float bestScore = 0f;
 
         foreach (Vehicle v in allVehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
+
             if (IsExcludedCategory(v)) continue;
 
             float score = GetCinematicScore(v, camPos, camDir, playerDir, playerVel);
@@ -172,7 +167,6 @@ public class TrafficMP : Script
             }
         }
 
-        // ACTION
         if (bestCandidate != null && bestScore > ScoreThreshold)
         {
             bool isDirt = IsVehicleOnDirt(bestCandidate);
@@ -190,38 +184,28 @@ public class TrafficMP : Script
 
     private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
+        // 1. Double check before we do any heavy lifting
+        if (IsSwapped(oldVehicle)) return false;
+
         SelectionLayer layer;
 
-        // 1. GET ZONE DATA
         string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVehicle.Position.X, oldVehicle.Position.Y, oldVehicle.Position.Z);
-
-        // 2. URBAN SHIELD CHECK
         bool isUrban = _urbanZones.Contains(currentZone);
 
-        // --- THE FIX: BAN OFFROAD SWAPS IN CITY ---
-        // If we are in the City, but the game detects "Dirt"...
-        // 1. It might be a hiking trail (We don't want Supercars there).
-        // 2. It might be a glitch/false positive on pavement (We don't want Offroad cars there).
-        // SOLUTION: Abort the swap. Leave the original car alone.
         if (isUrban && onDirt) return false;
-        // ------------------------------------------
 
-        // 3. APPLY LOGIC
         if (onDirt && _zoneRegistry.ContainsKey("_OVERRIDE_OFFROAD_"))
         {
-            // We are in the Countryside (because isUrban is false), so apply Dirt Override.
             layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickLayer();
             layer.SourceProfile = "OFFROAD (Dirt Override)";
         }
         else
         {
-            // Standard Paved Road Swap
             layer = GetLayerForLocation(oldVehicle.Position);
         }
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
-        // --- HISTORY CHECK (Anti-Repeat) ---
         string modelName = null;
         int attempts = 0;
 
@@ -240,16 +224,26 @@ public class TrafficMP : Script
         if (modelName == null) modelName = VehicleSelector.GetNext(layer.List, "Traffic");
         if (modelName == null) return false;
 
-        // -----------------------------------------
-        // (Rest of the spawning logic remains exactly the same below)
-
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
 
         model.Request();
         int timeout = Game.GameTime + 1000;
-        while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
+        
+        // SAFE YIELDING: Check if oldVehicle is invalid during the wait
+        while (!model.IsLoaded && Game.GameTime < timeout)
+        {
+            Script.Yield();
+            if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
+        }
+        
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
+
+        // 2. Final Sanity Check before modification
+        if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
+
+        // 3. RACE CONDITION CHECK: Did TrafficEnhanced steal it while we were loading the model?
+        if (IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVehicle.Driver;
         if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
@@ -263,19 +257,32 @@ public class TrafficMP : Script
             _recentSpawnHistory.Add(modelName);
             if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
-            newVehicle.Velocity = oldVehicle.Velocity;
-            newVehicle.ForwardSpeed = oldVehicle.Speed;
+            // Transfer basics
             newVehicle.IsEngineRunning = true;
-
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
 
+            // MARK AS MP SWAP IMMEDIATELY
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
 
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
             oldVehicle.Delete();
 
+            // APPLY MODS
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
+
+            // --- SUSPENSION FIX START ---
+            // 1. Force physics to activate so suspension compresses NOW, not later.
+            Function.Call(Hash.ACTIVATE_PHYSICS, newVehicle);
+            Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
+            
+            // 2. Place on ground properly (this calculates height based on the NEW suspension limits)
+            Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVehicle);
+            
+            // 3. Re-apply velocity AFTER settling to ensure it doesn't lose momentum
+            newVehicle.Velocity = oldVehicle.Velocity;
+            newVehicle.ForwardSpeed = oldVehicle.Speed;
+            // --- SUSPENSION FIX END ---
 
             driver.BlockPermanentEvents = true;
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
@@ -284,7 +291,6 @@ public class TrafficMP : Script
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
             if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {modelName}", true, false);
 
-            newVehicle.PlaceOnGround();
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
             model.MarkAsNoLongerNeeded();
@@ -296,9 +302,7 @@ public class TrafficMP : Script
         return false;
     }
 
-    // ==========================================
-    //           ZONE CONFIGURATION
-    // ==========================================
+    // ... [Zone Initialization Code Omitted for Brevity - It remains the same] ...
     private void InitializeZones()
     {
         // 1. HIPSTER (Mirror Park) - Dominant: Beater (3), Wacky (2)
@@ -333,20 +337,19 @@ public class TrafficMP : Script
         Vinewood.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle, 2);
         AssignToProfile(Vinewood, "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA");
 
-        // 5. COASTAL - Dominant: Classics (4) vs Luxury (1)
-        // This is your specific request. Classics will appear 4x more often than Lux/Super.
+        // 5. COASTAL
         ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
-        Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3); // <--- DOMINANT
+        Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
         Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
         AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
 
-        // 6. ELITE - Dominant: Super (4) vs Luxury (2)
+        // 6. ELITE 
         ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
-        Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3); // <--- DOMINANT
+        Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3);
         Elite.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
         AssignToProfile(Elite, "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN");
 
-        // 7. HILLS - Balanced Wealth
+        // 7. HILLS 
         ZoneProfile VinewoodHills = new ZoneProfile("HILLS", _excludedModels);
         VinewoodHills.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 1);
         VinewoodHills.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 1);
@@ -372,14 +375,11 @@ public class TrafficMP : Script
         _zoneRegistry["_OVERRIDE_OFFROAD_"] = offroadProfile;
     }
 
-    // ==========================================
-    //           TOKEN DECK SYSTEM
-    // ==========================================
     public class ZoneProfile
     {
         public string Name;
-        private List<Ingredient> _ingredients = new List<Ingredient>(); // The Definition
-        private Queue<Ingredient> _tokenDeck = new Queue<Ingredient>(); // The Active Deck
+        private List<Ingredient> _ingredients = new List<Ingredient>();
+        private Queue<Ingredient> _tokenDeck = new Queue<Ingredient>();
         private HashSet<string> _blacklist;
         private Random _rnd = new Random();
 
@@ -390,41 +390,23 @@ public class TrafficMP : Script
             if (list == null || list.Count == 0) return;
             HashSet<string> filteredList = new HashSet<string>();
             foreach (string model in list) { if (_blacklist != null && _blacklist.Contains(model)) continue; filteredList.Add(model); }
-
-            if (filteredList.Count > 0)
-            {
-                _ingredients.Add(new Ingredient { Id = id, List = filteredList, Behavior = behavior, Weight = weight });
-            }
+            if (filteredList.Count > 0) _ingredients.Add(new Ingredient { Id = id, List = filteredList, Behavior = behavior, Weight = weight });
         }
 
         public SelectionLayer PickLayer()
         {
             if (_ingredients.Count == 0) return new SelectionLayer();
-            if (_tokenDeck.Count == 0) RefillDeck(); // Auto-Reshuffle
-
-            Ingredient selected = _tokenDeck.Dequeue(); // Draw Card
-
-            return new SelectionLayer
-            {
-                List = selected.List,
-                Behavior = selected.Behavior,
-                SourceProfile = this.Name
-            };
+            if (_tokenDeck.Count == 0) RefillDeck();
+            Ingredient selected = _tokenDeck.Dequeue();
+            return new SelectionLayer { List = selected.List, Behavior = selected.Behavior, SourceProfile = this.Name };
         }
 
         private void RefillDeck()
         {
             List<Ingredient> freshTokens = new List<Ingredient>();
-            // Add tokens based on Weight (Dominance)
             foreach (var ing in _ingredients) { for (int i = 0; i < ing.Weight; i++) freshTokens.Add(ing); }
-
-            // Shuffle
             int n = freshTokens.Count;
-            while (n > 1)
-            {
-                n--; int k = _rnd.Next(n + 1);
-                var value = freshTokens[k]; freshTokens[k] = freshTokens[n]; freshTokens[n] = value;
-            }
+            while (n > 1) { n--; int k = _rnd.Next(n + 1); var value = freshTokens[k]; freshTokens[k] = freshTokens[n]; freshTokens[n] = value; }
             _tokenDeck = new Queue<Ingredient>(freshTokens);
         }
 
@@ -437,7 +419,7 @@ public class TrafficMP : Script
 
     private bool IsExcludedCategory(Vehicle v)
     {
-        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
+        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.ClassType == VehicleClass.Motorcycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
         VehicleClass vc = v.ClassType;
         if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
         if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
@@ -445,11 +427,13 @@ public class TrafficMP : Script
         return false;
     }
 
-    // --- FIX: Check both Tags ---
+    // --- FIX: Strict Decorator Check ---
     private bool IsSwapped(Vehicle v)
     {
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME)) return true; // Already MP
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;    // Already Enhanced
+        // 1. Is it a TrafficMP car?
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME)) return true;
+        // 2. Is it a TrafficEnhanced car? (This stops stealing)
+        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
         return false;
     }
 

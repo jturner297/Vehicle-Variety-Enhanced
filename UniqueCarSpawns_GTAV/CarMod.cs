@@ -38,6 +38,16 @@ public static class CarMod
         { "banshee3", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
         { "infernus2", v => v.Mods[VehicleModType.Spoilers].Index = 0 },
         { "kuruma2", v =>   SetColors(v, 12, 12, 0, 12) },
+        { "ardent", v => {
+       
+            // Body Mods from XML
+            v.Mods[VehicleModType.Spoilers].Index = 0;
+            v.Mods[VehicleModType.FrontBumper].Index = 1;
+            v.Mods[VehicleModType.Hood].Index = 4;
+            
+            // Clean up
+            v.Mods[VehicleModType.Livery].Index = -1;
+        }},
         // --- SPEED RACER (Mach 5) ---
         { "scramjet", v => {
             v.Mods[VehicleModType.Roof].Index = 0;

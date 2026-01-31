@@ -15,8 +15,9 @@ public class TrafficEnhanced : Script
     private const string MP_TAG = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
 
-    // Performance
-    private int _checkInterval = 1000; // Check every second
+    // Performance & Throttling
+    private int _checkInterval = 250; // How often to SCAN (Cpu saver)
+    private int _swapCooldown = 1000;  // How long to WAIT after a successful swap (Flooding prevention)
 
     // Visibility Logic (Static Distances)
     private float _minSafeDist = 130f; // Absolute minimum swap distance
@@ -36,6 +37,7 @@ public class TrafficEnhanced : Script
 
     private Random _rnd = new Random();
     private int _nextCheck = 0;
+    private int _nextSwapTime = 0; // New Cooldown Tracker
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
@@ -66,6 +68,8 @@ public class TrafficEnhanced : Script
 
     private void InitializeZones()
     {
+        // FORMAT: (Rich, Mid, Poor, Country)
+
         AmbientProfile Hippy = new AmbientProfile(10, 50, 40, 0);
         AmbientProfile Gangster = new AmbientProfile(10, 30, 60, 0);
         AmbientProfile Downtown = new AmbientProfile(25, 45, 30, 0);
@@ -74,11 +78,9 @@ public class TrafficEnhanced : Script
         AmbientProfile Elite = new AmbientProfile(65, 25, 10, 0);
         AmbientProfile VinewoodHills = new AmbientProfile(100, 10, 5, 0);
 
-
         AmbientProfile Industry = new AmbientProfile(5, 60, 100, 0);
 
-
-        AmbientProfile CountrySide = new AmbientProfile(5, 20, 70, 100);
+        AmbientProfile CountrySide = new AmbientProfile(5, 30, 80, 100);
 
         _defaultProfile = new AmbientProfile(15, 60, 25, 0);
 
@@ -111,6 +113,10 @@ public class TrafficEnhanced : Script
 
     private void ProcessAmbientTraffic()
     {
+        // 1. GLOBAL COOLDOWN CHECK
+        // If we recently swapped a car, do not do anything.
+        if (Game.GameTime < _nextSwapTime) return;
+
         Vehicle[] vehicles = World.GetAllVehicles();
         Ped player = Game.Player.Character;
         Vector3 playerPos = player.Position;
@@ -118,8 +124,6 @@ public class TrafficEnhanced : Script
         Vector3 camDir = GameplayCamera.Direction;
 
         // --- STEP 1: THE CENSUS ---
-        // Count how many of each model currently exist in the world.
-        // We will use this to ruthlessly target duplicates.
         Dictionary<int, int> modelCensus = new Dictionary<int, int>();
         foreach (Vehicle v in vehicles)
         {
@@ -136,21 +140,16 @@ public class TrafficEnhanced : Script
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
 
-            // Critical Check: Is it already swapped or protected?
             if (IsSwapped(v) || IsExcluded(v)) continue;
 
             float distSq = v.Position.DistanceToSquared(playerPos);
 
-            // Safety: Still use the "Hidden" check to prevent popping
             if (distSq < _minSafeDistSq) continue;
             if (!IsHidden(v, distSq, camPos, camDir)) continue;
 
-            // Apply Scoring Logic
             float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
 
-            // --- DIVERSITY BONUS ---
-            // If this model appears more than once in the world, prioritize swapping it!
-            // +200 Score ensures we target duplicates before unique cars.
+            // Diversity Bonus: Target Duplicates
             if (modelCensus.ContainsKey(v.Model.Hash) && modelCensus[v.Model.Hash] > 1)
             {
                 score += 200f;
@@ -163,12 +162,17 @@ public class TrafficEnhanced : Script
         }
 
         // --- STEP 3: EXECUTE SWAPS ---
-        // Sort by best score (Duplicates -> Oncoming -> Distant)
         var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
 
         foreach (var choice in bestChoices)
         {
-            AttemptSwap(choice.Vehicle);
+            // If AttemptSwap returns true, it means a car was generated.
+            // We then trigger the cooldown.
+            if (AttemptSwap(choice.Vehicle))
+            {
+                _nextSwapTime = Game.GameTime + _swapCooldown;
+                break; // Stop processing other candidates to respect the cooldown
+            }
         }
     }
 
@@ -180,44 +184,36 @@ public class TrafficEnhanced : Script
         Vector3 toCar = (v.Position - camPos).Normalized;
         float angle = Vector3.Angle(camDir, toCar);
 
-        // Bonus for being in front of the camera but far enough away
         if (angle < 40f) score += 30f;
 
-        // Bonus for oncoming traffic (Cinematic feel)
         float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerDir.Normalized);
         if (closingSpeed < -0.5f) score += 50f;
 
-        // Bonus for distance (higher distance = safer swap)
         score += (dist / 10f);
 
         return score;
     }
 
-    private void AttemptSwap(Vehicle oldVeh)
+    // Changed return type to bool to track success
+    private bool AttemptSwap(Vehicle oldVeh)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVeh.Position.X, oldVeh.Position.Y, oldVeh.Position.Z);
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
 
-        // --- OPTIMIZED WEIGHTED SELECTION (Subtraction Method) ---
-        // This method is cleaner and less prone to math errors than if/elif chains.
-
+        // --- OPTIMIZED WEIGHTED SELECTION ---
         int totalWeight = profile.RichChance + profile.MidChance + profile.PoorChance + profile.CountryChance;
-        if (totalWeight <= 0) return; // Prevent divide by zero
+        if (totalWeight <= 0) return false;
 
         int roll = _rnd.Next(0, totalWeight);
         HashSet<string> targetList = null;
 
-        // 1. Check Rich
         if (roll < profile.RichChance)
         {
             targetList = VehList.models_rich;
         }
         else
         {
-            // Subtract the previous weight from the roll and check the next bucket
             roll -= profile.RichChance;
-
-            // 2. Check Mid
             if (roll < profile.MidChance)
             {
                 targetList = VehList.models_mid;
@@ -225,39 +221,34 @@ public class TrafficEnhanced : Script
             else
             {
                 roll -= profile.MidChance;
-
-                // 3. Check Poor
                 if (roll < profile.PoorChance)
                 {
                     targetList = VehList.models_poor;
                 }
                 else
                 {
-                    // 4. Must be Country
                     targetList = VehList.models_countryside;
                 }
             }
         }
 
-        if (targetList == null) return;
-
-        // ---------------------------------------------------------
+        if (targetList == null) return false;
 
         string modelName = VehicleSelector.GetNext(targetList, "Ambient");
-        if (modelName == null) return;
+        if (modelName == null) return false;
 
         Model model = new Model(modelName);
-        if (!model.IsValid || !model.IsInCdImage) return;
+        if (!model.IsValid || !model.IsInCdImage) return false;
 
         model.Request();
-        int timeout = Game.GameTime + 100; // 100ms max wait
+        int timeout = Game.GameTime + 100;
         while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
-        if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return; }
+        if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
 
-        if (!oldVeh.Exists()) { model.MarkAsNoLongerNeeded(); return; }
+        if (!oldVeh.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVeh.Driver;
-        if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return; }
+        if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
@@ -269,7 +260,6 @@ public class TrafficEnhanced : Script
             newVeh.ForwardSpeed = oldVeh.Speed;
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
-            // Tag as "Swapped" (1)
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
 
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
@@ -282,11 +272,14 @@ public class TrafficEnhanced : Script
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
             model.MarkAsNoLongerNeeded();
+
+            return true; // Success!
         }
         else
         {
             driver.MarkAsNoLongerNeeded();
             model.MarkAsNoLongerNeeded();
+            return false;
         }
     }
 
@@ -318,7 +311,7 @@ public class TrafficEnhanced : Script
         VehicleClass vc = v.ClassType;
         if (vc == VehicleClass.Emergency || vc == VehicleClass.Industrial || vc == VehicleClass.Utility ||
             vc == VehicleClass.Cycles || vc == VehicleClass.Boats || vc == VehicleClass.Helicopters ||
-            vc == VehicleClass.Planes || vc == VehicleClass.Commercial) return true;
+            vc == VehicleClass.Planes || vc == VehicleClass.Commercial || vc == VehicleClass.Motorcycles) return true;
         if (v.Model.Hash == unchecked((int)VehicleHash.Taxi)) return true;
         return false;
     }
@@ -373,7 +366,7 @@ public class TrafficEnhanced : Script
 
     private class AmbientProfile
     {
-        public int RichChance; public int MidChance; public int PoorChance; public int CountryChance; // New Ingredient;
+        public int RichChance; public int MidChance; public int PoorChance; public int CountryChance;
         public AmbientProfile(int rich, int mid, int poor, int country) { RichChance = rich; MidChance = mid; PoorChance = poor; CountryChance = country; }
     }
 }
