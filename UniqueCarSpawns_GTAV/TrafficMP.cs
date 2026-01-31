@@ -184,62 +184,112 @@ public class TrafficMP : Script
 
     private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
+        // 1. Double check before we do any heavy lifting
         if (IsSwapped(oldVehicle)) return false;
 
         SelectionLayer layer;
+
         string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVehicle.Position.X, oldVehicle.Position.Y, oldVehicle.Position.Z);
+        bool isUrban = _urbanZones.Contains(currentZone);
+
+        if (isUrban && onDirt) return false;
 
         if (onDirt && _zoneRegistry.ContainsKey("_OVERRIDE_OFFROAD_"))
+        {
             layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickLayer();
+            layer.SourceProfile = "OFFROAD (Dirt Override)";
+        }
         else
+        {
             layer = GetLayerForLocation(oldVehicle.Position);
+        }
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
-        string modelName = VehicleSelector.GetNext(layer.List, "Traffic");
+        string modelName = null;
+        int attempts = 0;
+
+        while (attempts < 3)
+        {
+            string candidate = VehicleSelector.GetNext(layer.List, "Traffic");
+            if (candidate == null) break;
+
+            if (!_recentSpawnHistory.Contains(candidate))
+            {
+                modelName = candidate;
+                break;
+            }
+            attempts++;
+        }
+        if (modelName == null) modelName = VehicleSelector.GetNext(layer.List, "Traffic");
         if (modelName == null) return false;
 
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
-        model.Request();
 
+        model.Request();
         int timeout = Game.GameTime + 1000;
-        while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
+
+        // SAFE YIELDING: Check if oldVehicle is invalid during the wait
+        while (!model.IsLoaded && Game.GameTime < timeout)
+        {
+            Script.Yield();
+            if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
+        }
+
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
+
+        // 2. Final Sanity Check before modification
         if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
+
+        // 3. RACE CONDITION CHECK: Did TrafficEnhanced steal it while we were loading the model?
+        if (IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVehicle.Driver;
         if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
-
-        // --- THE CRITICAL FIX ---
-        // 1. Use EXACT coordinates. No offsets.
-        // 2. Do NOT call SetOnGroundProperly here.
         Vehicle newVehicle = World.CreateVehicle(model, oldVehicle.Position, oldVehicle.Heading);
 
         if (newVehicle != null)
         {
             _activeSwaps.Add(newVehicle);
+            _recentSpawnHistory.Add(modelName);
+            if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
-            // Transfer Motion exactly like TrafficEnhanced
-            newVehicle.Velocity = oldVehicle.Velocity;
-            newVehicle.ForwardSpeed = oldVehicle.Speed;
+            // Transfer basics
             newVehicle.IsEngineRunning = true;
+            int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
+            if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
 
+            // MARK AS MP SWAP IMMEDIATELY
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
 
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
             oldVehicle.Delete();
 
-            // Apply Mods
+            // APPLY MODS
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
+
+            // --- SUSPENSION FIX START ---
+            // 1. Force physics to activate so suspension compresses NOW, not later.
+            Function.Call(Hash.ACTIVATE_PHYSICS, newVehicle);
+            Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
+
+            // 2. Place on ground properly (this calculates height based on the NEW suspension limits)
+            Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVehicle);
+
+            // 3. Re-apply velocity AFTER settling to ensure it doesn't lose momentum
+            newVehicle.Velocity = oldVehicle.Velocity;
+            newVehicle.ForwardSpeed = oldVehicle.Speed;
+            // --- SUSPENSION FIX END ---
 
             driver.BlockPermanentEvents = true;
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
 
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
+            if (_debugMode) GTA.UI.Notification.PostTicker($"~y~Swap: {modelName}", true, false);
 
             newVehicle.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
@@ -251,6 +301,8 @@ public class TrafficMP : Script
         model.MarkAsNoLongerNeeded();
         return false;
     }
+
+    // ... [Zone Initialization Code Omitted for Brevity - It remains the same] ...
     private void InitializeZones()
     {
         // 1. HIPSTER (Mirror Park) - Dominant: Beater (3), Wacky (2)
@@ -367,7 +419,7 @@ public class TrafficMP : Script
 
     private bool IsExcludedCategory(Vehicle v)
     {
-        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.ClassType == VehicleClass.Motorcycles|| v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
+        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.ClassType == VehicleClass.Motorcycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
         VehicleClass vc = v.ClassType;
         if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
         if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
