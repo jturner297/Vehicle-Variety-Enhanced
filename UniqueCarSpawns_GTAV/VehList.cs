@@ -609,7 +609,7 @@ public class VehList
         "issi3", "kanjo", "kanjosj", "moonbeam", "nebula", "nightshade",
         "phoenix", "picador", "remus", "retinue",
         "rhapsody", "ruiner2", "savestra", "seminole2", "sentinel3", "slamvan", "stalion", 
-       "sultan2", "sultan3", "surfer", "surfer3", "tahoma", "tampa", "tulip",
+       "sultan2", "sultan3", "surfer3", "tahoma", "tampa", "tulip",
         "vamos","virgo3", "voodoo", "warrener", "warrener2", "weevil", "yosemite", "yosemite3",
         "youga2", "zion3", "hustler"
     };

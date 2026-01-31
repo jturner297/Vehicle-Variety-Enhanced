@@ -17,12 +17,12 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250; // How often to SCAN (Cpu saver)
-    private int _swapCooldown = 1000;  // How long to WAIT after a successful swap (Flooding prevention)
+    private int _swapCooldown = 0;  // How long to WAIT after a successful swap (Flooding prevention)
 
     // Visibility Logic (Static Distances)
     private float _minSafeDist = 130f; // Absolute minimum swap distance
     private float _fovealDist = 240f;  // Max distance for high-detail swapping
-    private float _periphDist = 60f;   // Peripheral vision safety buffer
+    private float _periphDist = 35f;   // Peripheral vision safety buffer
 
     private int MaxSwapsPerCycle = 1; // Swaps per tick
     private float ScoreThreshold = 40f;
@@ -37,7 +37,7 @@ public class TrafficEnhanced : Script
 
     private Random _rnd = new Random();
     private int _nextCheck = 0;
-    private int _nextSwapTime = 0; // New Cooldown Tracker
+    private int _nextSwapTime = 0;
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
@@ -114,7 +114,6 @@ public class TrafficEnhanced : Script
     private void ProcessAmbientTraffic()
     {
         // 1. GLOBAL COOLDOWN CHECK
-        // If we recently swapped a car, do not do anything.
         if (Game.GameTime < _nextSwapTime) return;
 
         Vehicle[] vehicles = World.GetAllVehicles();
@@ -123,14 +122,22 @@ public class TrafficEnhanced : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
 
-        // --- STEP 1: THE CENSUS ---
+        // --- STEP 1: THE CENSUS (INSPIRED BY TRAFFICMP) ---
+        // We create a HashSet of ALL active models to prevent spawning what already exists.
         Dictionary<int, int> modelCensus = new Dictionary<int, int>();
+        HashSet<int> activeModels = new HashSet<int>();
+
         foreach (Vehicle v in vehicles)
         {
             if (!v.Exists()) continue;
             int hash = v.Model.Hash;
+
+            // Track counts for targeting duplicates
             if (modelCensus.ContainsKey(hash)) modelCensus[hash]++;
             else modelCensus[hash] = 1;
+
+            // Track existence for preventing NEW duplicates
+            activeModels.Add(hash);
         }
 
         // --- STEP 2: FIND CANDIDATES ---
@@ -150,6 +157,7 @@ public class TrafficEnhanced : Script
             float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
 
             // Diversity Bonus: Target Duplicates
+            // If this car is one of many (e.g., one of 3 Landstalkers), it gets a HUGE priority to be swapped.
             if (modelCensus.ContainsKey(v.Model.Hash) && modelCensus[v.Model.Hash] > 1)
             {
                 score += 200f;
@@ -166,12 +174,11 @@ public class TrafficEnhanced : Script
 
         foreach (var choice in bestChoices)
         {
-            // If AttemptSwap returns true, it means a car was generated.
-            // We then trigger the cooldown.
-            if (AttemptSwap(choice.Vehicle))
+            // We now pass 'activeModels' to AttemptSwap so it knows what NOT to spawn.
+            if (AttemptSwap(choice.Vehicle, activeModels))
             {
                 _nextSwapTime = Game.GameTime + _swapCooldown;
-                break; // Stop processing other candidates to respect the cooldown
+                break;
             }
         }
     }
@@ -194,8 +201,8 @@ public class TrafficEnhanced : Script
         return score;
     }
 
-    // Changed return type to bool to track success
-    private bool AttemptSwap(Vehicle oldVeh)
+    // UPDATED: Now accepts activeModels to check against
+    private bool AttemptSwap(Vehicle oldVeh, HashSet<int> activeModels)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVeh.Position.X, oldVeh.Position.Y, oldVeh.Position.Z);
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
@@ -204,37 +211,52 @@ public class TrafficEnhanced : Script
         int totalWeight = profile.RichChance + profile.MidChance + profile.PoorChance + profile.CountryChance;
         if (totalWeight <= 0) return false;
 
-        int roll = _rnd.Next(0, totalWeight);
-        HashSet<string> targetList = null;
+        // --- RETRY LOOP (INSPIRED BY TRAFFICMP) ---
+        // We try up to 3 times to find a car that DOES NOT exist in the current scene.
+        string modelName = null;
+        int attempts = 0;
 
-        if (roll < profile.RichChance)
+        while (attempts < 3)
         {
-            targetList = VehList.models_rich;
-        }
-        else
-        {
-            roll -= profile.RichChance;
-            if (roll < profile.MidChance)
-            {
-                targetList = VehList.models_mid;
-            }
+            attempts++;
+
+            // Select list based on probability
+            int roll = _rnd.Next(0, totalWeight);
+            HashSet<string> targetList = null;
+
+            if (roll < profile.RichChance) targetList = VehList.models_rich;
             else
             {
-                roll -= profile.MidChance;
-                if (roll < profile.PoorChance)
-                {
-                    targetList = VehList.models_poor;
-                }
+                roll -= profile.RichChance;
+                if (roll < profile.MidChance) targetList = VehList.models_mid;
                 else
                 {
-                    targetList = VehList.models_countryside;
+                    roll -= profile.MidChance;
+                    if (roll < profile.PoorChance) targetList = VehList.models_poor;
+                    else targetList = VehList.models_countryside;
                 }
             }
+
+            if (targetList == null) continue;
+
+            string candidateName = VehicleSelector.GetNext(targetList, "Ambient");
+            if (candidateName == null) continue;
+
+            // CHECK: Is this car already on the road?
+            int candidateHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, candidateName);
+
+            if (activeModels.Contains(candidateHash))
+            {
+                // Duplicate detected! Try again.
+                continue;
+            }
+
+            // If we get here, the car is unique.
+            modelName = candidateName;
+            break;
         }
 
-        if (targetList == null) return false;
-
-        string modelName = VehicleSelector.GetNext(targetList, "Ambient");
+        // If after 3 tries we couldn't find a unique car, we abort to avoid stalling or spawning duplicates.
         if (modelName == null) return false;
 
         Model model = new Model(modelName);
@@ -266,6 +288,9 @@ public class TrafficEnhanced : Script
             oldVeh.Delete();
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
+
+            // Add the new car to our local exclusion list so subsequent swaps in the SAME tick don't pick it
+            activeModels.Add(model.Hash);
 
             if (_debugMode) AddDebugBlip(newVeh);
 

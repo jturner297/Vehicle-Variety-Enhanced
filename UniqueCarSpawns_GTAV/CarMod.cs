@@ -23,6 +23,7 @@ public static class CarMod
      //   { "monstrociti", new HashSet<int> { 5, 10, 11 } },
        { "eudora", new HashSet<int> { 10 } },
        { "monstrociti", new HashSet<int> { 10, 11 } },
+       { "arbitergt", new HashSet<int> { 10, 11 } },
         // Add more here: { "modelname", new HashSet<int> { 1, 2, 3 } },
     };
 
@@ -321,7 +322,7 @@ public static class CarMod
         v.Mods[VehicleModType.Engine].Index = 3;
         v.Mods[VehicleModType.Brakes].Index = 2;
         v.Mods[VehicleModType.Transmission].Index = 2;
-        v.Mods[VehicleModType.Suspension].Index = 3;
+        //v.Mods[VehicleModType.Suspension].Index = 3;
         v.Mods[VehicleModType.Armor].Index = 4;
         v.Mods[VehicleToggleModType.Turbo].IsInstalled = true;
     }
@@ -453,7 +454,7 @@ public static class CarMod
     public static void ApplyVIPVisuals(Vehicle v, string modelName)
     {
         // 1. Suspension (Low)
-        v.Mods[VehicleModType.Suspension].Index = 3;
+       // v.Mods[VehicleModType.Suspension].Index = 3;
 
         // 2. Window Tint (Dark Smoke)
         v.Mods.WindowTint = VehicleWindowTint.DarkSmoke;
