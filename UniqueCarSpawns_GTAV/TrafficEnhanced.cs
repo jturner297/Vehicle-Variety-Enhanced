@@ -6,6 +6,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 
+// OPTIMIZED TRAFFIC ENHANCED
+// - Removed LINQ (Fixes GC Lag Spikes)
+// - Added "Two-Pass" Scoring (Cheap Math first, Raycasts second)
+// - Capped Raycasts per frame
+
 public class TrafficEnhanced : Script
 {
     // =============================================================
@@ -15,49 +20,49 @@ public class TrafficEnhanced : Script
     private const string MP_TAG = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
 
-    // Performance & Throttling
-    private int _checkInterval = 250; // How often to SCAN (Cpu saver)
-    private int _swapCooldown = 0;  // How long to WAIT after a successful swap (Flooding prevention)
+    // Performance
+    private int _checkInterval = 100; // Faster checks now possible
+    private int _swapCooldown = 50;   // Very low cooldown for high speed
 
-    // Visibility Logic (Static Distances)
-    private float _minSafeDist = 130f; // Absolute minimum swap distance
-    private float _fovealDist = 240f;  // Max distance for high-detail swapping
-    private float _periphDist = 60f;   // Peripheral vision safety buffer
+    // Limits
+    private int MaxRaycastsPerFrame = 3; // Hard limit on expensive calculations
 
-    private int MaxSwapsPerCycle = 1; // Swaps per tick
+    // Visibility
+    private float _minSafeDist = 130f;
+    private float _fovealDist = 240f;
+
     private float ScoreThreshold = 40f;
-
-    // Driving Style
     private int _driveStyle = 786603;
 
     // DEBUG
     private bool _debugMode = false;
 
     // =============================================================
+    //                 INTERNAL VARIABLES
+    // =============================================================
 
     private Random _rnd = new Random();
     private int _nextCheck = 0;
     private int _nextSwapTime = 0;
-
     private float _minSafeDistSq;
     private float _fovealDistSq;
-    private float _periphDistSq;
 
     private Dictionary<string, AmbientProfile> _zoneRegistry = new Dictionary<string, AmbientProfile>();
     private AmbientProfile _defaultProfile;
-
     private List<Blip> _debugBlips = new List<Blip>();
+
+    // Reusable lists to prevent Garbage Collection (Lag)
+    private List<Vehicle> _candidateBuffer = new List<Vehicle>();
+    private Dictionary<int, int> _modelCensus = new Dictionary<int, int>();
+    private HashSet<int> _activeModels = new HashSet<int>();
 
     public TrafficEnhanced()
     {
-        // Pre-calculate squares to avoid Sqrt() calls in the loop
         _minSafeDistSq = _minSafeDist * _minSafeDist;
         _fovealDistSq = _fovealDist * _fovealDist;
-        _periphDistSq = _periphDist * _periphDist;
 
         InitializeZones();
 
-        // REGISTRATION
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
         Function.Call(Hash.DECOR_REGISTER, MP_TAG, 3);
 
@@ -98,7 +103,6 @@ public class TrafficEnhanced : Script
     private void OnTick(object sender, EventArgs e)
     {
         if (_debugMode) CleanupBlips();
-
         if (Game.GameTime < _nextCheck) return;
 
         try { ProcessAmbientTraffic(); }
@@ -108,119 +112,197 @@ public class TrafficEnhanced : Script
     }
 
     // =============================================================
-    //                 SMART SWAPPING LOGIC
+    //                 LAG-FREE LOGIC
     // =============================================================
 
     private void ProcessAmbientTraffic()
     {
-        // 1. GLOBAL COOLDOWN CHECK
         if (Game.GameTime < _nextSwapTime) return;
 
-        Vehicle[] vehicles = World.GetAllVehicles();
+        Vehicle[] vehicles = World.GetAllVehicles(); // Unavoidable cost
         Ped player = Game.Player.Character;
         Vector3 playerPos = player.Position;
+        Vector3 playerVel = player.Velocity;
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
+        Vector3 playerDir = player.ForwardVector;
 
-        // --- STEP 1: THE CENSUS (INSPIRED BY TRAFFICMP) ---
-        // We create a HashSet of ALL active models to prevent spawning what already exists.
-        Dictionary<int, int> modelCensus = new Dictionary<int, int>();
-        HashSet<int> activeModels = new HashSet<int>();
+        // Reset reusable collections to avoid GC allocations
+        _modelCensus.Clear();
+        _activeModels.Clear();
+        _candidateBuffer.Clear();
 
-        foreach (Vehicle v in vehicles)
+        // --- STEP 1: FAST CENSUS ---
+        // Just counting, no heavy math
+        for (int i = 0; i < vehicles.Length; i++)
         {
+            Vehicle v = vehicles[i];
             if (!v.Exists()) continue;
             int hash = v.Model.Hash;
 
-            // Track counts for targeting duplicates
-            if (modelCensus.ContainsKey(hash)) modelCensus[hash]++;
-            else modelCensus[hash] = 1;
+            if (_modelCensus.ContainsKey(hash)) _modelCensus[hash]++;
+            else _modelCensus[hash] = 1;
 
-            // Track existence for preventing NEW duplicates
-            activeModels.Add(hash);
+            _activeModels.Add(hash);
         }
 
-        // --- STEP 2: FIND CANDIDATES ---
-        List<ScoredVehicle> candidates = new List<ScoredVehicle>();
+        int playerRoadID = GetVehicleNodeID(playerPos);
 
-        foreach (Vehicle v in vehicles)
+        // --- STEP 2: CHEAP PASS (Math Only) ---
+        // Find top 3 candidates based on Distance/Angle/Speed/RoadID
+        // We do NOT raycast here.
+
+        Vehicle bestV1 = null; float score1 = 0;
+        Vehicle bestV2 = null; float score2 = 0;
+        Vehicle bestV3 = null; float score3 = 0;
+
+        for (int i = 0; i < vehicles.Length; i++)
         {
-            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
+            Vehicle v = vehicles[i];
 
+            // Basic Filters
+            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
             if (IsSwapped(v) || IsExcluded(v)) continue;
 
-            float distSq = v.Position.DistanceToSquared(playerPos);
+            float distSq = v.Position.DistanceToSquared(camPos);
+            if (distSq < _minSafeDistSq || distSq > _fovealDistSq) continue;
 
-            if (distSq < _minSafeDistSq) continue;
-            if (!IsHidden(v, distSq, camPos, camDir)) continue;
+            // CHEAP SCORE CALCULATION
+            float rawScore = GetCheapScore(v, camPos, camDir, playerVel, playerRoadID);
 
-            float score = CalculateDirectorScore(v, camPos, camDir, player.ForwardVector);
+            if (rawScore <= 0) continue;
 
-            // Diversity Bonus: Target Duplicates
-            // If this car is one of many (e.g., one of 3 Landstalkers), it gets a HUGE priority to be swapped.
-            if (modelCensus.ContainsKey(v.Model.Hash) && modelCensus[v.Model.Hash] > 1)
+            // Census Bonus (Target Duplicates)
+            if (_modelCensus.ContainsKey(v.Model.Hash) && _modelCensus[v.Model.Hash] > 1) rawScore += 200f;
+
+            // Insertion Sort into top 3
+            if (rawScore > score1)
             {
-                score += 200f;
+                score3 = score2; bestV3 = bestV2;
+                score2 = score1; bestV2 = bestV1;
+                score1 = rawScore; bestV1 = v;
             }
-
-            if (score > ScoreThreshold)
+            else if (rawScore > score2)
             {
-                candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
+                score3 = score2; bestV3 = bestV2;
+                score2 = rawScore; bestV2 = v;
             }
-        }
-
-        // --- STEP 3: EXECUTE SWAPS ---
-        var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
-
-        foreach (var choice in bestChoices)
-        {
-            // We now pass 'activeModels' to AttemptSwap so it knows what NOT to spawn.
-            if (AttemptSwap(choice.Vehicle, activeModels))
+            else if (rawScore > score3)
             {
-                _nextSwapTime = Game.GameTime + _swapCooldown;
-                break;
+                score3 = rawScore; bestV3 = v;
             }
         }
+
+        // --- STEP 3: EXPENSIVE PASS (Raycasts) ---
+        // Only run raycasts on the winners of Step 2
+
+        if (CheckAndSwap(bestV1, camPos, _activeModels)) return;
+        if (CheckAndSwap(bestV2, camPos, _activeModels)) return;
+        if (CheckAndSwap(bestV3, camPos, _activeModels)) return;
     }
 
-    private float CalculateDirectorScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir)
+    // Helper to run the expensive check and swap if successful
+    private bool CheckAndSwap(Vehicle v, Vector3 camPos, HashSet<int> activeModels)
     {
-        float score = 0f;
-        float dist = v.Position.DistanceTo(camPos);
+        if (v == null) return false;
 
-        Vector3 toCar = (v.Position - camPos).Normalized;
+        // THE HEAVY LIFTING: 5 Raycasts
+        if (IsVehicleVisibleSmart(v, camPos))
+        {
+            if (AttemptSwap(v, activeModels))
+            {
+                _nextSwapTime = Game.GameTime + _swapCooldown;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private float GetCheapScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, int playerRoadID)
+    {
+        Vector3 vPos = v.Position;
+        Vector3 toCar = vPos - camPos;
+        float dist = toCar.Length();
+
+        // 1. Slope Check
+        float heightDiff = Math.Abs(vPos.Z - camPos.Z);
+        if (heightDiff > 15f) // Quick height fail before expensive Atan2
+        {
+            double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
+            if (slopeAngle > 45) return 0f;
+        }
+
+        // 2. Angle Check
         float angle = Vector3.Angle(camDir, toCar);
+        if (angle > 60f) return 0f;
 
-        if (angle < 40f) score += 30f;
+        float score = 0f;
 
-        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerDir.Normalized);
-        if (closingSpeed < -0.5f) score += 50f;
+        // 3. Same Road Check (Native call, moderate cost)
+        int carRoadID = GetVehicleNodeID(vPos);
+        if (playerRoadID != 0 && carRoadID == playerRoadID) score += 150f;
 
+        // 4. Movement Check
+        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
+        if (closingSpeed < -0.5f) score += 100f;
+        else if (closingSpeed > 0.5f) score += 20f;
+
+        // 5. Distance Bias (Closer is better, but not TOO close)
         score += (dist / 10f);
 
         return score;
     }
 
-    // UPDATED: Now accepts activeModels to check against
+    private bool IsVehicleVisibleSmart(Vehicle v, Vector3 camPos)
+    {
+        if (!v.IsOnScreen) return false;
+
+        Vector3 min, max;
+        v.Model.GetDimensions(out min, out max);
+
+        // Cascading Raycasts (Ordered by likelihood of failure)
+        // If roof is hidden, car is probably hidden.
+        Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z + 0.1f));
+        if (!World.Raycast(camPos, roof, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 left = v.GetOffsetPosition(new Vector3(min.X, 0, 0.5f));
+        if (!World.Raycast(camPos, left, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 right = v.GetOffsetPosition(new Vector3(max.X, 0, 0.5f));
+        if (!World.Raycast(camPos, right, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 front = v.GetOffsetPosition(new Vector3(0, max.Y, 0.5f));
+        if (!World.Raycast(camPos, front, IntersectFlags.Map).DidHit) return true;
+
+        Vector3 rear = v.GetOffsetPosition(new Vector3(0, min.Y, 0.5f));
+        if (!World.Raycast(camPos, rear, IntersectFlags.Map).DidHit) return true;
+
+        return false;
+    }
+
+    private int GetVehicleNodeID(Vector3 pos)
+    {
+        return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
+    }
+
+    // =============================================================
+    //                 SWAP EXECUTION
+    // =============================================================
+
     private bool AttemptSwap(Vehicle oldVeh, HashSet<int> activeModels)
     {
         string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVeh.Position.X, oldVeh.Position.Y, oldVeh.Position.Z);
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
 
-        // --- OPTIMIZED WEIGHTED SELECTION ---
         int totalWeight = profile.RichChance + profile.MidChance + profile.PoorChance + profile.CountryChance;
         if (totalWeight <= 0) return false;
 
-        // --- RETRY LOOP (INSPIRED BY TRAFFICMP) ---
-        // We try up to 3 times to find a car that DOES NOT exist in the current scene.
         string modelName = null;
         int attempts = 0;
 
         while (attempts < 3)
         {
             attempts++;
-
-            // Select list based on probability
             int roll = _rnd.Next(0, totalWeight);
             HashSet<string> targetList = null;
 
@@ -237,34 +319,28 @@ public class TrafficEnhanced : Script
                 }
             }
 
-            if (targetList == null) continue;
+            if (targetList == null || targetList.Count == 0) continue;
 
-            string candidateName = VehicleSelector.GetNext(targetList, "Ambient");
-            if (candidateName == null) continue;
+            string candidate = targetList.ElementAt(_rnd.Next(targetList.Count));
+            int candidateHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, candidate);
 
-            // CHECK: Is this car already on the road?
-            int candidateHash = (int)Function.Call<uint>(Hash.GET_HASH_KEY, candidateName);
+            if (activeModels.Contains(candidateHash)) continue;
 
-            if (activeModels.Contains(candidateHash))
-            {
-                // Duplicate detected! Try again.
-                continue;
-            }
-
-            // If we get here, the car is unique.
-            modelName = candidateName;
+            modelName = candidate;
             break;
         }
 
-        // If after 3 tries we couldn't find a unique car, we abort to avoid stalling or spawning duplicates.
         if (modelName == null) return false;
 
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
 
         model.Request();
-        int timeout = Game.GameTime + 100;
-        while (!model.IsLoaded && Game.GameTime < timeout) Script.Yield();
+        if (!model.IsLoaded)
+        {
+            int t = Game.GameTime + 50;
+            while (!model.IsLoaded && Game.GameTime < t) Script.Yield();
+        }
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
 
         if (!oldVeh.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
@@ -273,7 +349,6 @@ public class TrafficEnhanced : Script
         if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
-
         Vehicle newVeh = World.CreateVehicle(model, oldVeh.Position, oldVeh.Heading);
 
         if (newVeh != null)
@@ -283,13 +358,11 @@ public class TrafficEnhanced : Script
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
-
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
             oldVeh.Delete();
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
-            // Add the new car to our local exclusion list so subsequent swaps in the SAME tick don't pick it
             activeModels.Add(model.Hash);
 
             if (_debugMode) AddDebugBlip(newVeh);
@@ -297,48 +370,35 @@ public class TrafficEnhanced : Script
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
             model.MarkAsNoLongerNeeded();
-
-            return true; // Success!
+            return true;
         }
-        else
-        {
-            driver.MarkAsNoLongerNeeded();
-            model.MarkAsNoLongerNeeded();
-            return false;
-        }
-    }
 
-    // =============================================================
-    //                 HELPERS & UTILS
-    // =============================================================
-
-    private bool IsHidden(Vehicle v, float distSq, Vector3 camPos, Vector3 camDir)
-    {
-        if (!Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, v.Position.X, v.Position.Y, v.Position.Z, 4.0f)) return true;
-        if (distSq > _fovealDistSq) return true;
-        Vector3 toCar = (v.Position - camPos).Normalized;
-        float angle = Vector3.Angle(camDir, toCar);
-        if (angle > 35.0f && distSq > _periphDistSq) return true;
-        return World.Raycast(camPos, v.Position + new Vector3(0, 0, 0.5f), IntersectFlags.Map).DidHit;
+        model.MarkAsNoLongerNeeded();
+        return false;
     }
 
     private bool IsSwapped(Vehicle v)
     {
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG)) return true;
-        return false;
+        return Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG) || Function.Call<bool>(Hash.DECOR_EXIST_ON, v, MP_TAG);
     }
 
     private bool IsExcluded(Vehicle v)
     {
         if (v.AttachedBlip != null) return true;
         if (v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v)) return true;
+
         VehicleClass vc = v.ClassType;
         if (vc == VehicleClass.Emergency || vc == VehicleClass.Industrial || vc == VehicleClass.Utility ||
             vc == VehicleClass.Cycles || vc == VehicleClass.Boats || vc == VehicleClass.Helicopters ||
             vc == VehicleClass.Planes || vc == VehicleClass.Commercial || vc == VehicleClass.Motorcycles) return true;
+
         if (v.Model.Hash == unchecked((int)VehicleHash.Taxi)) return true;
         return false;
+    }
+
+    private void AssignToProfile(AmbientProfile profile, params string[] zones)
+    {
+        foreach (string z in zones) _zoneRegistry[z] = profile;
     }
 
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
@@ -348,20 +408,13 @@ public class TrafficEnhanced : Script
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
             foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = _debugMode ? 255 : 0; }
-            if (_debugMode)
-            {
-                foreach (Vehicle v in World.GetAllVehicles())
-                {
-                    if (v.Exists() && Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG))
-                    {
-                        if (Function.Call<int>(Hash.DECOR_GET_INT, v, AMB_TAG) == 1) AddDebugBlip(v);
-                    }
-                }
-            }
         }
     }
 
-    private void OnAborted(object sender, EventArgs e) { foreach (var b in _debugBlips) if (b.Exists()) b.Delete(); }
+    private void OnAborted(object sender, EventArgs e)
+    {
+        foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
+    }
 
     private void AddDebugBlip(Vehicle v)
     {
@@ -381,17 +434,20 @@ public class TrafficEnhanced : Script
         for (int i = _debugBlips.Count - 1; i >= 0; i--)
         {
             Blip b = _debugBlips[i];
-            if (!b.Exists() || b.Entity == null || !b.Entity.Exists()) { if (b.Exists()) b.Delete(); _debugBlips.RemoveAt(i); }
+            if (!b.Exists() || b.Entity == null || !b.Entity.Exists())
+            {
+                if (b.Exists()) b.Delete();
+                _debugBlips.RemoveAt(i);
+            }
         }
     }
-
-    private void AssignToProfile(AmbientProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
-
-    private struct ScoredVehicle { public Vehicle Vehicle; public float Score; }
 
     private class AmbientProfile
     {
         public int RichChance; public int MidChance; public int PoorChance; public int CountryChance;
-        public AmbientProfile(int rich, int mid, int poor, int country) { RichChance = rich; MidChance = mid; PoorChance = poor; CountryChance = country; }
+        public AmbientProfile(int rich, int mid, int poor, int country)
+        {
+            RichChance = rich; MidChance = mid; PoorChance = poor; CountryChance = country;
+        }
     }
 }

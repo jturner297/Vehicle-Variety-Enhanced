@@ -25,7 +25,7 @@ public class TrafficMP : Script
     private int _historyCapacity = 10;
 
     // SCORING
-    private float MinSpawnDist = 130f;
+    private float MinSpawnDist = 130;
     private float MaxSpawnDist = 240f;
     private float SpawnFOV = 60f; // Wide FOV for windy roads
     private float ScoreThreshold = 50f;
@@ -255,10 +255,10 @@ public class TrafficMP : Script
     // --- TRANSFORMATION & ZONES (Unchanged) ---
     private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
+        // 1. Safety Checks
         if (IsSwapped(oldVehicle)) return false;
 
         SelectionLayer layer;
-
         string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVehicle.Position.X, oldVehicle.Position.Y, oldVehicle.Position.Z);
         bool isUrban = _urbanZones.Contains(currentZone);
 
@@ -269,50 +269,55 @@ public class TrafficMP : Script
             layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickLayer();
             layer.SourceProfile = "OFFROAD (Dirt Override)";
         }
-        else
-        {
-            layer = GetLayerForLocation(oldVehicle.Position);
-        }
+        else { layer = GetLayerForLocation(oldVehicle.Position); }
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
+        // --- NEW HISTORY LOGIC START ---
         string modelName = null;
-        int attempts = 0;
 
-        while (attempts < 3)
+        // Create a list of Valid Candidates by subtracting History from the Full List
+        // This guarantees we never pick a history car if a fresh one exists
+        var candidates = layer.List.Except(_recentSpawnHistory).ToList();
+
+        if (candidates.Count > 0)
         {
-            string candidate = VehicleSelector.GetNext(layer.List, "Traffic");
-            if (candidate == null) break;
-
-            if (!_recentSpawnHistory.Contains(candidate))
-            {
-                modelName = candidate;
-                break;
-            }
-            attempts++;
+            // Pick a random car from the SAFE list
+            modelName = candidates[_rnd.Next(candidates.Count)];
         }
-        if (modelName == null) modelName = VehicleSelector.GetNext(layer.List, "Traffic");
+        else
+        {
+            // Fallback: If we have seen EVERY car in this category recently,
+            // we have no choice but to pick a random one from the full list.
+            modelName = layer.List.ElementAt(_rnd.Next(layer.List.Count));
+        }
+        // --- NEW HISTORY LOGIC END ---
+
         if (modelName == null) return false;
 
         Model model = new Model(modelName);
         if (!model.IsValid || !model.IsInCdImage) return false;
-
         model.Request();
-        int timeout = Game.GameTime + 1000;
 
+        int timeout = Game.GameTime + 1000;
         while (!model.IsLoaded && Game.GameTime < timeout)
         {
             Script.Yield();
             if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
         }
-
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
-        if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
-        if (IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
+
+        // Final validation
+        if (!oldVehicle.Exists() || IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVehicle.Driver;
         if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
+        // 2. CAPTURE OLD PHYSICS STATE
+        Vector3 oldVelocity = oldVehicle.Velocity;
+        float oldSpeed = oldVehicle.Speed;
+
+        // 3. THE SWAP
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
         Vehicle newVehicle = World.CreateVehicle(model, oldVehicle.Position, oldVehicle.Heading);
 
@@ -323,6 +328,7 @@ public class TrafficMP : Script
             if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
             newVehicle.IsEngineRunning = true;
+
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
 
@@ -333,12 +339,10 @@ public class TrafficMP : Script
 
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
 
-            Function.Call(Hash.ACTIVATE_PHYSICS, newVehicle);
+            // --- PHYSICS FIX ---
             Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
-            Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVehicle);
-
-            newVehicle.Velocity = oldVehicle.Velocity;
-            newVehicle.ForwardSpeed = oldVehicle.Speed;
+            newVehicle.Velocity = oldVelocity;
+            newVehicle.ForwardSpeed = oldSpeed;
 
             driver.BlockPermanentEvents = true;
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
