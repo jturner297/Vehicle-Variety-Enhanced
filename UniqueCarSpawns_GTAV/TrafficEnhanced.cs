@@ -21,12 +21,12 @@ public class TrafficEnhanced : Script
 
     // --- DISTANCE TUNING (AGGRESSIVE) ---
     // We push the "Min" out to 180m so swaps are tiny on screen.
-    private float _minSafeDist = 100f;
+    private float _minSafeDist = 15f;
     private float _fovealDist = 350f;
 
     // Limits
     private int MaxSwapsPerCycle = 1;
-    private float ScoreThreshold = 40f;
+    private float ScoreThreshold = 100f;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -158,37 +158,83 @@ public class TrafficEnhanced : Script
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
+        // --- 1. PRESERVED: Height/Slope Check ---
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
         double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
         if (slopeAngle > 45) return 0f;
 
+        // --- 2. NEW: "Just Passed" Filter ---
+        // If the car is behind us and close, we likely just saw it. Don't touch it.
         Vector3 toCar = (vPos - camPos).Normalized;
-        float angle = Vector3.Angle(camDir, toCar);
+        float dotProduct = Vector3.Dot(camDir, toCar); // 1.0 is front, -1.0 is back
 
-        // Keep Narrow Cone (40 deg) to fix diagonal popping
-        if (angle > 40f) return 0f;
+        // If it is BEHIND the camera (dot < 0) AND within 60 meters
+        if (dotProduct < 0 && dist < 60f)
+        {
+            return 0f; // We just passed this guy. Leave him alone.
+        }
 
+        // --- 3. HEAVY RESOURCE USAGE: The Raycast Check ---
+        // We check this for EVERY candidate now. 
+        // Is the car physically blocked by the world (buildings, walls, other trucks)?
+        bool isPhysicallyBlocked = !IsVehicleVisibleSmart(v, camPos);
+
+        // --- 4. SCORING LOGIC ---
         float score = 0f;
 
-        // Peripheral Penalty
-        if (angle > 20f) score -= 50f;
-
-        int carRoadID = GetVehicleNodeID(vPos);
-        if (playerRoadID != 0 && carRoadID == playerRoadID) score += 150f;
-
-        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
-        if (closingSpeed < -0.5f) score += 100f;
-        else if (closingSpeed > 0.5f) score += 20f;
-
-        if (IsVehicleVisibleSmart(v, camPos))
+        if (v.IsOnScreen)
         {
-            score += 50f;
-            // Distance Bonus: Favor cars that are further away (closer to max dist)
-            score += (dist / 5f);
+            // CASE A: Car is On-Screen
+            if (isPhysicallyBlocked)
+            {
+                // It is on screen, but a wall/bus is blocking our view.
+                // This is the PERFECT swap. High density, zero pop-in.
+                score += 300f;
+            }
+            else
+            {
+                // It is On-Screen and Openly Visible.
+                // HARD REJECT. Never swap a car we can see.
+                return 0f;
+            }
         }
         else
         {
-            return 0f;
+            // CASE B: Car is Off-Screen
+            // Since it's off-screen, we don't *need* it to be blocked by a wall, 
+            // but if it IS blocked, it's even safer (in case we whip the camera around).
+
+            score += 100f; // Base score for being off-screen
+
+            if (isPhysicallyBlocked)
+            {
+                score += 50f; // Extra safety bonus
+            }
+
+            // Peripheral Safety Check (The "Edge" Buffer)
+            // If it's NOT blocked by a wall, we need to make sure it's not 
+            // hovering 1 inch outside our monitor bezel.
+            if (!isPhysicallyBlocked)
+            {
+                // If we can "see" it (line of sight is clear), but it's just barely off-screen...
+                // We require it to be further away or at a wider angle to prevent "Edge Pop".
+                float angle = Vector3.Angle(camDir, toCar);
+                if (angle < 55f) return 0f; // Too close to the edge of the monitor
+            }
+        }
+
+        // --- 5. Distance Weighting ---
+        // If we are fully blocked/hidden, we actually want CLOSER cars 
+        // because they have the highest impact on density.
+        if (isPhysicallyBlocked)
+        {
+            // Inverse distance bonus: Closer = Higher Score
+            score += (100f / (dist + 1f));
+        }
+        else
+        {
+            // If not blocked (just off-screen), prefer slight distance
+            score += (dist / 10f);
         }
 
         return score;
@@ -196,27 +242,31 @@ public class TrafficEnhanced : Script
 
     private bool IsVehicleVisibleSmart(Vehicle v, Vector3 camPos)
     {
-        if (!v.IsOnScreen) return false;
+        // If the game engine says it's off screen, we still might want to know if 
+        // line-of-sight is blocked (for safety), so we run the raycasts anyway.
 
+        // Test the ROOF (Most common visibility point)
         Vector3 min, max;
         v.Model.GetDimensions(out min, out max);
+        Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z));
 
-        Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z + 0.1f));
-        if (!World.Raycast(camPos, roof, IntersectFlags.Map).DidHit) return true;
+        // Raycast: Camera -> Car Roof
+        var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
 
-        Vector3 front = v.GetOffsetPosition(new Vector3(0, max.Y, 0.5f));
-        if (!World.Raycast(camPos, front, IntersectFlags.Map).DidHit) return true;
+        // If we hit something...
+        if (result.DidHit)
+        {
+            // AND that something is NOT the car itself...
+            if (result.HitEntity != v)
+            {
+                return false; // View is blocked by a wall or another car!
+            }
+        }
 
-        Vector3 rear = v.GetOffsetPosition(new Vector3(0, min.Y, 0.5f));
-        if (!World.Raycast(camPos, rear, IntersectFlags.Map).DidHit) return true;
+        // (Repeat for Bumper/Sides if you want "Heavy" checking, 
+        // but Roof is usually the best indicator for traffic)
 
-        Vector3 left = v.GetOffsetPosition(new Vector3(min.X, 0, 0.5f));
-        if (!World.Raycast(camPos, left, IntersectFlags.Map).DidHit) return true;
-
-        Vector3 right = v.GetOffsetPosition(new Vector3(max.X, 0, 0.5f));
-        if (!World.Raycast(camPos, right, IntersectFlags.Map).DidHit) return true;
-
-        return false;
+        return true; // Line of sight is clear
     }
 
     private int GetVehicleNodeID(Vector3 pos)
