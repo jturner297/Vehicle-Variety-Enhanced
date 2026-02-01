@@ -689,7 +689,8 @@ public class VehList
     "windsor",
     "windsor2",
     "xls",
-             "cheetah2",
+          /*
+            "cheetah2",
          "feltzer3",
          "infernus2",
          "gt500",
@@ -715,7 +716,7 @@ public class VehList
         "nero2",
              "sm722",
        "visione",
-       "deveste",
+       "deveste",*/
 
     };
 

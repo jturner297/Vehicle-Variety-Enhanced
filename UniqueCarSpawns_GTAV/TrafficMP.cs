@@ -25,7 +25,7 @@ public class TrafficMP : Script
     private int _historyCapacity = 10;
 
     // SCORING
-    private float MinSpawnDist = 130;
+    private float MinSpawnDist = 130f;
     private float MaxSpawnDist = 240f;
     private float SpawnFOV = 60f; // Wide FOV for windy roads
     private float ScoreThreshold = 50f;
@@ -38,7 +38,7 @@ public class TrafficMP : Script
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
-    private bool EnableFileLogging = true;
+    private bool EnableFileLogging = false;
     private bool _debugMode = false;
 
     // =============================================================
