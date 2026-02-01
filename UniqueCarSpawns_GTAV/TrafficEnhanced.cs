@@ -19,8 +19,8 @@ public class TrafficEnhanced : Script
     private int _checkInterval = 250;
     private int _swapCooldown = 0;
 
-    // --- DISTANCE TUNING (AGGRESSIVE) ---
-    // We push the "Min" out to 180m so swaps are tiny on screen.
+    // --- DISTANCE TUNING ---
+    // Low min distance because our Raycasts are trusted.
     private float _minSafeDist = 15f;
     private float _fovealDist = 350f;
 
@@ -47,11 +47,15 @@ public class TrafficEnhanced : Script
     private AmbientProfile _defaultProfile;
 
     private List<Blip> _debugBlips = new List<Blip>();
+
+    // MEMORY SYSTEMS
     private HashSet<int> _recentSwaps = new HashSet<int>();
+
+    // NEW: The Blacklist (Cars we have seen and must never touch)
+    private HashSet<int> _permanentBlacklist = new HashSet<int>();
 
     public TrafficEnhanced()
     {
-        // Calculate squares once for performance
         _minSafeDistSq = _minSafeDist * _minSafeDist;
         _fovealDistSq = _fovealDist * _fovealDist;
 
@@ -94,7 +98,10 @@ public class TrafficEnhanced : Script
     {
         if (Game.GameTime > _cleanupTimer)
         {
+            // Clean up old handles to prevent memory leaks
             _recentSwaps.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
+            _permanentBlacklist.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
+
             _cleanupTimer = Game.GameTime + 10000;
             if (_debugMode) CleanupBlips();
         }
@@ -125,14 +132,39 @@ public class TrafficEnhanced : Script
         foreach (Vehicle v in vehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
+
+            // 1. BLACKLIST CHECK
+            // If we have seen this car before, or already swapped it, SKIP.
             if (_recentSwaps.Contains(v.Handle)) continue;
-            if (IsSwapped(v) || IsExcluded(v)) continue;
+            if (_permanentBlacklist.Contains(v.Handle)) continue;
+
+            if (IsSwapped(v) || IsExcluded(v))
+            {
+                // Add excluded/already modded cars to blacklist so we stop checking them
+                _permanentBlacklist.Add(v.Handle);
+                continue;
+            }
 
             float distSq = v.Position.DistanceToSquared(camPos);
-            // STRICT DISTANCE CHECK
             if (distSq < _minSafeDistSq || distSq > _fovealDistSq) continue;
 
-            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID);
+            // 2. VISIBILITY "BAN" CHECK
+            // Before we score, we check: Is this car openly visible?
+            // If yes, we ban it immediately.
+            bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
+
+            if (v.IsOnScreen && !isBlocked)
+            {
+                // It is on screen AND nothing is blocking it.
+                // We can see it. 
+                // BAN IT so we never try to swap it even if we look away later.
+                _permanentBlacklist.Add(v.Handle);
+                continue;
+            }
+
+            // 3. SCORE
+            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID, isBlocked);
+
             if (score <= 0) continue;
 
             if (score > ScoreThreshold)
@@ -153,99 +185,56 @@ public class TrafficEnhanced : Script
         }
     }
 
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID)
+    // UPDATED: Now accepts 'isBlocked' as a parameter so we don't recalculate Raycasts
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID, bool isBlocked)
     {
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
-        // --- 1. PRESERVED: Height/Slope Check ---
+        // Height/Slope Check
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
         double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
         if (slopeAngle > 45) return 0f;
 
-        // --- 2. NEW: "Just Passed" Filter ---
-        // If the car is behind us and close, we likely just saw it. Don't touch it.
+        // "Just Passed" Filter
         Vector3 toCar = (vPos - camPos).Normalized;
-        float dotProduct = Vector3.Dot(camDir, toCar); // 1.0 is front, -1.0 is back
+        float dotProduct = Vector3.Dot(camDir, toCar);
+        if (dotProduct < 0 && dist < 60f) return 0f;
 
-        // If it is BEHIND the camera (dot < 0) AND within 60 meters
-        if (dotProduct < 0 && dist < 60f)
-        {
-            return 0f; // We just passed this guy. Leave him alone.
-        }
-
-        // --- 3. HEAVY RESOURCE USAGE: The Raycast Check ---
-        // We check this for EVERY candidate now. 
-        // Is the car physically blocked by the world (buildings, walls, other trucks)?
-        bool isPhysicallyBlocked = !IsVehicleVisibleSmart(v, camPos);
-
-        // --- 4. SCORING LOGIC ---
+        // --- SCORING ---
         float score = 0f;
 
         if (v.IsOnScreen)
         {
-            // CASE A: Car is On-Screen
-            if (isPhysicallyBlocked)
-            {
-                // It is on screen, but a wall/bus is blocking our view.
-                // This is the PERFECT swap. High density, zero pop-in.
-                score += 300f;
-            }
-            else
-            {
-                // It is On-Screen and Openly Visible.
-                // HARD REJECT. Never swap a car we can see.
-                return 0f;
-            }
+            // We already know it's blocked because if it wasn't, 
+            // the main loop would have blacklisted it and skipped this function.
+            // So if we are here, and it's on screen, it MUST be blocked.
+            score += 300f;
         }
         else
         {
-            // CASE B: Car is Off-Screen
-            // Since it's off-screen, we don't *need* it to be blocked by a wall, 
-            // but if it IS blocked, it's even safer (in case we whip the camera around).
+            // Off-Screen
+            score += 100f;
 
-            score += 100f; // Base score for being off-screen
+            if (isBlocked) score += 50f;
 
-            if (isPhysicallyBlocked)
+            // Peripheral Safety Check
+            if (!isBlocked)
             {
-                score += 50f; // Extra safety bonus
-            }
-
-            // Peripheral Safety Check (The "Edge" Buffer)
-            // If it's NOT blocked by a wall, we need to make sure it's not 
-            // hovering 1 inch outside our monitor bezel.
-            if (!isPhysicallyBlocked)
-            {
-                // If we can "see" it (line of sight is clear), but it's just barely off-screen...
-                // We require it to be further away or at a wider angle to prevent "Edge Pop".
                 float angle = Vector3.Angle(camDir, toCar);
-                if (angle < 55f) return 0f; // Too close to the edge of the monitor
+                if (angle < 55f) return 0f;
             }
         }
 
-        // --- 5. Distance Weighting ---
-        // If we are fully blocked/hidden, we actually want CLOSER cars 
-        // because they have the highest impact on density.
-        if (isPhysicallyBlocked)
-        {
-            // Inverse distance bonus: Closer = Higher Score
-            score += (100f / (dist + 1f));
-        }
-        else
-        {
-            // If not blocked (just off-screen), prefer slight distance
-            score += (dist / 10f);
-        }
+        // Distance Weighting
+        if (isBlocked) score += (100f / (dist + 1f));
+        else score += (dist / 10f);
 
         return score;
     }
 
     private bool IsVehicleVisibleSmart(Vehicle v, Vector3 camPos)
     {
-        // If the game engine says it's off screen, we still might want to know if 
-        // line-of-sight is blocked (for safety), so we run the raycasts anyway.
-
-        // Test the ROOF (Most common visibility point)
         Vector3 min, max;
         v.Model.GetDimensions(out min, out max);
         Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z));
@@ -253,21 +242,20 @@ public class TrafficEnhanced : Script
         // Raycast: Camera -> Car Roof
         var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
 
-        // If we hit something...
         if (result.DidHit)
         {
-            // AND that something is NOT the car itself...
             if (result.HitEntity != v)
             {
-                return false; // View is blocked by a wall or another car!
+                return false; // Blocked
             }
         }
-
-        // (Repeat for Bumper/Sides if you want "Heavy" checking, 
-        // but Roof is usually the best indicator for traffic)
-
-        return true; // Line of sight is clear
+        return true; // Visible
     }
+
+    // ... [Rest of the helper functions: GetVehicleNodeID, AttemptSwap, IsSwapped, IsExcluded, etc. remain unchanged] ...
+    // Note: Ensure AttemptSwap adds to _recentSwaps (it already does).
+
+    // ... [Debug Helpers remain unchanged] ...
 
     private int GetVehicleNodeID(Vector3 pos)
     {
@@ -320,7 +308,6 @@ public class TrafficEnhanced : Script
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
-        // Spawn Invisible & Off-Ground to prevent physics collision
         Vector3 spawnPos = oldVeh.Position + new Vector3(0, 0, 0.2f);
         Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
 
@@ -338,7 +325,6 @@ public class TrafficEnhanced : Script
 
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
-            // Warp Old Vehicle to Hell (Z -500)
             oldVeh.Position = new Vector3(oldVeh.Position.X, oldVeh.Position.Y, -500f);
             oldVeh.Delete();
 
@@ -389,7 +375,7 @@ public class TrafficEnhanced : Script
         {
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
-            foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = _debugMode ? 255 : 0; }
+            foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = 255; else b.Alpha = 0; }
         }
     }
 
@@ -403,7 +389,7 @@ public class TrafficEnhanced : Script
         if (v.AttachedBlip != null) return;
         Blip b = v.AddBlip();
         b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Yellow;
+        b.Color = BlipColor.Green;
         b.Scale = 0.6f;
         b.Name = "Ambient Swap";
         b.IsShortRange = true;
