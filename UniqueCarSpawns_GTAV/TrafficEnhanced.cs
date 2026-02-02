@@ -3,7 +3,6 @@ using GTA.Math;
 using GTA.Native;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 
 public class TrafficEnhanced : Script
@@ -20,9 +19,12 @@ public class TrafficEnhanced : Script
     private int _swapCooldown = 0;
 
     // --- DISTANCE TUNING ---
-    // Low min distance because our Raycasts are trusted.
     private float _minSafeDist = 15f;
     private float _fovealDist = 350f;
+
+    // NEW: Distance at which we force a swap even if the car is visible
+    private bool _enableOnScreenSwap = true;
+    private float _OnScreenSwapDist = 250f;
 
     // Limits
     private int MaxSwapsPerCycle = 1;
@@ -42,6 +44,7 @@ public class TrafficEnhanced : Script
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
+    private float _forceSwapDistSq; // Optimization
 
     private Dictionary<string, AmbientProfile> _zoneRegistry = new Dictionary<string, AmbientProfile>();
     private AmbientProfile _defaultProfile;
@@ -50,14 +53,13 @@ public class TrafficEnhanced : Script
 
     // MEMORY SYSTEMS
     private HashSet<int> _recentSwaps = new HashSet<int>();
-
-    // NEW: The Blacklist (Cars we have seen and must never touch)
     private HashSet<int> _permanentBlacklist = new HashSet<int>();
 
     public TrafficEnhanced()
     {
         _minSafeDistSq = _minSafeDist * _minSafeDist;
         _fovealDistSq = _fovealDist * _fovealDist;
+        _forceSwapDistSq = _OnScreenSwapDist * _OnScreenSwapDist;
 
         InitializeZones();
 
@@ -98,7 +100,6 @@ public class TrafficEnhanced : Script
     {
         if (Game.GameTime > _cleanupTimer)
         {
-            // Clean up old handles to prevent memory leaks
             _recentSwaps.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
             _permanentBlacklist.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
 
@@ -125,6 +126,10 @@ public class TrafficEnhanced : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
 
+        // NEW: Anti-Sniper Check
+        // Standard FOV is ~50+. If it drops below 50, user is likely zooming/sniping.
+        bool isZoomed = GameplayCamera.FieldOfView < 50f;
+
         int playerRoadID = GetVehicleNodeID(playerPos);
 
         List<ScoredVehicle> candidates = new List<ScoredVehicle>();
@@ -133,14 +138,11 @@ public class TrafficEnhanced : Script
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
 
-            // 1. BLACKLIST CHECK
-            // If we have seen this car before, or already swapped it, SKIP.
             if (_recentSwaps.Contains(v.Handle)) continue;
             if (_permanentBlacklist.Contains(v.Handle)) continue;
 
             if (IsSwapped(v) || IsExcluded(v))
             {
-                // Add excluded/already modded cars to blacklist so we stop checking them
                 _permanentBlacklist.Add(v.Handle);
                 continue;
             }
@@ -148,22 +150,30 @@ public class TrafficEnhanced : Script
             float distSq = v.Position.DistanceToSquared(camPos);
             if (distSq < _minSafeDistSq || distSq > _fovealDistSq) continue;
 
-            // 2. VISIBILITY "BAN" CHECK
-            // Before we score, we check: Is this car openly visible?
-            // If yes, we ban it immediately.
+            // --- VISIBILITY & SAFETY LOGIC ---
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
+
+            // Is it far enough away to be force-swapped?
+            bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
 
             if (v.IsOnScreen && !isBlocked)
             {
-                // It is on screen AND nothing is blocking it.
-                // We can see it. 
-                // BAN IT so we never try to swap it even if we look away later.
-                _permanentBlacklist.Add(v.Handle);
-                continue;
+                // It is visible on screen.
+                // WE CAN ONLY SWAP IF: It is Far Away AND We are NOT Zoomed in.
+                if (!isDistantCandidate || isZoomed)
+                {
+                    // It's too close, OR we are looking at it with a scope. 
+                    // BAN IT.
+                    _permanentBlacklist.Add(v.Handle);
+                    continue;
+                }
+
+                // If we get here, it's visible, but far enough away and we aren't zooming.
+                // It is eligible for a Force Swap.
             }
 
-            // 3. SCORE
-            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID, isBlocked);
+            // Pass the new flags to the scorer
+            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID, isBlocked, isDistantCandidate);
 
             if (score <= 0) continue;
 
@@ -185,8 +195,7 @@ public class TrafficEnhanced : Script
         }
     }
 
-    // UPDATED: Now accepts 'isBlocked' as a parameter so we don't recalculate Raycasts
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID, bool isBlocked)
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID, bool isBlocked, bool isDistantCandidate)
     {
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
@@ -204,21 +213,26 @@ public class TrafficEnhanced : Script
         // --- SCORING ---
         float score = 0f;
 
+        // 1. DISTANT FORCE SWAP (Priority)
+        if (isDistantCandidate && v.IsOnScreen)
+        {
+            // Give massive points to force this swap immediately
+            // This populates the horizon.
+            return 1000f + (dist / 10f);
+        }
+
         if (v.IsOnScreen)
         {
-            // We already know it's blocked because if it wasn't, 
-            // the main loop would have blacklisted it and skipped this function.
-            // So if we are here, and it's on screen, it MUST be blocked.
+            // If we are here, and it's on screen, it MUST be blocked 
+            // (because unblocked+close would have been banned in the loop)
             score += 300f;
         }
         else
         {
             // Off-Screen
             score += 100f;
-
             if (isBlocked) score += 50f;
 
-            // Peripheral Safety Check
             if (!isBlocked)
             {
                 float angle = Vector3.Angle(camDir, toCar);
@@ -226,7 +240,6 @@ public class TrafficEnhanced : Script
             }
         }
 
-        // Distance Weighting
         if (isBlocked) score += (100f / (dist + 1f));
         else score += (dist / 10f);
 
@@ -239,23 +252,17 @@ public class TrafficEnhanced : Script
         v.Model.GetDimensions(out min, out max);
         Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z));
 
-        // Raycast: Camera -> Car Roof
         var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
 
         if (result.DidHit)
         {
             if (result.HitEntity != v)
             {
-                return false; // Blocked
+                return false;
             }
         }
-        return true; // Visible
+        return true;
     }
-
-    // ... [Rest of the helper functions: GetVehicleNodeID, AttemptSwap, IsSwapped, IsExcluded, etc. remain unchanged] ...
-    // Note: Ensure AttemptSwap adds to _recentSwaps (it already does).
-
-    // ... [Debug Helpers remain unchanged] ...
 
     private int GetVehicleNodeID(Vector3 pos)
     {
@@ -376,6 +383,11 @@ public class TrafficEnhanced : Script
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
             foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = 255; else b.Alpha = 0; }
+        }
+        if (e.KeyCode == System.Windows.Forms.Keys.NumPad1)
+        {
+            _enableOnScreenSwap = !_enableOnScreenSwap;
+            GTA.UI.Notification.PostTicker($"Force Swap Logic: {(_enableOnScreenSwap ? "~g~ENABLED" : "~r~DISABLED")}", true);
         }
     }
 
