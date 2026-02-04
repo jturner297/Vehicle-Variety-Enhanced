@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 0;
+    private int _swapCooldown = 1000;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -29,6 +29,9 @@ public class TrafficEnhanced : Script
     // Limits
     private int MaxSwapsPerCycle = 1;
     private float ScoreThreshold = 100f;
+
+    // NEW: Memory Cap (Keep 15 models ready in RAM)
+    private int _memoryCap = 200;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -44,7 +47,7 @@ public class TrafficEnhanced : Script
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
-    private float _forceSwapDistSq; // Optimization
+    private float _forceSwapDistSq;
 
     private Dictionary<string, AmbientProfile> _zoneRegistry = new Dictionary<string, AmbientProfile>();
     private AmbientProfile _defaultProfile;
@@ -54,6 +57,12 @@ public class TrafficEnhanced : Script
     // MEMORY SYSTEMS
     private HashSet<int> _recentSwaps = new HashSet<int>();
     private HashSet<int> _permanentBlacklist = new HashSet<int>();
+
+    // NEW: Background Loader Variables
+    private string _currentZoneLabel = "";
+    private List<Model> _hotMemoryList = new List<Model>();
+    private Queue<string> _loadQueue = new Queue<string>();
+    private int _loadingTicker = 0;
 
     public TrafficEnhanced()
     {
@@ -98,6 +107,9 @@ public class TrafficEnhanced : Script
 
     private void OnTick(object sender, EventArgs e)
     {
+        // NEW: Run Memory Manager every tick
+        ManageZoneMemory();
+
         if (Game.GameTime > _cleanupTimer)
         {
             _recentSwaps.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
@@ -115,9 +127,78 @@ public class TrafficEnhanced : Script
         _nextCheck = Game.GameTime + _checkInterval;
     }
 
+    // =============================================================
+    //                 NEW: MEMORY MANAGER LOGIC
+    // =============================================================
+    private void ManageZoneMemory()
+    {
+        Vector3 pPos = Game.Player.Character.Position;
+        string zoneCode = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pPos.X, pPos.Y, pPos.Z);
+
+        // A. DETECT ZONE CHANGE
+        if (zoneCode != _currentZoneLabel)
+        {
+            _currentZoneLabel = zoneCode;
+            RefreshLoadQueue(zoneCode);
+        }
+
+        // B. BACKGROUND LOADER (1 model every 10 ticks to prevent stutter)
+        _loadingTicker++;
+        if (_loadingTicker > 10)
+        {
+            _loadingTicker = 0;
+            if (_loadQueue.Count > 0 && _hotMemoryList.Count < _memoryCap)
+            {
+                string modelName = _loadQueue.Dequeue();
+                Model m = new Model(modelName);
+
+                if (m.IsValid && m.IsInCdImage)
+                {
+                    // ASYNC REQUEST: Ask for it, but don't wait.
+                    m.Request();
+                    _hotMemoryList.Add(m);
+                }
+            }
+        }
+    }
+
+    private void RefreshLoadQueue(string zone)
+    {
+        // Release old memory
+        foreach (var m in _hotMemoryList) m.MarkAsNoLongerNeeded();
+        _hotMemoryList.Clear();
+        _loadQueue.Clear();
+
+        AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
+
+        List<string> wishList = new List<string>();
+
+        if (profile.RichChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_rich, 5));
+        if (profile.MidChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_mid, 5));
+        if (profile.PoorChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_poor, 5));
+        if (profile.CountryChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_countryside, 5));
+
+        foreach (string name in wishList)
+        {
+            if (!_loadQueue.Contains(name)) _loadQueue.Enqueue(name);
+        }
+    }
+
+    private IEnumerable<string> GetRandomBatch(HashSet<string> source, int count)
+    {
+        return source.OrderBy(x => _rnd.Next()).Take(count);
+    }
+
+    // =============================================================
+
     private void ProcessAmbientTraffic()
     {
         if (Game.GameTime < _nextSwapTime) return;
+
+        // NEW: Variety Gate (Anti-Spam)
+        // Ensure we have at least 3 models loaded before we start swapping
+        var readyModels = _hotMemoryList.Where(m => m.IsLoaded).ToList();
+        if (readyModels.Count < 3) return;
 
         Vehicle[] vehicles = World.GetAllVehicles();
         Ped player = Game.Player.Character;
@@ -126,8 +207,7 @@ public class TrafficEnhanced : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
 
-        // NEW: Anti-Sniper Check
-        // Standard FOV is ~50+. If it drops below 50, user is likely zooming/sniping.
+        // Anti-Sniper Check
         bool isZoomed = GameplayCamera.FieldOfView < 50f;
 
         int playerRoadID = GetVehicleNodeID(playerPos);
@@ -153,26 +233,17 @@ public class TrafficEnhanced : Script
             // --- VISIBILITY & SAFETY LOGIC ---
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
 
-            // Is it far enough away to be force-swapped?
             bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
 
             if (v.IsOnScreen && !isBlocked)
             {
-                // It is visible on screen.
-                // WE CAN ONLY SWAP IF: It is Far Away AND We are NOT Zoomed in.
                 if (!isDistantCandidate || isZoomed)
                 {
-                    // It's too close, OR we are looking at it with a scope. 
-                    // BAN IT.
                     _permanentBlacklist.Add(v.Handle);
                     continue;
                 }
-
-                // If we get here, it's visible, but far enough away and we aren't zooming.
-                // It is eligible for a Force Swap.
             }
 
-            // Pass the new flags to the scorer
             float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID, isBlocked, isDistantCandidate);
 
             if (score <= 0) continue;
@@ -187,12 +258,69 @@ public class TrafficEnhanced : Script
 
         foreach (var choice in bestChoices)
         {
-            if (AttemptSwap(choice.Vehicle))
+            // NEW: Pass the pre-loaded readyModels list
+            if (AttemptSwap(choice.Vehicle, readyModels))
             {
                 _nextSwapTime = Game.GameTime + _swapCooldown;
                 break;
             }
         }
+    }
+
+    // MODIFIED: Now accepts the list of pre-loaded models for Zero-Lag Swapping
+    private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
+    {
+        // 1. INSTANT PICK (Grabs from RAM, no loading wait)
+        if (readyModels.Count == 0) return false;
+        Model model = readyModels[_rnd.Next(readyModels.Count)];
+
+        // Double check it's loaded (it should be)
+        if (!model.IsLoaded) return false;
+
+        // 2. SAFETY CHECKS (Standard)
+        if (!oldVeh.Exists()) return false;
+        Ped driver = oldVeh.Driver;
+        if (driver == null || !driver.Exists()) return false;
+
+        // 3. DRIVER PROTECTION (Preserved from your stable build)
+        Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
+
+        Vector3 spawnPos = oldVeh.Position + new Vector3(0, 0, 0.2f);
+        Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
+
+        if (newVeh != null)
+        {
+            Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, false, 0);
+            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, false, false);
+            _recentSwaps.Add(newVeh.Handle);
+
+            newVeh.Velocity = oldVeh.Velocity;
+            newVeh.ForwardSpeed = oldVeh.Speed;
+            newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
+
+            Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
+
+            driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
+
+            oldVeh.Position = new Vector3(oldVeh.Position.X, oldVeh.Position.Y, -500f);
+            oldVeh.Delete();
+
+            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
+            Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
+
+            Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
+
+            if (_debugMode) AddDebugBlip(newVeh);
+
+            newVeh.MarkAsNoLongerNeeded();
+            driver.MarkAsNoLongerNeeded();
+            // IMPORTANT: We do NOT mark 'model' as no longer needed here.
+            // It stays in RAM (in _hotMemoryList) for the next swap.
+            return true;
+        }
+
+        // If swap fails, just return false
+        return false;
     }
 
     private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID, bool isBlocked, bool isDistantCandidate)
@@ -213,23 +341,17 @@ public class TrafficEnhanced : Script
         // --- SCORING ---
         float score = 0f;
 
-        // 1. DISTANT FORCE SWAP (Priority)
         if (isDistantCandidate && v.IsOnScreen)
         {
-            // Give massive points to force this swap immediately
-            // This populates the horizon.
             return 1000f + (dist / 10f);
         }
 
         if (v.IsOnScreen)
         {
-            // If we are here, and it's on screen, it MUST be blocked 
-            // (because unblocked+close would have been banned in the loop)
             score += 300f;
         }
         else
         {
-            // Off-Screen
             score += 100f;
             if (isBlocked) score += 50f;
 
@@ -267,89 +389,6 @@ public class TrafficEnhanced : Script
     private int GetVehicleNodeID(Vector3 pos)
     {
         return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
-    }
-
-    private bool AttemptSwap(Vehicle oldVeh)
-    {
-        string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVeh.Position.X, oldVeh.Position.Y, oldVeh.Position.Z);
-        AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
-
-        int totalWeight = profile.RichChance + profile.MidChance + profile.PoorChance + profile.CountryChance;
-        if (totalWeight <= 0) return false;
-
-        int roll = _rnd.Next(0, totalWeight);
-        HashSet<string> targetList = null;
-
-        if (roll < profile.RichChance) targetList = VehList.models_rich;
-        else
-        {
-            roll -= profile.RichChance;
-            if (roll < profile.MidChance) targetList = VehList.models_mid;
-            else
-            {
-                roll -= profile.MidChance;
-                if (roll < profile.PoorChance) targetList = VehList.models_poor;
-                else targetList = VehList.models_countryside;
-            }
-        }
-
-        if (targetList == null || targetList.Count == 0) return false;
-
-        string modelName = targetList.ElementAt(_rnd.Next(targetList.Count));
-
-        Model model = new Model(modelName);
-        if (!model.IsValid || !model.IsInCdImage) return false;
-
-        model.Request();
-        if (!model.IsLoaded)
-        {
-            int t = Game.GameTime + 50;
-            while (!model.IsLoaded && Game.GameTime < t) Script.Yield();
-        }
-        if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
-
-        if (!oldVeh.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
-
-        Ped driver = oldVeh.Driver;
-        if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
-
-        Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
-
-        Vector3 spawnPos = oldVeh.Position + new Vector3(0, 0, 0.2f);
-        Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
-
-        if (newVeh != null)
-        {
-            Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, false, 0);
-            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, false, false);
-            _recentSwaps.Add(newVeh.Handle);
-
-            newVeh.Velocity = oldVeh.Velocity;
-            newVeh.ForwardSpeed = oldVeh.Speed;
-            newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
-
-            Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
-
-            driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
-
-            oldVeh.Position = new Vector3(oldVeh.Position.X, oldVeh.Position.Y, -500f);
-            oldVeh.Delete();
-
-            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
-            Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
-
-            Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
-
-            if (_debugMode) AddDebugBlip(newVeh);
-
-            newVeh.MarkAsNoLongerNeeded();
-            driver.MarkAsNoLongerNeeded();
-            model.MarkAsNoLongerNeeded();
-            return true;
-        }
-
-        model.MarkAsNoLongerNeeded();
-        return false;
     }
 
     private bool IsSwapped(Vehicle v)
