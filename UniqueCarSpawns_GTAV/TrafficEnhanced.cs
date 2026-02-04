@@ -30,8 +30,8 @@ public class TrafficEnhanced : Script
     private int MaxSwapsPerCycle = 2;
     private float ScoreThreshold = 100f;
 
-    // MEMORY CAP: Keep 40 models ready in RAM
-    private int _memoryCap = 30;
+    // MEMORY CAP: Keep 30 models ready in RAM
+    private int _memoryCap = 45;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -52,6 +52,9 @@ public class TrafficEnhanced : Script
     private Dictionary<string, AmbientProfile> _zoneRegistry = new Dictionary<string, AmbientProfile>();
     private AmbientProfile _defaultProfile;
 
+    // NEW: Tracks the active profile object to prevent memory thrashing
+    private AmbientProfile _currentProfile;
+
     private List<Blip> _debugBlips = new List<Blip>();
 
     // MEMORY SYSTEMS
@@ -66,7 +69,7 @@ public class TrafficEnhanced : Script
 
     // NEW: Anti-Clustering History
     private List<int> _spawnHistory = new List<int>();
-    private int _historyDepth = 8; // Lowered from 12 to match the smaller memory cap
+    private int _historyDepth = 14;
 
     public TrafficEnhanced()
     {
@@ -135,11 +138,19 @@ public class TrafficEnhanced : Script
         Vector3 pPos = Game.Player.Character.Position;
         string zoneCode = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pPos.X, pPos.Y, pPos.Z);
 
-        if (zoneCode != _currentZoneLabel)
+        // 1. Identify the profile for the current location
+        AmbientProfile activeProfile = _zoneRegistry.ContainsKey(zoneCode) ? _zoneRegistry[zoneCode] : _defaultProfile;
+
+        // 2. CHECK PROFILE REFERENCE instead of Zone Name string
+        // This prevents memory dumping when moving between zones that share the same list (e.g. Davis -> Rancho)
+        if (activeProfile != _currentProfile)
         {
+            _currentProfile = activeProfile;
             _currentZoneLabel = zoneCode;
+
             _loadQueue.Clear();
-            // VARIETY HACK: When changing zones, dump HALF the memory immediately to force new stuff
+
+            // VARIETY HACK: Dump memory only when the PROFILE actually changes
             if (_hotMemoryList.Count > 10)
             {
                 int removeCount = _hotMemoryList.Count / 2;
@@ -161,7 +172,7 @@ public class TrafficEnhanced : Script
         }
 
         _loadingTicker++;
-        // TURBO SPEED: Process a new model every 3 ticks (instead of 10)
+        // TURBO SPEED: Process a new model every 3 ticks
         if (_loadingTicker > 3)
         {
             _loadingTicker = 0;
@@ -206,7 +217,6 @@ public class TrafficEnhanced : Script
                 bool alreadyLoaded = false;
                 foreach (var loaded in _hotMemoryList)
                 {
-                    // FIX: Replaced obsolete Game.GenerateHash with direct native call
                     if (loaded.Hash == Function.Call<int>(Hash.GET_HASH_KEY, name))
                     {
                         alreadyLoaded = true;
