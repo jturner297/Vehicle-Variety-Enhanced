@@ -16,22 +16,22 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 1000;
+    private int _swapCooldown = 500;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
     private float _fovealDist = 350f;
 
-    // NEW: Distance at which we force a swap even if the car is visible
+    // Distance at which we force a swap even if the car is visible
     private bool _enableOnScreenSwap = true;
     private float _OnScreenSwapDist = 250f;
 
     // Limits
-    private int MaxSwapsPerCycle = 1;
+    private int MaxSwapsPerCycle = 2;
     private float ScoreThreshold = 100f;
 
-    // NEW: Memory Cap (Keep 15 models ready in RAM)
-    private int _memoryCap = 200;
+    // MEMORY CAP: Keep 40 models ready in RAM
+    private int _memoryCap = 30;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -63,6 +63,10 @@ public class TrafficEnhanced : Script
     private List<Model> _hotMemoryList = new List<Model>();
     private Queue<string> _loadQueue = new Queue<string>();
     private int _loadingTicker = 0;
+
+    // NEW: Anti-Clustering History
+    private List<int> _spawnHistory = new List<int>();
+    private int _historyDepth = 8; // Lowered from 12 to match the smaller memory cap
 
     public TrafficEnhanced()
     {
@@ -107,7 +111,6 @@ public class TrafficEnhanced : Script
 
     private void OnTick(object sender, EventArgs e)
     {
-        // NEW: Run Memory Manager every tick
         ManageZoneMemory();
 
         if (Game.GameTime > _cleanupTimer)
@@ -127,34 +130,57 @@ public class TrafficEnhanced : Script
         _nextCheck = Game.GameTime + _checkInterval;
     }
 
-    // =============================================================
-    //                 NEW: MEMORY MANAGER LOGIC
-    // =============================================================
     private void ManageZoneMemory()
     {
         Vector3 pPos = Game.Player.Character.Position;
         string zoneCode = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pPos.X, pPos.Y, pPos.Z);
 
-        // A. DETECT ZONE CHANGE
         if (zoneCode != _currentZoneLabel)
         {
             _currentZoneLabel = zoneCode;
-            RefreshLoadQueue(zoneCode);
+            _loadQueue.Clear();
+            // VARIETY HACK: When changing zones, dump HALF the memory immediately to force new stuff
+            if (_hotMemoryList.Count > 10)
+            {
+                int removeCount = _hotMemoryList.Count / 2;
+                for (int i = 0; i < removeCount; i++)
+                {
+                    if (_hotMemoryList.Count > 0)
+                    {
+                        _hotMemoryList[0].MarkAsNoLongerNeeded();
+                        _hotMemoryList.RemoveAt(0);
+                    }
+                }
+            }
         }
 
-        // B. BACKGROUND LOADER (1 model every 10 ticks to prevent stutter)
+        // AGGRESSIVE REFILL: If we have less than 10 queued, grab more immediately
+        if (_loadQueue.Count < 10)
+        {
+            AddToLoadQueue(zoneCode);
+        }
+
         _loadingTicker++;
-        if (_loadingTicker > 10)
+        // TURBO SPEED: Process a new model every 3 ticks (instead of 10)
+        if (_loadingTicker > 3)
         {
             _loadingTicker = 0;
-            if (_loadQueue.Count > 0 && _hotMemoryList.Count < _memoryCap)
+            if (_loadQueue.Count > 0)
             {
+                // ROTATION: If memory is full, DELETE THE OLDEST immediately
+                if (_hotMemoryList.Count >= _memoryCap)
+                {
+                    var oldModel = _hotMemoryList[0];
+                    oldModel.MarkAsNoLongerNeeded();
+                    _hotMemoryList.RemoveAt(0);
+                }
+
                 string modelName = _loadQueue.Dequeue();
                 Model m = new Model(modelName);
 
+                // Load it
                 if (m.IsValid && m.IsInCdImage)
                 {
-                    // ASYNC REQUEST: Ask for it, but don't wait.
                     m.Request();
                     _hotMemoryList.Add(m);
                 }
@@ -162,25 +188,34 @@ public class TrafficEnhanced : Script
         }
     }
 
-    private void RefreshLoadQueue(string zone)
+    private void AddToLoadQueue(string zone)
     {
-        // Release old memory
-        foreach (var m in _hotMemoryList) m.MarkAsNoLongerNeeded();
-        _hotMemoryList.Clear();
-        _loadQueue.Clear();
-
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
 
         List<string> wishList = new List<string>();
 
-        if (profile.RichChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_rich, 5));
-        if (profile.MidChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_mid, 5));
-        if (profile.PoorChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_poor, 5));
-        if (profile.CountryChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_countryside, 5));
+        if (profile.RichChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_rich, 3));
+        if (profile.MidChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_mid, 3));
+        if (profile.PoorChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_poor, 3));
+        if (profile.CountryChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_countryside, 3));
 
         foreach (string name in wishList)
         {
-            if (!_loadQueue.Contains(name)) _loadQueue.Enqueue(name);
+            if (!_loadQueue.Contains(name))
+            {
+                bool alreadyLoaded = false;
+                foreach (var loaded in _hotMemoryList)
+                {
+                    // FIX: Replaced obsolete Game.GenerateHash with direct native call
+                    if (loaded.Hash == Function.Call<int>(Hash.GET_HASH_KEY, name))
+                    {
+                        alreadyLoaded = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyLoaded) _loadQueue.Enqueue(name);
+            }
         }
     }
 
@@ -189,38 +224,26 @@ public class TrafficEnhanced : Script
         return source.OrderBy(x => _rnd.Next()).Take(count);
     }
 
-    // =============================================================
-
     private void ProcessAmbientTraffic()
     {
         if (Game.GameTime < _nextSwapTime) return;
 
-        // NEW: Variety Gate (Anti-Spam)
-        // Ensure we have at least 3 models loaded before we start swapping
         var readyModels = _hotMemoryList.Where(m => m.IsLoaded).ToList();
         if (readyModels.Count < 3) return;
 
         Vehicle[] vehicles = World.GetAllVehicles();
         Ped player = Game.Player.Character;
-        Vector3 playerPos = player.Position;
-        Vector3 playerVel = player.Velocity;
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
-
-        // Anti-Sniper Check
         bool isZoomed = GameplayCamera.FieldOfView < 50f;
-
-        int playerRoadID = GetVehicleNodeID(playerPos);
 
         List<ScoredVehicle> candidates = new List<ScoredVehicle>();
 
         foreach (Vehicle v in vehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
-
             if (_recentSwaps.Contains(v.Handle)) continue;
             if (_permanentBlacklist.Contains(v.Handle)) continue;
-
             if (IsSwapped(v) || IsExcluded(v))
             {
                 _permanentBlacklist.Add(v.Handle);
@@ -230,9 +253,7 @@ public class TrafficEnhanced : Script
             float distSq = v.Position.DistanceToSquared(camPos);
             if (distSq < _minSafeDistSq || distSq > _fovealDistSq) continue;
 
-            // --- VISIBILITY & SAFETY LOGIC ---
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
-
             bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
 
             if (v.IsOnScreen && !isBlocked)
@@ -244,10 +265,7 @@ public class TrafficEnhanced : Script
                 }
             }
 
-            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, playerVel, playerRoadID, isBlocked, isDistantCandidate);
-
-            if (score <= 0) continue;
-
+            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, player.Velocity, 0, isBlocked, isDistantCandidate);
             if (score > ScoreThreshold)
             {
                 candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
@@ -258,7 +276,6 @@ public class TrafficEnhanced : Script
 
         foreach (var choice in bestChoices)
         {
-            // NEW: Pass the pre-loaded readyModels list
             if (AttemptSwap(choice.Vehicle, readyModels))
             {
                 _nextSwapTime = Game.GameTime + _swapCooldown;
@@ -267,22 +284,23 @@ public class TrafficEnhanced : Script
         }
     }
 
-    // MODIFIED: Now accepts the list of pre-loaded models for Zero-Lag Swapping
     private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
     {
-        // 1. INSTANT PICK (Grabs from RAM, no loading wait)
-        if (readyModels.Count == 0) return false;
-        Model model = readyModels[_rnd.Next(readyModels.Count)];
+        // 1. Filter out models we have spawned recently (History Check)
+        var validCandidates = readyModels.Where(m => !_spawnHistory.Contains(m.Hash)).ToList();
 
-        // Double check it's loaded (it should be)
+        // 2. Fallback
+        if (validCandidates.Count == 0) validCandidates = readyModels;
+
+        // 3. Pick random
+        Model model = validCandidates[_rnd.Next(validCandidates.Count)];
+
         if (!model.IsLoaded) return false;
 
-        // 2. SAFETY CHECKS (Standard)
         if (!oldVeh.Exists()) return false;
         Ped driver = oldVeh.Driver;
         if (driver == null || !driver.Exists()) return false;
 
-        // 3. DRIVER PROTECTION (Preserved from your stable build)
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
         Vector3 spawnPos = oldVeh.Position + new Vector3(0, 0, 0.2f);
@@ -299,7 +317,6 @@ public class TrafficEnhanced : Script
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
-
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
             oldVeh.Position = new Vector3(oldVeh.Position.X, oldVeh.Position.Y, -500f);
@@ -307,19 +324,23 @@ public class TrafficEnhanced : Script
 
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
-
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
             if (_debugMode) AddDebugBlip(newVeh);
 
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
-            // IMPORTANT: We do NOT mark 'model' as no longer needed here.
-            // It stays in RAM (in _hotMemoryList) for the next swap.
+
+            // Update History
+            _spawnHistory.Add(model.Hash);
+            if (_spawnHistory.Count > _historyDepth)
+            {
+                _spawnHistory.RemoveAt(0);
+            }
+
             return true;
         }
 
-        // If swap fails, just return false
         return false;
     }
 
@@ -328,34 +349,22 @@ public class TrafficEnhanced : Script
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
-        // Height/Slope Check
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
-        double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
-        if (slopeAngle > 45) return 0f;
+        if (heightDiff > 15f) return 0f;
 
-        // "Just Passed" Filter
         Vector3 toCar = (vPos - camPos).Normalized;
-        float dotProduct = Vector3.Dot(camDir, toCar);
-        if (dotProduct < 0 && dist < 60f) return 0f;
 
-        // --- SCORING ---
         float score = 0f;
 
         if (isDistantCandidate && v.IsOnScreen)
-        {
             return 1000f + (dist / 10f);
-        }
 
-        if (v.IsOnScreen)
-        {
-            score += 300f;
-        }
+        if (v.IsOnScreen) score += 300f;
         else
         {
             score += 100f;
             if (isBlocked) score += 50f;
-
-            if (!isBlocked)
+            else
             {
                 float angle = Vector3.Angle(camDir, toCar);
                 if (angle < 55f) return 0f;
@@ -373,22 +382,8 @@ public class TrafficEnhanced : Script
         Vector3 min, max;
         v.Model.GetDimensions(out min, out max);
         Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z));
-
         var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
-
-        if (result.DidHit)
-        {
-            if (result.HitEntity != v)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private int GetVehicleNodeID(Vector3 pos)
-    {
-        return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
+        return !result.DidHit || result.HitEntity == v;
     }
 
     private bool IsSwapped(Vehicle v)
@@ -422,11 +417,6 @@ public class TrafficEnhanced : Script
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
             foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = 255; else b.Alpha = 0; }
-        }
-        if (e.KeyCode == System.Windows.Forms.Keys.NumPad1)
-        {
-            _enableOnScreenSwap = !_enableOnScreenSwap;
-            GTA.UI.Notification.PostTicker($"Force Swap Logic: {(_enableOnScreenSwap ? "~g~ENABLED" : "~r~DISABLED")}", true);
         }
     }
 
