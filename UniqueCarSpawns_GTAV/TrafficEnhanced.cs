@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 500;
+    private int _swapCooldown = 0;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -27,10 +27,10 @@ public class TrafficEnhanced : Script
     private float _OnScreenSwapDist = 250f;
 
     // Limits
-    private int MaxSwapsPerCycle = 2;
-    private float ScoreThreshold = 100f;
+    private int MaxSwapsPerCycle = 1;
+    private float ScoreThreshold = 450f;
 
-    // MEMORY CAP: Keep 30 models ready in RAM
+    // MEMORY CAP
     private int _memoryCap = 45;
 
     private int _driveStyle = 786603;
@@ -51,25 +51,20 @@ public class TrafficEnhanced : Script
 
     private Dictionary<string, AmbientProfile> _zoneRegistry = new Dictionary<string, AmbientProfile>();
     private AmbientProfile _defaultProfile;
-
-    // NEW: Tracks the active profile object to prevent memory thrashing
     private AmbientProfile _currentProfile;
 
     private List<Blip> _debugBlips = new List<Blip>();
 
-    // MEMORY SYSTEMS
     private HashSet<int> _recentSwaps = new HashSet<int>();
     private HashSet<int> _permanentBlacklist = new HashSet<int>();
 
-    // NEW: Background Loader Variables
     private string _currentZoneLabel = "";
     private List<Model> _hotMemoryList = new List<Model>();
     private Queue<string> _loadQueue = new Queue<string>();
     private int _loadingTicker = 0;
 
-    // NEW: Anti-Clustering History
     private List<int> _spawnHistory = new List<int>();
-    private int _historyDepth = 14;
+    private int _historyDepth = 28;
 
     public TrafficEnhanced()
     {
@@ -138,19 +133,14 @@ public class TrafficEnhanced : Script
         Vector3 pPos = Game.Player.Character.Position;
         string zoneCode = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pPos.X, pPos.Y, pPos.Z);
 
-        // 1. Identify the profile for the current location
         AmbientProfile activeProfile = _zoneRegistry.ContainsKey(zoneCode) ? _zoneRegistry[zoneCode] : _defaultProfile;
 
-        // 2. CHECK PROFILE REFERENCE instead of Zone Name string
-        // This prevents memory dumping when moving between zones that share the same list (e.g. Davis -> Rancho)
         if (activeProfile != _currentProfile)
         {
             _currentProfile = activeProfile;
             _currentZoneLabel = zoneCode;
-
             _loadQueue.Clear();
 
-            // VARIETY HACK: Dump memory only when the PROFILE actually changes
             if (_hotMemoryList.Count > 10)
             {
                 int removeCount = _hotMemoryList.Count / 2;
@@ -165,20 +155,17 @@ public class TrafficEnhanced : Script
             }
         }
 
-        // AGGRESSIVE REFILL: If we have less than 10 queued, grab more immediately
         if (_loadQueue.Count < 10)
         {
             AddToLoadQueue(zoneCode);
         }
 
         _loadingTicker++;
-        // TURBO SPEED: Process a new model every 3 ticks
         if (_loadingTicker > 3)
         {
             _loadingTicker = 0;
             if (_loadQueue.Count > 0)
             {
-                // ROTATION: If memory is full, DELETE THE OLDEST immediately
                 if (_hotMemoryList.Count >= _memoryCap)
                 {
                     var oldModel = _hotMemoryList[0];
@@ -189,7 +176,6 @@ public class TrafficEnhanced : Script
                 string modelName = _loadQueue.Dequeue();
                 Model m = new Model(modelName);
 
-                // Load it
                 if (m.IsValid && m.IsInCdImage)
                 {
                     m.Request();
@@ -261,7 +247,9 @@ public class TrafficEnhanced : Script
             }
 
             float distSq = v.Position.DistanceToSquared(camPos);
-            if (distSq < _minSafeDistSq || distSq > _fovealDistSq) continue;
+
+            // 100m Safety Buffer
+            if (distSq < 10000f || distSq > _fovealDistSq) continue;
 
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
             bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
@@ -296,44 +284,53 @@ public class TrafficEnhanced : Script
 
     private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
     {
-        // 1. Filter out models we have spawned recently (History Check)
         var validCandidates = readyModels.Where(m => !_spawnHistory.Contains(m.Hash)).ToList();
-
-        // 2. Fallback
         if (validCandidates.Count == 0) validCandidates = readyModels;
 
-        // 3. Pick random
         Model model = validCandidates[_rnd.Next(validCandidates.Count)];
 
         if (!model.IsLoaded) return false;
-
         if (!oldVeh.Exists()) return false;
         Ped driver = oldVeh.Driver;
         if (driver == null || !driver.Exists()) return false;
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
-        Vector3 spawnPos = oldVeh.Position + new Vector3(0, 0, 0.2f);
+        // FIX 1: NO ARTIFICIAL LIFT. Spawn at exact position.
+        Vector3 spawnPos = oldVeh.Position;
+
         Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
 
         if (newVeh != null)
         {
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, false, 0);
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, false, false);
+
             _recentSwaps.Add(newVeh.Handle);
 
             newVeh.Velocity = oldVeh.Velocity;
             newVeh.ForwardSpeed = oldVeh.Speed;
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
+            // FIX 2: FORCE GROUND SNAP
+            // If the vehicle is moving slowly (stopped/parking), enforce perfect ground contact
+            // so it doesn't float or clip.
+            if (oldVeh.Speed < 1.0f)
+            {
+                Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVeh);
+            }
+
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
-            oldVeh.Position = new Vector3(oldVeh.Position.X, oldVeh.Position.Y, -500f);
+            // Safe Deletion
+            oldVeh.IsEngineRunning = false;
+            oldVeh.Position -= new Vector3(0, 0, 100f);
             oldVeh.Delete();
 
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
+
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
             if (_debugMode) AddDebugBlip(newVeh);
@@ -341,12 +338,8 @@ public class TrafficEnhanced : Script
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
 
-            // Update History
             _spawnHistory.Add(model.Hash);
-            if (_spawnHistory.Count > _historyDepth)
-            {
-                _spawnHistory.RemoveAt(0);
-            }
+            if (_spawnHistory.Count > _historyDepth) _spawnHistory.RemoveAt(0);
 
             return true;
         }
@@ -392,7 +385,18 @@ public class TrafficEnhanced : Script
         Vector3 min, max;
         v.Model.GetDimensions(out min, out max);
         Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z));
+
         var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
+
+        // FIX 3: Ignore Self-Obstruction (Looking through own windshield)
+        if (result.DidHit && result.HitEntity != null)
+        {
+            if (result.HitEntity == Game.Player.Character.CurrentVehicle)
+            {
+                return true;
+            }
+        }
+
         return !result.DidHit || result.HitEntity == v;
     }
 
