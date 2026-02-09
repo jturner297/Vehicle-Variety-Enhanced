@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 0;
+    private int _swapCooldown = 1000;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -28,7 +28,11 @@ public class TrafficEnhanced : Script
 
     // Limits
     private int MaxSwapsPerCycle = 1;
-    private float ScoreThreshold = 450f;
+
+    // NEW THRESHOLD: 600
+    // This effectively ignores unique cars (scoring < 400) and only targets
+    // Duplicates (Score 800+) or Horizon cars (Score 1000+)
+    private float ScoreThreshold = 600f;
 
     // MEMORY CAP
     private int _memoryCap = 45;
@@ -233,6 +237,13 @@ public class TrafficEnhanced : Script
         Vector3 camDir = GameplayCamera.Direction;
         bool isZoomed = GameplayCamera.FieldOfView < 50f;
 
+        // NEW: 1. Build Global Frequency Map
+        // Counts how many times each vehicle model appears in the current world list
+        var modelFrequencies = vehicles
+            .Where(v => v.Exists())
+            .GroupBy(v => v.Model.Hash)
+            .ToDictionary(g => g.Key, g => g.Count());
+
         List<ScoredVehicle> candidates = new List<ScoredVehicle>();
 
         foreach (Vehicle v in vehicles)
@@ -263,7 +274,15 @@ public class TrafficEnhanced : Script
                 }
             }
 
-            float score = GetCinematicScore(v, camPos, camDir, player.ForwardVector, player.Velocity, 0, isBlocked, isDistantCandidate);
+            // PASS 1: Check if this car is a duplicate
+            bool isDuplicate = false;
+            if (modelFrequencies.ContainsKey(v.Model.Hash))
+            {
+                if (modelFrequencies[v.Model.Hash] > 1) isDuplicate = true;
+            }
+
+            float score = GetDeduplicationScore(v, camPos, camDir, isBlocked, isDistantCandidate, isDuplicate);
+
             if (score > ScoreThreshold)
             {
                 candidates.Add(new ScoredVehicle { Vehicle = v, Score = score });
@@ -296,9 +315,7 @@ public class TrafficEnhanced : Script
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
-        // FIX 1: NO ARTIFICIAL LIFT. Spawn at exact position.
         Vector3 spawnPos = oldVeh.Position;
-
         Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
 
         if (newVeh != null)
@@ -312,9 +329,6 @@ public class TrafficEnhanced : Script
             newVeh.ForwardSpeed = oldVeh.Speed;
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
-            // FIX 2: FORCE GROUND SNAP
-            // If the vehicle is moving slowly (stopped/parking), enforce perfect ground contact
-            // so it doesn't float or clip.
             if (oldVeh.Speed < 1.0f)
             {
                 Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVeh);
@@ -323,7 +337,6 @@ public class TrafficEnhanced : Script
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
-            // Safe Deletion
             oldVeh.IsEngineRunning = false;
             oldVeh.Position -= new Vector3(0, 0, 100f);
             oldVeh.Delete();
@@ -347,35 +360,41 @@ public class TrafficEnhanced : Script
         return false;
     }
 
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID, bool isBlocked, bool isDistantCandidate)
+    // NEW SCORING METHOD: Prioritizes Duplicates
+    private float GetDeduplicationScore(Vehicle v, Vector3 camPos, Vector3 camDir, bool isBlocked, bool isDistantCandidate, bool isDuplicate)
     {
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
-        float heightDiff = Math.Abs(vPos.Z - camPos.Z);
-        if (heightDiff > 15f) return 0f;
-
-        Vector3 toCar = (vPos - camPos).Normalized;
-
+        // 1. Base Score
         float score = 0f;
 
-        if (isDistantCandidate && v.IsOnScreen)
-            return 1000f + (dist / 10f);
+        // 2. Duplicate Bonus (The most important factor)
+        // If it's a duplicate, we boost it significantly so it beats the threshold
+        if (isDuplicate) score += 600f;
+        else score -= 200f; // Penalty for unique cars
 
-        if (v.IsOnScreen) score += 300f;
+        // 3. Distance Bonus
+        if (isDistantCandidate && v.IsOnScreen)
+            return 1000f + (dist / 10f); // Always swap horizon cars
+
+        // 4. Visibility Modifiers
+        if (v.IsOnScreen)
+        {
+            score += 300f; // "Easy Access" bonus
+        }
         else
         {
             score += 100f;
-            if (isBlocked) score += 50f;
+            if (isBlocked) score += 200f; // "Hidden" bonus - very safe swap
             else
             {
+                // Strict Angle Check
+                Vector3 toCar = (vPos - camPos).Normalized;
                 float angle = Vector3.Angle(camDir, toCar);
-                if (angle < 55f) return 0f;
+                if (angle < 70f) return 0f; // Must be in periphery
             }
         }
-
-        if (isBlocked) score += (100f / (dist + 1f));
-        else score += (dist / 10f);
 
         return score;
     }
@@ -388,7 +407,6 @@ public class TrafficEnhanced : Script
 
         var result = World.Raycast(camPos, roof, IntersectFlags.Map | IntersectFlags.Vehicles);
 
-        // FIX 3: Ignore Self-Obstruction (Looking through own windshield)
         if (result.DidHit && result.HitEntity != null)
         {
             if (result.HitEntity == Game.Player.Character.CurrentVehicle)
