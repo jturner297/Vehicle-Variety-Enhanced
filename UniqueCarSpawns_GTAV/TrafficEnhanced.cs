@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 1000;
+    private int _swapCooldown = 0;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -32,7 +32,7 @@ public class TrafficEnhanced : Script
     // NEW THRESHOLD: 600
     // This effectively ignores unique cars (scoring < 400) and only targets
     // Duplicates (Score 800+) or Horizon cars (Score 1000+)
-    private float ScoreThreshold = 600f;
+    private float ScoreThreshold = 500f;
 
     // MEMORY CAP
     private int _memoryCap = 45;
@@ -301,6 +301,7 @@ public class TrafficEnhanced : Script
         }
     }
 
+    // Replaced AttemptSwap method (use this body to overwrite the existing method)
     private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
     {
         var validCandidates = readyModels.Where(m => !_spawnHistory.Contains(m.Hash)).ToList();
@@ -318,32 +319,59 @@ public class TrafficEnhanced : Script
         Vector3 spawnPos = oldVeh.Position;
         Vehicle newVeh = World.CreateVehicle(model, spawnPos, oldVeh.Heading);
 
-        if (newVeh != null)
+        if (newVeh != null && newVeh.Exists())
         {
+            // Briefly hide while we snap into place
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, false, 0);
-            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, false, false);
 
-            _recentSwaps.Add(newVeh.Handle);
+            // Attempt to obtain ground Z using the non-obsolete API.
+            // Use a safe fallback to the spawn Z if anything goes wrong.
+            float groundZ;
+            try
+            {
+                // New API: GetGroundHeight(Vector3, out float, GetGroundHeightMode)
+                // Use numeric cast for mode to avoid depending on a specific enum member name.
+                World.GetGroundHeight(spawnPos, out groundZ, (GetGroundHeightMode)0);
+            }
+            catch
+            {
+                groundZ = spawnPos.Z;
+            }
 
-            newVeh.Velocity = oldVeh.Velocity;
-            newVeh.ForwardSpeed = oldVeh.Speed;
-            newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
+            // Ensure collision enabled before placing so physics can immediately resolve.
+            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
 
+            // Place without offset to avoid incremental physics nudges.
+            Function.Call(Hash.SET_ENTITY_COORDS_NO_OFFSET, newVeh, spawnPos.X, spawnPos.Y, groundZ, false, false, true);
+
+            // If the old vehicle was essentially stopped, force-on-ground to stabilize vehicle.
             if (oldVeh.Speed < 1.0f)
             {
                 Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVeh);
             }
 
+            // Transfer kinematic state
+            newVeh.Velocity = oldVeh.Velocity;
+            newVeh.ForwardSpeed = oldVeh.Speed;
+            newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
+
+            // Mark decor then put driver in
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
-            oldVeh.IsEngineRunning = false;
-            oldVeh.Position -= new Vector3(0, 0, 100f);
-            oldVeh.Delete();
+            // Safe removal of the old vehicle (don't teleport it away, just delete)
+            try
+            {
+                oldVeh.IsEngineRunning = false;
+                oldVeh.Delete();
+            }
+            catch { }
 
-            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
+            // Reveal and ensure collision is active.
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
+            Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
 
+            // Let AI drive (preserve previous drive style)
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
             if (_debugMode) AddDebugBlip(newVeh);
@@ -351,6 +379,7 @@ public class TrafficEnhanced : Script
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
 
+            _recentSwaps.Add(newVeh.Handle);
             _spawnHistory.Add(model.Hash);
             if (_spawnHistory.Count > _historyDepth) _spawnHistory.RemoveAt(0);
 
