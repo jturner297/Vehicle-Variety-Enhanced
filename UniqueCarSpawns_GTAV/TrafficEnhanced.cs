@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 0;
+    private int _swapCooldown = 1000;
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -261,7 +261,7 @@ public class TrafficEnhanced : Script
 
             // 100m Safety Buffer
             if (distSq < 10000f || distSq > _fovealDistSq) continue;
-
+            
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
             bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
 
@@ -302,17 +302,43 @@ public class TrafficEnhanced : Script
     }
 
     // Replaced AttemptSwap method (use this body to overwrite the existing method)
-    private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
+    private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)   
     {
-        var validCandidates = readyModels.Where(m => !_spawnHistory.Contains(m.Hash)).ToList();
-        if (validCandidates.Count == 0) validCandidates = readyModels;
-
-        Model model = validCandidates[_rnd.Next(validCandidates.Count)];
-
-        if (!model.IsLoaded) return false;
         if (!oldVeh.Exists()) return false;
         Ped driver = oldVeh.Driver;
         if (driver == null || !driver.Exists()) return false;
+
+        // Build set of model hashes already present in the world to avoid duplicates.
+        var worldModelHashes = new HashSet<int>(
+            World.GetAllVehicles()
+                 .Where(v => v != null && v.Exists())
+                 .Select(v => v.Model.Hash)
+        );
+
+        // Primary candidates: loaded models that are NOT currently on the road and not in spawn history.
+        var validCandidates = readyModels
+            .Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash) && !_spawnHistory.Contains(m.Hash))
+            .ToList();
+
+        // If none, try a less strict set: models not currently on the road (ignore spawn history).
+        if (validCandidates.Count == 0)
+        {
+            validCandidates = readyModels
+                .Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash))
+                .ToList();
+        }
+
+        // If still none, don't swap — this enforces the rule: prefer models not already on the road.
+        if (validCandidates.Count == 0)
+        {
+            return false;
+        }
+
+        // Improve RNG determinism with Fisher-Yates shuffle and then pick the first candidate.
+        Shuffle(validCandidates);
+        Model model = validCandidates[0];
+
+        if (!model.IsLoaded) return false;
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
 
@@ -387,6 +413,19 @@ public class TrafficEnhanced : Script
         }
 
         return false;
+    }
+
+    // Fisher-Yates shuffle improves uniformity of random selection over OrderBy(_rnd.Next()).
+    private void Shuffle<T>(List<T> list)
+    {
+        int n = list.Count;
+        for (int i = n - 1; i > 0; i--)
+        {
+            int j = _rnd.Next(i + 1);
+            T tmp = list[i];
+            list[i] = list[j];
+            list[j] = tmp;
+        }
     }
 
     // NEW SCORING METHOD: Prioritizes Duplicates
