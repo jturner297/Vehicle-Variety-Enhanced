@@ -16,7 +16,7 @@ public class TrafficEnhanced : Script
 
     // Performance & Throttling
     private int _checkInterval = 250;
-    private int _swapCooldown = 1000;
+    private int _swapCooldown = 0; // Ready to run at 0 safely with the new strict heuristic
 
     // --- DISTANCE TUNING ---
     private float _minSafeDist = 15f;
@@ -27,15 +27,14 @@ public class TrafficEnhanced : Script
     private float _OnScreenSwapDist = 250f;
 
     // Limits
-    private int MaxSwapsPerCycle = 1;
+    private int MaxSwapsPerCycle = 3;
 
-    // NEW THRESHOLD: 600
-    // This effectively ignores unique cars (scoring < 400) and only targets
-    // Duplicates (Score 800+) or Horizon cars (Score 1000+)
-    private float ScoreThreshold = 500f;
+    // THRESHOLD
+    // The target must hit this to be swapped.
+    private float ScoreThreshold = 1000f;
 
     // MEMORY CAP
-    private int _memoryCap = 45;
+    private int _memoryCap = 60;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -61,6 +60,8 @@ public class TrafficEnhanced : Script
 
     private HashSet<int> _recentSwaps = new HashSet<int>();
     private HashSet<int> _permanentBlacklist = new HashSet<int>();
+    // Models (hashes) that should never be used as swap targets or replacements
+    private HashSet<int> _modelSwapBlacklist = new HashSet<int>();
 
     private string _currentZoneLabel = "";
     private List<Model> _hotMemoryList = new List<Model>();
@@ -68,7 +69,9 @@ public class TrafficEnhanced : Script
     private int _loadingTicker = 0;
 
     private List<int> _spawnHistory = new List<int>();
-    private int _historyDepth = 28;
+    private int _historyDepth = 60;
+    private Dictionary<int, int> _spawnTimestamps = new Dictionary<int, int>();
+    private int _spawnTTL = 5 * 60 * 1000; // 5 minutes
 
     public TrafficEnhanced()
     {
@@ -134,6 +137,12 @@ public class TrafficEnhanced : Script
 
     private void ManageZoneMemory()
     {
+        if (_spawnTimestamps.Count > 0)
+        {
+            var stale = _spawnTimestamps.Where(kv => Game.GameTime - kv.Value > _spawnTTL).Select(kv => kv.Key).ToList();
+            foreach (var k in stale) _spawnTimestamps.Remove(k);
+        }
+
         Vector3 pPos = Game.Player.Character.Position;
         string zoneCode = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pPos.X, pPos.Y, pPos.Z);
 
@@ -237,8 +246,7 @@ public class TrafficEnhanced : Script
         Vector3 camDir = GameplayCamera.Direction;
         bool isZoomed = GameplayCamera.FieldOfView < 50f;
 
-        // NEW: 1. Build Global Frequency Map
-        // Counts how many times each vehicle model appears in the current world list
+        // Count model frequencies to establish duplicate counts
         var modelFrequencies = vehicles
             .Where(v => v.Exists())
             .GroupBy(v => v.Model.Hash)
@@ -251,6 +259,12 @@ public class TrafficEnhanced : Script
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer) continue;
             if (_recentSwaps.Contains(v.Handle)) continue;
             if (_permanentBlacklist.Contains(v.Handle)) continue;
+            // If this vehicle's model is explicitly blacklisted from swapping, skip it
+            if (_modelSwapBlacklist.Contains(v.Model.Hash))
+            {
+                _permanentBlacklist.Add(v.Handle);
+                continue;
+            }
             if (IsSwapped(v) || IsExcluded(v))
             {
                 _permanentBlacklist.Add(v.Handle);
@@ -261,7 +275,7 @@ public class TrafficEnhanced : Script
 
             // 100m Safety Buffer
             if (distSq < 10000f || distSq > _fovealDistSq) continue;
-            
+
             bool isBlocked = !IsVehicleVisibleSmart(v, camPos);
             bool isDistantCandidate = _enableOnScreenSwap && (distSq >= _forceSwapDistSq);
 
@@ -274,14 +288,10 @@ public class TrafficEnhanced : Script
                 }
             }
 
-            // PASS 1: Check if this car is a duplicate
-            bool isDuplicate = false;
-            if (modelFrequencies.ContainsKey(v.Model.Hash))
-            {
-                if (modelFrequencies[v.Model.Hash] > 1) isDuplicate = true;
-            }
+            // Get exact duplicate count
+            int duplicateCount = modelFrequencies.ContainsKey(v.Model.Hash) ? modelFrequencies[v.Model.Hash] : 1;
 
-            float score = GetDeduplicationScore(v, camPos, camDir, isBlocked, isDistantCandidate, isDuplicate);
+            float score = GetDeduplicationScore(v, camPos, camDir, isBlocked, isDistantCandidate, duplicateCount);
 
             if (score > ScoreThreshold)
             {
@@ -301,40 +311,44 @@ public class TrafficEnhanced : Script
         }
     }
 
-    // Replaced AttemptSwap method (use this body to overwrite the existing method)
-    private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)   
+    private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
     {
         if (!oldVeh.Exists()) return false;
         Ped driver = oldVeh.Driver;
         if (driver == null || !driver.Exists()) return false;
 
-        // Build set of model hashes already present in the world to avoid duplicates.
         var worldModelHashes = new HashSet<int>(
             World.GetAllVehicles()
                  .Where(v => v != null && v.Exists())
                  .Select(v => v.Model.Hash)
         );
 
-        // Primary candidates: loaded models that are NOT currently on the road and not in spawn history.
-        var validCandidates = readyModels
-            .Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash) && !_spawnHistory.Contains(m.Hash))
-            .ToList();
+        int now = Game.GameTime;
+        var tier1 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+                                          && !_spawnHistory.Contains(m.Hash)
+                                          && (!_spawnTimestamps.ContainsKey(m.Hash) || now - _spawnTimestamps[m.Hash] > _spawnTTL)
+                                          && !_modelSwapBlacklist.Contains(m.Hash))
+                                .ToList();
 
-        // If none, try a less strict set: models not currently on the road (ignore spawn history).
-        if (validCandidates.Count == 0)
-        {
-            validCandidates = readyModels
-                .Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash))
-                .ToList();
-        }
+        var tier2 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+                                          && (!_spawnTimestamps.ContainsKey(m.Hash) || now - _spawnTimestamps[m.Hash] > _spawnTTL)
+                                          && !_modelSwapBlacklist.Contains(m.Hash))
+                                .ToList();
 
-        // If still none, don't swap — this enforces the rule: prefer models not already on the road.
-        if (validCandidates.Count == 0)
-        {
-            return false;
-        }
+        var tier3 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+                                          && !_spawnHistory.Contains(m.Hash)
+                                          && !_modelSwapBlacklist.Contains(m.Hash))
+                                .ToList();
 
-        // Improve RNG determinism with Fisher-Yates shuffle and then pick the first candidate.
+        var tier4 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)).ToList();
+
+        // Ensure tier4 also respects the blacklist
+        tier4 = tier4.Where(m => !_modelSwapBlacklist.Contains(m.Hash)).ToList();
+
+        List<Model> validCandidates = tier1.Count > 0 ? tier1 : (tier2.Count > 0 ? tier2 : (tier3.Count > 0 ? tier3 : tier4));
+
+        if (validCandidates == null || validCandidates.Count == 0) return false;
+
         Shuffle(validCandidates);
         Model model = validCandidates[0];
 
@@ -347,16 +361,11 @@ public class TrafficEnhanced : Script
 
         if (newVeh != null && newVeh.Exists())
         {
-            // Briefly hide while we snap into place
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, false, 0);
 
-            // Attempt to obtain ground Z using the non-obsolete API.
-            // Use a safe fallback to the spawn Z if anything goes wrong.
             float groundZ;
             try
             {
-                // New API: GetGroundHeight(Vector3, out float, GetGroundHeightMode)
-                // Use numeric cast for mode to avoid depending on a specific enum member name.
                 World.GetGroundHeight(spawnPos, out groundZ, (GetGroundHeightMode)0);
             }
             catch
@@ -364,28 +373,21 @@ public class TrafficEnhanced : Script
                 groundZ = spawnPos.Z;
             }
 
-            // Ensure collision enabled before placing so physics can immediately resolve.
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
-
-            // Place without offset to avoid incremental physics nudges.
             Function.Call(Hash.SET_ENTITY_COORDS_NO_OFFSET, newVeh, spawnPos.X, spawnPos.Y, groundZ, false, false, true);
 
-            // If the old vehicle was essentially stopped, force-on-ground to stabilize vehicle.
             if (oldVeh.Speed < 1.0f)
             {
                 Function.Call(Hash.SET_VEHICLE_ON_GROUND_PROPERLY, newVeh);
             }
 
-            // Transfer kinematic state
             newVeh.Velocity = oldVeh.Velocity;
             newVeh.ForwardSpeed = oldVeh.Speed;
             newVeh.IsEngineRunning = oldVeh.IsEngineRunning;
 
-            // Mark decor then put driver in
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
 
-            // Safe removal of the old vehicle (don't teleport it away, just delete)
             try
             {
                 oldVeh.IsEngineRunning = false;
@@ -393,11 +395,9 @@ public class TrafficEnhanced : Script
             }
             catch { }
 
-            // Reveal and ensure collision is active.
             Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
 
-            // Let AI drive (preserve previous drive style)
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
             if (_debugMode) AddDebugBlip(newVeh);
@@ -407,6 +407,7 @@ public class TrafficEnhanced : Script
 
             _recentSwaps.Add(newVeh.Handle);
             _spawnHistory.Add(model.Hash);
+            _spawnTimestamps[model.Hash] = Game.GameTime;
             if (_spawnHistory.Count > _historyDepth) _spawnHistory.RemoveAt(0);
 
             return true;
@@ -415,7 +416,6 @@ public class TrafficEnhanced : Script
         return false;
     }
 
-    // Fisher-Yates shuffle improves uniformity of random selection over OrderBy(_rnd.Next()).
     private void Shuffle<T>(List<T> list)
     {
         int n = list.Count;
@@ -428,41 +428,56 @@ public class TrafficEnhanced : Script
         }
     }
 
-    // NEW SCORING METHOD: Prioritizes Duplicates
-    private float GetDeduplicationScore(Vehicle v, Vector3 camPos, Vector3 camDir, bool isBlocked, bool isDistantCandidate, bool isDuplicate)
+    private float GetDeduplicationScore(Vehicle v, Vector3 camPos, Vector3 camDir, bool isBlocked, bool isDistantCandidate, int duplicateCount)
     {
-        Vector3 vPos = v.Position;
-        float dist = vPos.DistanceTo(camPos);
+        // 1. FUNCTIONAL GATE: The ultimate filter. 
+        // If it's the only one of its kind, DO NOT TOUCH IT. 
+        if (duplicateCount <= 1)
+            return -1000f;
 
-        // 1. Base Score
         float score = 0f;
 
-        // 2. Duplicate Bonus (The most important factor)
-        // If it's a duplicate, we boost it significantly so it beats the threshold
-        if (isDuplicate) score += 600f;
-        else score -= 200f; // Penalty for unique cars
+        // 2. SEVERITY MULTIPLIER (Duplicates only)
+        // 2 cars = 400 base. 3 cars = 650. 4 cars = 900.
+        score += 400f + ((duplicateCount - 1) * 250f);
 
-        // 3. Distance Bonus
-        if (isDistantCandidate && v.IsOnScreen)
-            return 1000f + (dist / 10f); // Always swap horizon cars
-
-        // 4. Visibility Modifiers
-        if (v.IsOnScreen)
+        // 3. IMMERSION & VISIBILITY (Prevent Pop-in)
+        if (v.IsOnScreen && !isBlocked)
         {
-            score += 300f; // "Easy Access" bonus
-        }
-        else
-        {
-            score += 100f;
-            if (isBlocked) score += 200f; // "Hidden" bonus - very safe swap
+            if (isDistantCandidate)
+            {
+                // Horizon duplicates get a boost so we swap them before they get close
+                score += 400f;
+            }
             else
             {
-                // Strict Angle Check
-                Vector3 toCar = (vPos - camPos).Normalized;
-                float angle = Vector3.Angle(camDir, toCar);
-                if (angle < 70f) return 0f; // Must be in periphery
+                // HARD PENALTY: Never swap a visible, close car. It will visibly pop.
+                return -1000f;
             }
         }
+        else if (isBlocked)
+        {
+            // PERFECT TARGET: The car is physically blocked by geometry (buildings/walls).
+            score += 500f;
+        }
+        else if (!v.IsOnScreen)
+        {
+            // GREAT TARGET: Car is behind the camera.
+            score += 300f;
+
+            // Strict Angle Check: Ensure it's firmly out of peripheral vision
+            Vector3 toCar = (v.Position - camPos).Normalized;
+            float angle = Vector3.Angle(camDir, toCar);
+            if (angle < 90f)
+            {
+                score -= 200f;
+            }
+        }
+
+        // 4. DISTANCE WEIGHTING
+        // Slightly favor duplicates that are further away.
+        float dist = v.Position.DistanceTo(camPos);
+        score += (dist / 5f);
 
         return score;
     }
@@ -560,5 +575,36 @@ public class TrafficEnhanced : Script
         {
             RichChance = rich; MidChance = mid; PoorChance = poor; CountryChance = country;
         }
+    }
+
+    // Public helpers to manage the swap blacklist
+    public void AddModelToSwapBlacklist(string modelName)
+    {
+        if (string.IsNullOrWhiteSpace(modelName)) return;
+        int hash = Function.Call<int>(Hash.GET_HASH_KEY, modelName);
+        _modelSwapBlacklist.Add(hash);
+    }
+
+    public void AddModelToSwapBlacklist(int modelHash)
+    {
+        _modelSwapBlacklist.Add(modelHash);
+    }
+
+    public void RemoveModelFromSwapBlacklist(string modelName)
+    {
+        if (string.IsNullOrWhiteSpace(modelName)) return;
+        int hash = Function.Call<int>(Hash.GET_HASH_KEY, modelName);
+        _modelSwapBlacklist.Remove(hash);
+    }
+
+    public void RemoveModelFromSwapBlacklist(int modelHash)
+    {
+        _modelSwapBlacklist.Remove(modelHash);
+    }
+
+    public bool IsModelSwapBlacklisted(Model m)
+    {
+        if (m == null) return false;
+        return _modelSwapBlacklist.Contains(m.Hash);
     }
 }

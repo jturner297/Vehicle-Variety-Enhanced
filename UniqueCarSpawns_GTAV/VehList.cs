@@ -602,23 +602,30 @@ public class VehList
 
     };
 
+
     public static HashSet<string> models_poor = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-        "asbo", "asterope2", "blade", "blista2",  "boor", "calico",
-       "chino", "clique", "club", "dominator10", "dominator7", "dukes", "dynasty",  
-        "faction", "fagaloa", "futo2", "hellion", "impaler", 
-        "issi3", "kanjo", "kanjosj", "moonbeam", "nebula", "nightshade",
-        "phoenix", "picador", "remus", "retinue",
-        "rhapsody", "ruiner2", "savestra", "seminole2", "sentinel3", "slamvan", "stalion", 
-       "sultan2", "sultan3", "surfer3", "tahoma", "tampa", "tulip",
-        "vamos","virgo3", "voodoo", "warrener", "warrener2", "weevil", "yosemite", "yosemite3",
-        "youga2", "zion3", "hustler"
+        "asbo", "asea", "asterope", "asterope2", "blade", "blista2", "bobcatxl", "boor", "buccaneer", "calico",
+        "cavalcade", "chino", "clique", "club", "dominator10", "dominator7", "dukes", "dynasty", "emperor",
+        "emperor2", "faction", "fagaloa", "fq2", "futo", "futo2", "hellion", "impaler", "ingot", "intruder",
+        "issi3", "kanjo", "kanjosj", "landstalker", "manana", "minivan", "moonbeam", "nebula", "nightshade",
+        "phoenix", "picador", "prairie", "premier", "primo", "rancherxl", "regina", "remus", "retinue",
+        "rhapsody", "ruiner", "savestra", "seminole2", "sentinel3", "serrano", "slamvan", "stalion", "stanier",
+        "stratum", "sultan", "sultan2", "sultan3", "surfer", "surfer3", "tahoma", "tampa", "tornado3", "tulip",
+        "vamos", "vigero", "virgo3", "voodoo2", "warrener", "warrener2", "weevil", "yosemite", "yosemite3",
+        "youga", "youga2", "zion3", "hustler"
     };
 
     public static HashSet<string> models_mid = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-        "chavosv6", "deviant", "dominator3", "dominator8", "brioso", "elegy", "elegy2", "eudora", "euros",
-        "gauntlet3", "greenwood", "hermes", "issi2", "jester3", "kuruma", "panto", "penumbra2", "retinue2", "rt3000",
-       "seminole", "sultanrs",
-       "virgo",  "youga", "z190", "zr350", "ellie"
+        "baller", "baller2", "bison", "bjxl", "blista", "buffalo", "cavalcade2", "chavosv6", "deviant",
+        "dilettante", "dominator", "dominator3", "dominator8", "dubsta", "elegy", "elegy2", "eudora", "euros",
+        "f620", "fq2", "fugitive", "fusilade", "gauntlet", "gauntlet3", "glendale", "granger", "gresley",
+        "habanero", "hermes", "intruder", "issi2", "jester3", "kuruma", "mesa", "oracle", "panto", "patriot",
+        "penumbra", "penumbra2", "peyote", "pigalle", "premier", "radi", "retinue2", "rocoto", "rt3000",
+        "sabregt", "sadler", "schafter2", "seminole", "sentinel2", "serrano", "sultanrs", "surfer", "surge",
+        "tornado", "tornado2", "virgo", "voodoo", "washington", "youga", "z190", "zr350", "zion", "zion2", "ellie"
+
+
+
     };
 
 
@@ -635,6 +642,7 @@ public class VehList
     "bestiagts",
     "brioso",
     "brioso2",
+    "bullet",
     "carbonizzare",
     "casco",
     "cinquemila",
@@ -644,6 +652,7 @@ public class VehList
     "comet2",
     "comet3",
     "comet5",
+    "coquette",
     "coquette2",
     "coquette3",
     "coquette6",
@@ -651,18 +660,26 @@ public class VehList
     "cypher",
     "drafter",
     "elegy2",
+    "exemplar",
+    "feltzer2",
     "fr36",
+    "furoregt",
     "growler",
+    "huntley",
+    "infernus",
     "italigtb",
     "italigto",
+    "jester",
     "jugular",
     "khamelion",
     "komoda",
     "lynx",
     "massacro",
     "michelli",
-    "neon",
     "neo",
+    "neon",
+    "ninef",
+    "ninef2",
     "novak",
     "panthere",
     "paragon",
@@ -670,15 +687,21 @@ public class VehList
     "penetrator",
     "pfister811",
     "raiden",
+    "rapidgt",
+    "rapidgt2",
     "rapidgt3",
     "rebla",
     "revolter",
     "sc1",
     "schafter4",
     "schlagen",
+    "schwarzer",
+    "sentinel",
     "seven70",
     "specter",
     "stinger",
+    "superd",
+    "surano",
     "s95",
     "vacca",
     "vectre",
@@ -689,34 +712,9 @@ public class VehList
     "windsor",
     "windsor2",
     "xls",
-          /*
-            "cheetah2",
-         "feltzer3",
-         "infernus2",
-         "gt500",
-         "rapidgt3",
-         "swinger",
-         "torero",
-         "turismo2",
-         "tropos",
-                "monroe",
-       "stingergt",
+    "rhinehart",
+    "toros",
 
-      "jb7002",
-            "ardent",
-                    "tempesta",
-        "reaper",
-        "t20",
-        "osiris",
-        "gp1",
-        "xa21",
-        "fmj",
-        "prototipo",
-        "nero",
-        "nero2",
-             "sm722",
-       "visione",
-       "deveste",*/
 
     };
 
