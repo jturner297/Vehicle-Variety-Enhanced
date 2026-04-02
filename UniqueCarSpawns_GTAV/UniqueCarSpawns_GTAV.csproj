@@ -18,15 +18,15 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>D:\Games\modded games\Grand Theft Auto V Enhanced - modded\Grand Theft Auto V Enhanced\scripts\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <WarningLevel>5</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>D:\Games\modded games\Grand Theft Auto V Enhanced - modded\Grand Theft Auto V Enhanced\scripts\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -36,6 +36,7 @@
     <Reference Include="ScriptHookVDotNet3, Version=3.9.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>D:\Games\modded games\Grand Theft Auto V Enhanced - modded\Grand Theft Auto V Enhanced\ScriptHookVDotNet3.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -54,12 +55,15 @@
     <Compile Include="ParkedDatabase.cs" />
     <Compile Include="ParkedMP.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TrafficEnhanced.cs" />
     <Compile Include="VehicleSelector.cs" />
     <Compile Include="VehList.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\..\..\..\Desktop\TrafficEnhanced.txt" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>COPY "$(TargetPath)" "D:\Games\modded games\Grand Theft Auto V Enhanced - modded\Grand Theft Auto V Enhanced\scripts"</PostBuildEvent>
+    <PostBuildEvent>
+    </PostBuildEvent>
   </PropertyGroup>
 </Project>

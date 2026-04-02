@@ -27,14 +27,14 @@ public class TrafficEnhanced : Script
     private float _OnScreenSwapDist = 250f;
 
     // Limits
-    private int MaxSwapsPerCycle = 3;
+    private int MaxSwapsPerCycle = 1;
 
     // THRESHOLD
     // The target must hit this to be swapped.
-    private float ScoreThreshold = 1000f;
+    private float ScoreThreshold = 450f;
 
     // MEMORY CAP
-    private int _memoryCap = 60;
+    private int _memoryCap = 15;
 
     private int _driveStyle = 786603;
     private bool _debugMode = false;
@@ -44,6 +44,10 @@ public class TrafficEnhanced : Script
     // =============================================================
 
     private Random _rnd = new Random();
+    // Exhaustive, non-repeating pools per vehicle category to avoid RNG clustering
+    private Dictionary<string, List<string>> _exhaustivePools = new Dictionary<string, List<string>>();
+    private Dictionary<string, int> _exhaustiveIndices = new Dictionary<string, int>();
+    private Dictionary<string, string> _exhaustiveLastTaken = new Dictionary<string, string>();
     private int _nextCheck = 0;
     private int _nextSwapTime = 0;
     private int _cleanupTimer = 0;
@@ -94,9 +98,9 @@ public class TrafficEnhanced : Script
         AmbientProfile Hippy = new AmbientProfile(10, 70, 100, 0);
         AmbientProfile Gangster = new AmbientProfile(0, 50, 100, 0);
         AmbientProfile Downtown = new AmbientProfile(25, 45, 30, 0);
-        AmbientProfile Vinewood = new AmbientProfile(60, 50, 30, 0);
-        AmbientProfile Coastal = new AmbientProfile(100, 70, 20, 0);
-        AmbientProfile Elite = new AmbientProfile(100, 70, 20, 0);
+        AmbientProfile Vinewood = new AmbientProfile(80, 50, 30, 0);
+        AmbientProfile Coastal = new AmbientProfile(100, 60, 20, 0);
+        AmbientProfile Elite = new AmbientProfile(110, 50, 20, 0);
         AmbientProfile VinewoodHills = new AmbientProfile(100, 30, 5, 0);
         AmbientProfile Industry = new AmbientProfile(0, 70, 100, 0);
         AmbientProfile CountrySide = new AmbientProfile(0, 30, 80, 100);
@@ -203,11 +207,51 @@ public class TrafficEnhanced : Script
         AmbientProfile profile = _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone] : _defaultProfile;
 
         List<string> wishList = new List<string>();
+        // Allocate a proportional number of entries per tier according to the profile chances
+        // Preserve previous overall scale by requesting 3 items per non-zero category and
+        // distributing them proportionally to the configured chances.
+        var categories = new[] {
+            new { Key = "rich", Weight = profile.RichChance, Source = VehList.models_rich },
+            new { Key = "mid", Weight = profile.MidChance, Source = VehList.models_mid },
+            new { Key = "poor", Weight = profile.PoorChance, Source = VehList.models_poor },
+            new { Key = "countryside", Weight = profile.CountryChance, Source = VehList.models_countryside }
+        };
 
-        if (profile.RichChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_rich, 3));
-        if (profile.MidChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_mid, 3));
-        if (profile.PoorChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_poor, 3));
-        if (profile.CountryChance > 0) wishList.AddRange(GetRandomBatch(VehList.models_countryside, 3));
+        int nonZeroCategories = categories.Count(c => c.Weight > 0);
+        if (nonZeroCategories > 0)
+        {
+            int totalDesired = 3 * nonZeroCategories; // legacy-preserving scale
+
+            // Compute raw fractional allocations
+            double totalWeight = categories.Where(c => c.Weight > 0).Sum(c => (double)c.Weight);
+            var allocations = new Dictionary<string, int>();
+            var fractions = new List<Tuple<string, double>>();
+
+            foreach (var c in categories)
+            {
+                if (c.Weight <= 0) { allocations[c.Key] = 0; continue; }
+                double raw = (c.Weight / totalWeight) * totalDesired;
+                int floor = (int)Math.Floor(raw);
+                allocations[c.Key] = floor;
+                fractions.Add(Tuple.Create(c.Key, raw - floor));
+            }
+
+            // Distribute remaining slots by largest fractional parts
+            int assigned = allocations.Values.Sum();
+            int remaining = totalDesired - assigned;
+            foreach (var t in fractions.OrderByDescending(x => x.Item2))
+            {
+                if (remaining <= 0) break;
+                allocations[t.Item1]++;
+                remaining--;
+            }
+
+            // Request from pools according to computed allocations
+            if (allocations["rich"] > 0) wishList.AddRange(GetExhaustiveBatch(VehList.models_rich, Math.Max(0, allocations["rich"]), "rich"));
+            if (allocations["mid"] > 0) wishList.AddRange(GetExhaustiveBatch(VehList.models_mid, Math.Max(0, allocations["mid"]), "mid"));
+            if (allocations["poor"] > 0) wishList.AddRange(GetExhaustiveBatch(VehList.models_poor, Math.Max(0, allocations["poor"]), "poor"));
+            if (allocations["countryside"] > 0) wishList.AddRange(GetExhaustiveBatch(VehList.models_countryside, Math.Max(0, allocations["countryside"]), "countryside"));
+        }
 
         foreach (string name in wishList)
         {
@@ -230,7 +274,92 @@ public class TrafficEnhanced : Script
 
     private IEnumerable<string> GetRandomBatch(HashSet<string> source, int count)
     {
+        // Backward-compatible fallback: if no pool key is supplied use a quick random sample
         return source.OrderBy(x => _rnd.Next()).Take(count);
+    }
+
+    // New: provide an exhaustive, non-repeating cycle over the provided source set.
+    // poolKey should be a stable identifier for the vehicle category (e.g. "rich", "mid").
+    private IEnumerable<string> GetExhaustiveBatch(HashSet<string> source, int count, string poolKey)
+    {
+        if (source == null || source.Count == 0) return Enumerable.Empty<string>();
+
+        // Ensure pool exists and matches the current source size (rebuild if vehicle lists changed)
+        if (!_exhaustivePools.ContainsKey(poolKey) || _exhaustivePools[poolKey].Count != source.Count)
+        {
+            RebuildPool(source, poolKey);
+        }
+
+        var pool = _exhaustivePools[poolKey];
+        int idx = _exhaustiveIndices.ContainsKey(poolKey) ? _exhaustiveIndices[poolKey] : 0;
+        var results = new List<string>(count);
+
+        for (int i = 0; i < count; i++)
+        {
+            if (pool.Count == 0) break;
+
+            if (idx >= pool.Count)
+            {
+                // Exhausted: reshuffle and reset index. Prevent immediate repeat of last item if possible.
+                string last = _exhaustiveLastTaken.ContainsKey(poolKey) ? _exhaustiveLastTaken[poolKey] : null;
+                RebuildPool(source, poolKey);
+                pool = _exhaustivePools[poolKey];
+                idx = 0;
+                if (!string.IsNullOrEmpty(last) && pool.Count > 1 && pool[0] == last)
+                {
+                    // Swap first with another element to avoid immediate repetition
+                    int swapWith = 1;
+                    var tmp = pool[0]; pool[0] = pool[swapWith]; pool[swapWith] = tmp;
+                }
+            }
+
+            string item = pool[idx++];
+            results.Add(item);
+            _exhaustiveLastTaken[poolKey] = item;
+        }
+
+        _exhaustiveIndices[poolKey] = idx;
+        return results;
+    }
+
+    private void RebuildPool(HashSet<string> source, string poolKey)
+    {
+        var list = source.ToList();
+        // Shuffle using cryptographic RNG to reduce bias and repeated patterns
+        CryptoShuffle(list);
+
+        _exhaustivePools[poolKey] = list;
+        _exhaustiveIndices[poolKey] = 0;
+        _exhaustiveLastTaken[poolKey] = null;
+    }
+
+    private void CryptoShuffle(List<string> list)
+    {
+        if (list == null || list.Count <= 1) return;
+
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            byte[] buf = new byte[4];
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = NextCryptoInt(rng, i + 1, buf);
+                var tmp = list[i];
+                list[i] = list[j];
+                list[j] = tmp;
+            }
+        }
+    }
+
+    private int NextCryptoInt(System.Security.Cryptography.RandomNumberGenerator rng, int maxExclusive, byte[] buffer)
+    {
+        if (maxExclusive <= 1) return 0;
+        uint limit = (uint.MaxValue / (uint)maxExclusive) * (uint)maxExclusive;
+        while (true)
+        {
+            rng.GetBytes(buffer);
+            uint val = BitConverter.ToUInt32(buffer, 0);
+            if (val < limit) return (int)(val % (uint)maxExclusive);
+        }
     }
 
     private void ProcessAmbientTraffic()
@@ -317,9 +446,13 @@ public class TrafficEnhanced : Script
         Ped driver = oldVeh.Driver;
         if (driver == null || !driver.Exists()) return false;
 
+        // Build set of model hashes currently present in the world but exclude the player's
+        // own vehicle instances so the model the player is driving is not globally banned
+        // from being spawned as a replacement. Other instances of the same model still
+        // count toward duplication and will be considered for swapping.
         var worldModelHashes = new HashSet<int>(
             World.GetAllVehicles()
-                 .Where(v => v != null && v.Exists())
+                 .Where(v => v != null && v.Exists() && !(v.Driver != null && v.Driver.IsPlayer))
                  .Select(v => v.Model.Hash)
         );
 
@@ -349,8 +482,36 @@ public class TrafficEnhanced : Script
 
         if (validCandidates == null || validCandidates.Count == 0) return false;
 
-        Shuffle(validCandidates);
-        Model model = validCandidates[0];
+        // Prioritize Least-Recently-Spawned (LRS) models to maximize visible variety.
+        // Models with no spawn timestamp (never spawned) are treated as the oldest.
+        Model model = null;
+        try
+        {
+            var tsMap = new Dictionary<Model, int>();
+            foreach (var m in validCandidates)
+            {
+                int ts = _spawnTimestamps.ContainsKey(m.Hash) ? _spawnTimestamps[m.Hash] : -1;
+                tsMap[m] = ts;
+            }
+
+            int minTs = tsMap.Values.Min();
+            var oldest = tsMap.Where(kv => kv.Value == minTs).Select(kv => kv.Key).ToList();
+
+            if (oldest.Count == 1)
+            {
+                model = oldest[0];
+            }
+            else if (oldest.Count > 1)
+            {
+                model = oldest[_rnd.Next(oldest.Count)];
+            }
+        }
+        catch
+        {
+            // Fallback to random selection on any unexpected error
+            Shuffle(validCandidates);
+            model = validCandidates[0];
+        }
 
         if (!model.IsLoaded) return false;
 
