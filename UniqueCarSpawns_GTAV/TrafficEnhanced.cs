@@ -31,7 +31,7 @@ public class TrafficEnhanced : Script
 
     // THRESHOLD
     // The target must hit this to be swapped.
-    private float ScoreThreshold = 450f;
+    private float ScoreThreshold = 650f;
 
     // MEMORY CAP
     private int _memoryCap = 15;
@@ -76,6 +76,11 @@ public class TrafficEnhanced : Script
     private int _historyDepth = 60;
     private Dictionary<int, int> _spawnTimestamps = new Dictionary<int, int>();
     private int _spawnTTL = 5 * 60 * 1000; // 5 minutes
+    // Observed-model short-term memory to prevent temporal recurrence (deja-vu)
+    private Dictionary<int, int> _observedModelTimestamps = new Dictionary<int, int>();
+    private int _observedTTL = 2 * 60 * 1000; // 2 minutes
+    // Map model hash -> last observed vehicle handle to distinguish the same instance
+    private Dictionary<int, int> _observedModelLastHandle = new Dictionary<int, int>();
 
     public TrafficEnhanced()
     {
@@ -145,6 +150,19 @@ public class TrafficEnhanced : Script
         {
             var stale = _spawnTimestamps.Where(kv => Game.GameTime - kv.Value > _spawnTTL).Select(kv => kv.Key).ToList();
             foreach (var k in stale) _spawnTimestamps.Remove(k);
+        }
+
+        // Prune observed-model short-term memory
+        if (_observedModelTimestamps.Count > 0)
+        {
+            var staleObs = _observedModelTimestamps.Where(kv => Game.GameTime - kv.Value > _observedTTL).Select(kv => kv.Key).ToList();
+            foreach (var k in staleObs) _observedModelTimestamps.Remove(k);
+        }
+        // Keep the last-handle map in sync with timestamps
+        if (_observedModelLastHandle.Count > 0)
+        {
+            var staleLast = _observedModelLastHandle.Keys.Where(k => !_observedModelTimestamps.ContainsKey(k)).ToList();
+            foreach (var k in staleLast) _observedModelLastHandle.Remove(k);
         }
 
         Vector3 pPos = Game.Player.Character.Position;
@@ -382,6 +400,8 @@ public class TrafficEnhanced : Script
             .ToDictionary(g => g.Key, g => g.Count());
 
         List<ScoredVehicle> candidates = new List<ScoredVehicle>();
+        // Collect observed models this tick (modelHash -> handle) then commit after scoring
+        var observedThisTick = new Dictionary<int, int>();
 
         foreach (Vehicle v in vehicles)
         {
@@ -417,8 +437,37 @@ public class TrafficEnhanced : Script
                 }
             }
 
-            // Get exact duplicate count
-            int duplicateCount = modelFrequencies.ContainsKey(v.Model.Hash) ? modelFrequencies[v.Model.Hash] : 1;
+            // Get exact duplicate count including short-term observed memory to avoid deja-vu.
+            // Only count an observed bonus if the last observed handle differs from the current
+            // vehicle handle and the previous observation is older than a 10s grace period.
+            int worldCount = modelFrequencies.ContainsKey(v.Model.Hash) ? modelFrequencies[v.Model.Hash] : 0;
+            int observedBonus = 0;
+            if (_observedModelTimestamps.ContainsKey(v.Model.Hash))
+            {
+                int age = Game.GameTime - _observedModelTimestamps[v.Model.Hash];
+                int lastHandle = _observedModelLastHandle.ContainsKey(v.Model.Hash) ? _observedModelLastHandle[v.Model.Hash] : -1;
+                // Only treat as a temporal duplicate if the previous observation is within TTL
+                // and older than the 10s grace window, and it's a different physical instance.
+                if (age > 10000 && age <= _observedTTL && lastHandle != v.Handle)
+                {
+                    observedBonus = 1;
+                }
+            }
+
+            // Defer logging of currently observed models until after we determine if they are
+            // temporal duplicates. Only log non-duplicates so that a surviving infiltrator
+            // does not overwrite the historic handle and evade detection on the next tick.
+            try
+            {
+                if (distSq <= _fovealDistSq && observedBonus == 0)
+                {
+                    observedThisTick[v.Model.Hash] = v.Handle;
+                }
+            }
+            catch { }
+
+            int duplicateCount = worldCount + observedBonus;
+            if (duplicateCount <= 1) continue; // functional gate early-exit
 
             float score = GetDeduplicationScore(v, camPos, camDir, isBlocked, isDistantCandidate, duplicateCount);
 
@@ -438,6 +487,20 @@ public class TrafficEnhanced : Script
                 break;
             }
         }
+
+        // Commit observed models collected this tick into the short-term memory after
+        // scoring and swap attempts. Store both timestamp and last handle so that
+        // subsequent evaluations can distinguish the same physical instance.
+        try
+        {
+            int now = Game.GameTime;
+            foreach (var kv in observedThisTick)
+            {
+                _observedModelTimestamps[kv.Key] = now;
+                _observedModelLastHandle[kv.Key] = kv.Value;
+            }
+        }
+        catch { }
     }
 
     private bool AttemptSwap(Vehicle oldVeh, List<Model> readyModels)
@@ -478,7 +541,12 @@ public class TrafficEnhanced : Script
         // Ensure tier4 also respects the blacklist
         tier4 = tier4.Where(m => !_modelSwapBlacklist.Contains(m.Hash)).ToList();
 
-        List<Model> validCandidates = tier1.Count > 0 ? tier1 : (tier2.Count > 0 ? tier2 : (tier3.Count > 0 ? tier3 : tier4));
+        // Tier5: Deadlock breaker — allow any loaded model that isn't the same as the
+        // vehicle we're replacing and isn't explicitly blacklisted. This prevents
+        // memory-cap deadlocks in low-density areas.
+        var tier5 = readyModels.Where(m => m.IsLoaded && m.Hash != oldVeh.Model.Hash && !_modelSwapBlacklist.Contains(m.Hash)).ToList();
+
+        List<Model> validCandidates = tier1.Count > 0 ? tier1 : (tier2.Count > 0 ? tier2 : (tier3.Count > 0 ? tier3 : (tier4.Count > 0 ? tier4 : tier5)));
 
         if (validCandidates == null || validCandidates.Count == 0) return false;
 
@@ -548,6 +616,23 @@ public class TrafficEnhanced : Script
 
             Function.Call(Hash.DECOR_SET_INT, newVeh, AMB_TAG, 1);
             driver.SetIntoVehicle(newVeh, VehicleSeat.Driver);
+
+            // Verify the driver was successfully placed into the new vehicle before
+            // deleting the original. If the transfer failed, clean up the partial
+            // new vehicle and abort to avoid deleting a vehicle the player can see.
+            bool swapSucceeded = false;
+            try
+            {
+                swapSucceeded = (newVeh != null && newVeh.Exists() && driver != null && driver.Exists() && driver.IsInVehicle() && driver.CurrentVehicle == newVeh);
+            }
+            catch { swapSucceeded = false; }
+
+            if (!swapSucceeded)
+            {
+                try { if (newVeh != null && newVeh.Exists()) newVeh.Delete(); } catch { }
+                // Abort the swap - do not delete the original vehicle.
+                return false;
+            }
 
             try
             {
