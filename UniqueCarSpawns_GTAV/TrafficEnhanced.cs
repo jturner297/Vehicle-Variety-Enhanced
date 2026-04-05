@@ -72,6 +72,10 @@ public class TrafficEnhanced : Script
     private Queue<string> _loadQueue = new Queue<string>();
     private int _loadingTicker = 0;
 
+    // Fade-in entries for newly spawned vehicles to reduce visible pop-in
+    private class FadeEntry { public int Handle; public int StartTime; public int Duration; public FadeEntry(int h, int s, int d) { Handle = h; StartTime = s; Duration = d; } }
+    private List<FadeEntry> _fadeEntries = new List<FadeEntry>();
+
     private List<int> _spawnHistory = new List<int>();
     private int _historyDepth = 60;
     private Dictionary<int, int> _spawnTimestamps = new Dictionary<int, int>();
@@ -135,6 +139,9 @@ public class TrafficEnhanced : Script
             _cleanupTimer = Game.GameTime + 10000;
             if (_debugMode) CleanupBlips();
         }
+
+        // Update any active fade-ins so spawned vehicles gradually become visible
+        UpdateFades();
 
         if (Game.GameTime < _nextCheck) return;
 
@@ -629,7 +636,13 @@ public class TrafficEnhanced : Script
 
             if (!swapSucceeded)
             {
-                try { if (newVeh != null && newVeh.Exists()) newVeh.Delete(); } catch { }
+                try {
+                    if (newVeh != null && newVeh.Exists())
+                    {
+                        RemoveFadeEntryForHandle(newVeh.Handle);
+                        newVeh.Delete();
+                    }
+                } catch { }
                 // Abort the swap - do not delete the original vehicle.
                 return false;
             }
@@ -641,7 +654,8 @@ public class TrafficEnhanced : Script
             }
             catch { }
 
-            Function.Call(Hash.SET_ENTITY_VISIBLE, newVeh, true, 0);
+            // Start a smooth fade-in instead of an instant visibility snap to reduce pop-in.
+            StartFadeIn(newVeh, 800);
             Function.Call(Hash.SET_ENTITY_COLLISION, newVeh, true, true);
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
@@ -784,6 +798,19 @@ public class TrafficEnhanced : Script
     private void OnAborted(object sender, EventArgs e)
     {
         foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
+        // Ensure any partially faded vehicles are restored to full opacity
+        try
+        {
+            foreach (var fe in _fadeEntries)
+            {
+                if (Function.Call<bool>(Hash.DOES_ENTITY_EXIST, fe.Handle))
+                {
+                    try { Function.Call(Hash.SET_ENTITY_ALPHA, fe.Handle, 255, false); } catch { }
+                }
+            }
+        }
+        catch { }
+        _fadeEntries.Clear();
     }
 
     private void AddDebugBlip(Vehicle v)
@@ -797,6 +824,58 @@ public class TrafficEnhanced : Script
         b.IsShortRange = true;
         Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
         _debugBlips.Add(b);
+    }
+
+    private void UpdateFades()
+    {
+        if (_fadeEntries.Count == 0) return;
+
+        int now = Game.GameTime;
+        for (int i = _fadeEntries.Count - 1; i >= 0; i--)
+        {
+            var fe = _fadeEntries[i];
+            // Validate entity still exists
+            if (!Function.Call<bool>(Hash.DOES_ENTITY_EXIST, fe.Handle))
+            {
+                _fadeEntries.RemoveAt(i);
+                continue;
+            }
+
+            int elapsed = now - fe.StartTime;
+            if (elapsed >= fe.Duration)
+            {
+                // Ensure fully opaque and remove from list
+                try { Function.Call(Hash.SET_ENTITY_ALPHA, fe.Handle, 255, false); } catch { }
+                _fadeEntries.RemoveAt(i);
+            }
+            else
+            {
+                float t = Math.Max(0f, Math.Min(1f, (float)elapsed / fe.Duration));
+                int alpha = (int)(t * 255f);
+                try { Function.Call(Hash.SET_ENTITY_ALPHA, fe.Handle, alpha, false); } catch { }
+            }
+        }
+    }
+
+    private void StartFadeIn(Vehicle v, int durationMs)
+    {
+        if (v == null || !v.Exists()) return;
+        try
+        {
+            // Make visible but start fully transparent
+            Function.Call(Hash.SET_ENTITY_VISIBLE, v, true, 0);
+            Function.Call(Hash.SET_ENTITY_ALPHA, v, 0, false);
+            _fadeEntries.Add(new FadeEntry(v.Handle, Game.GameTime, durationMs));
+        }
+        catch { }
+    }
+
+    private void RemoveFadeEntryForHandle(int handle)
+    {
+        for (int i = _fadeEntries.Count - 1; i >= 0; i--)
+        {
+            if (_fadeEntries[i].Handle == handle) _fadeEntries.RemoveAt(i);
+        }
     }
 
     private void CleanupBlips()
