@@ -51,6 +51,8 @@ public class TrafficEnhanced : Script
     private int _nextCheck = 0;
     private int _nextSwapTime = 0;
     private int _cleanupTimer = 0;
+    // Frequent, lightweight cleanup for debug blips to avoid visible orphaned markers
+    private int _blipCleanupTimer = 0;
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
@@ -60,7 +62,9 @@ public class TrafficEnhanced : Script
     private AmbientProfile _defaultProfile;
     private AmbientProfile _currentProfile;
 
-    private List<Blip> _debugBlips = new List<Blip>();
+    // Map of swapped-vehicle handle -> diagnostic blip. We keep a mapping even when
+    // debug mode is off so we can recreate blips if the engine strips them later.
+    private Dictionary<int, Blip> _swapBlips = new Dictionary<int, Blip>();
 
     private HashSet<int> _recentSwaps = new HashSet<int>();
     private HashSet<int> _permanentBlacklist = new HashSet<int>();
@@ -137,11 +141,22 @@ public class TrafficEnhanced : Script
             _permanentBlacklist.RemoveWhere(h => !Function.Call<bool>(Hash.DOES_ENTITY_EXIST, h));
 
             _cleanupTimer = Game.GameTime + 10000;
-            if (_debugMode) CleanupBlips();
+            // NOTE: Blip cleanup used to only run when debug mode was enabled which
+            // could leave orphaned blips when debug was toggled off. Blips are now
+            // cleaned up on a separate, more frequent timer to avoid visible ghosts
+            // while keeping the heavier housekeeping on the original interval.
         }
 
         // Update any active fade-ins so spawned vehicles gradually become visible
         UpdateFades();
+
+        // Run a lightweight blip cleanup more frequently than the general cleanup
+        // so transient ambient despawns don't leave orphaned debug blips.
+        if (Game.GameTime > _blipCleanupTimer)
+        {
+            try { CleanupBlips(); } catch { }
+            _blipCleanupTimer = Game.GameTime + 2000; // every 2 seconds
+        }
 
         if (Game.GameTime < _nextCheck) return;
 
@@ -527,31 +542,54 @@ public class TrafficEnhanced : Script
         );
 
         int now = Game.GameTime;
-        var tier1 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+
+        // Restrict candidate models to those appropriate for the current zone/profile.
+        // Build an allowlist of model hashes from the active profile's categories.
+        var activeProfile = _currentProfile ?? _defaultProfile;
+        var allowedNames = new HashSet<string>();
+        try
+        {
+            if (activeProfile.RichChance > 0) allowedNames.UnionWith(VehList.models_rich);
+            if (activeProfile.MidChance > 0) allowedNames.UnionWith(VehList.models_mid);
+            if (activeProfile.PoorChance > 0) allowedNames.UnionWith(VehList.models_poor);
+            if (activeProfile.CountryChance > 0) allowedNames.UnionWith(VehList.models_countryside);
+        }
+        catch { }
+
+        var allowedHashes = new HashSet<int>();
+        foreach (var n in allowedNames)
+        {
+            try { allowedHashes.Add(Function.Call<int>(Hash.GET_HASH_KEY, n)); } catch { }
+        }
+
+        var candidatePool = readyModels.Where(m => allowedHashes.Contains(m.Hash)).ToList();
+        // If there are no profile-appropriate models loaded, abort swap to avoid cross-profile bleed.
+        if (candidatePool.Count == 0) return false;
+
+        var tier1 = candidatePool.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
                                           && !_spawnHistory.Contains(m.Hash)
                                           && (!_spawnTimestamps.ContainsKey(m.Hash) || now - _spawnTimestamps[m.Hash] > _spawnTTL)
                                           && !_modelSwapBlacklist.Contains(m.Hash))
                                 .ToList();
 
-        var tier2 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+        var tier2 = candidatePool.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
                                           && (!_spawnTimestamps.ContainsKey(m.Hash) || now - _spawnTimestamps[m.Hash] > _spawnTTL)
                                           && !_modelSwapBlacklist.Contains(m.Hash))
                                 .ToList();
 
-        var tier3 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
+        var tier3 = candidatePool.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)
                                           && !_spawnHistory.Contains(m.Hash)
                                           && !_modelSwapBlacklist.Contains(m.Hash))
                                 .ToList();
 
-        var tier4 = readyModels.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)).ToList();
+        var tier4 = candidatePool.Where(m => m.IsLoaded && !worldModelHashes.Contains(m.Hash)).ToList();
 
         // Ensure tier4 also respects the blacklist
         tier4 = tier4.Where(m => !_modelSwapBlacklist.Contains(m.Hash)).ToList();
 
-        // Tier5: Deadlock breaker — allow any loaded model that isn't the same as the
-        // vehicle we're replacing and isn't explicitly blacklisted. This prevents
-        // memory-cap deadlocks in low-density areas.
-        var tier5 = readyModels.Where(m => m.IsLoaded && m.Hash != oldVeh.Model.Hash && !_modelSwapBlacklist.Contains(m.Hash)).ToList();
+        // Tier5: Deadlock breaker — allow any loaded model from the profile pool that isn't the same as the
+        // vehicle we're replacing and isn't explicitly blacklisted.
+        var tier5 = candidatePool.Where(m => m.IsLoaded && m.Hash != oldVeh.Model.Hash && !_modelSwapBlacklist.Contains(m.Hash)).ToList();
 
         List<Model> validCandidates = tier1.Count > 0 ? tier1 : (tier2.Count > 0 ? tier2 : (tier3.Count > 0 ? tier3 : (tier4.Count > 0 ? tier4 : tier5)));
 
@@ -660,7 +698,10 @@ public class TrafficEnhanced : Script
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVeh, 20.0f, _driveStyle);
 
-            if (_debugMode) AddDebugBlip(newVeh);
+            // Always register the swapped vehicle so we can track it even when debug
+            // mode is off. The blip will be created with alpha 0 when debug is off
+            // and restored if the engine strips it later.
+            try { AddDebugBlip(newVeh); } catch { }
 
             newVeh.MarkAsNoLongerNeeded();
             driver.MarkAsNoLongerNeeded();
@@ -791,13 +832,22 @@ public class TrafficEnhanced : Script
         {
             _debugMode = !_debugMode;
             GTA.UI.Notification.PostTicker($"TrafficEnhanced Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true);
-            foreach (var b in _debugBlips) { if (b.Exists()) b.Alpha = 255; else b.Alpha = 0; }
+            // Toggle visibility of existing debug blips according to the new mode.
+            foreach (var kv in _swapBlips.ToList())
+            {
+                try
+                {
+                    var b = kv.Value;
+                    if (b != null && b.Exists()) b.Alpha = (_debugMode ? 255 : 0);
+                }
+                catch { }
+            }
         }
     }
 
     private void OnAborted(object sender, EventArgs e)
     {
-        foreach (var b in _debugBlips) if (b.Exists()) b.Delete();
+        foreach (var kv in _swapBlips.ToList()) { var b = kv.Value; if (b != null && b.Exists()) { try { b.Delete(); } catch { } } }
         // Ensure any partially faded vehicles are restored to full opacity
         try
         {
@@ -815,15 +865,22 @@ public class TrafficEnhanced : Script
 
     private void AddDebugBlip(Vehicle v)
     {
-        if (v.AttachedBlip != null) return;
-        Blip b = v.AddBlip();
-        b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Green;
-        b.Scale = 0.6f;
-        b.Name = "Ambient Swap";
-        b.IsShortRange = true;
-        Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
-        _debugBlips.Add(b);
+        if (v == null || !v.Exists()) return;
+        try
+        {
+            // If the vehicle already has a blip, normalize it and store the reference.
+            Blip b = v.AttachedBlip ?? v.AddBlip();
+            b.Sprite = BlipSprite.Standard;
+            b.Color = BlipColor.Green;
+            b.Scale = 0.6f;
+            b.Name = "Ambient Swap";
+            b.IsShortRange = true;
+            Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
+            try { b.Alpha = (_debugMode ? 255 : 0); } catch { }
+
+            _swapBlips[v.Handle] = b;
+        }
+        catch { }
     }
 
     private void UpdateFades()
@@ -880,13 +937,56 @@ public class TrafficEnhanced : Script
 
     private void CleanupBlips()
     {
-        for (int i = _debugBlips.Count - 1; i >= 0; i--)
+        // Iterate tracked swapped vehicles and ensure their blips remain attached.
+        var keys = _swapBlips.Keys.ToList();
+        foreach (var handle in keys)
         {
-            Blip b = _debugBlips[i];
-            if (!b.Exists() || b.Entity == null || !b.Entity.Exists())
+            Blip b = _swapBlips.ContainsKey(handle) ? _swapBlips[handle] : null;
+
+            // Use direct entity existence check to avoid transient misses from World.GetAllVehicles
+            bool exists = false;
+            try { exists = Function.Call<bool>(Hash.DOES_ENTITY_EXIST, handle); } catch { exists = false; }
+
+            if (!exists)
             {
-                if (b.Exists()) b.Delete();
-                _debugBlips.RemoveAt(i);
+                // Vehicle truly gone: remove any leftover blip and forget it.
+                try { if (b != null && b.Exists()) b.Delete(); } catch { }
+                _swapBlips.Remove(handle);
+                continue;
+            }
+
+            // Vehicle exists according to the engine. Obtain a Vehicle wrapper directly from handle
+            Vehicle veh = null;
+            try { veh = Entity.FromHandle(handle) as Vehicle; } catch { veh = null; }
+
+            if (veh == null || !veh.Exists())
+            {
+                // Defensive: if wrapper couldn't be created, skip recreation attempt this tick.
+                continue;
+            }
+
+            // Vehicle still exists. If the engine stripped the blip, recreate it and preserve debug visibility.
+            if (b == null || !b.Exists() || b.Entity == null || !b.Entity.Exists() || b.Entity.Handle != handle)
+            {
+                try { if (b != null && b.Exists()) b.Delete(); } catch { }
+                try
+                {
+                    Blip newb = veh.AttachedBlip ?? veh.AddBlip();
+                    newb.Sprite = BlipSprite.Standard;
+                    newb.Color = BlipColor.Green;
+                    newb.Scale = 0.6f;
+                    newb.Name = "Ambient Swap";
+                    newb.IsShortRange = true;
+                    Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, newb, false);
+                    try { newb.Alpha = (_debugMode ? 255 : 0); } catch { }
+                    _swapBlips[handle] = newb;
+                }
+                catch { }
+            }
+            else
+            {
+                // Ensure alpha syncs to debug mode
+                try { b.Alpha = (_debugMode ? 255 : 0); } catch { }
             }
         }
     }
