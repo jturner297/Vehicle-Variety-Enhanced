@@ -31,7 +31,7 @@ public class TrafficEnhanced : Script
 
     // THRESHOLD
     // The target must hit this to be swapped.
-    private float ScoreThreshold = 650f;
+    private float ScoreThreshold = 1000f;
 
     // MEMORY CAP
     private int _memoryCap = 15;
@@ -53,6 +53,10 @@ public class TrafficEnhanced : Script
     private int _cleanupTimer = 0;
     // Frequent, lightweight cleanup for debug blips to avoid visible orphaned markers
     private int _blipCleanupTimer = 0;
+    // Boredom fallback: ensure at least one swap within this interval (ms) by allowing
+    // a safe unique-vehicle swap when duplicates are scarce (rural areas).
+    private int _lastSuccessfulSwap = 0;
+    private int _boredomIntervalMs = 15 * 1000; // 15s
 
     private float _minSafeDistSq;
     private float _fovealDistSq;
@@ -83,10 +87,10 @@ public class TrafficEnhanced : Script
     private List<int> _spawnHistory = new List<int>();
     private int _historyDepth = 60;
     private Dictionary<int, int> _spawnTimestamps = new Dictionary<int, int>();
-    private int _spawnTTL = 5 * 60 * 1000; // 5 minutes
+    private int _spawnTTL = 2 * 60 * 1000; // 5 minutes
     // Observed-model short-term memory to prevent temporal recurrence (deja-vu)
     private Dictionary<int, int> _observedModelTimestamps = new Dictionary<int, int>();
-    private int _observedTTL = 2 * 60 * 1000; // 2 minutes
+    private int _observedTTL = 1 * 60 * 1000; // 2 minutes
     // Map model hash -> last observed vehicle handle to distinguish the same instance
     private Dictionary<int, int> _observedModelLastHandle = new Dictionary<int, int>();
 
@@ -500,14 +504,45 @@ public class TrafficEnhanced : Script
         }
 
         var bestChoices = candidates.OrderByDescending(c => c.Score).Take(MaxSwapsPerCycle);
-
+        bool swappedThisCycle = false;
         foreach (var choice in bestChoices)
         {
             if (AttemptSwap(choice.Vehicle, readyModels))
             {
                 _nextSwapTime = Game.GameTime + _swapCooldown;
+                swappedThisCycle = true;
                 break;
             }
+        }
+
+        // Boredom fallback: if we haven't swapped recently and no duplicate swap occurred,
+        // allow a safe unique-vehicle swap to inject variety (useful in low-density/rural areas).
+        if (!swappedThisCycle && Game.GameTime - _lastSuccessfulSwap >= _boredomIntervalMs)
+        {
+            try
+            {
+                // Prefer off-screen or blocked vehicles that are within foveal range but not too close.
+                var fallback = vehicles
+                    .Where(v => v != null && v.Exists() && v.Driver != null && !v.Driver.IsPlayer)
+                    .Where(v => !_recentSwaps.Contains(v.Handle) && !_permanentBlacklist.Contains(v.Handle))
+                    .Where(v => !_modelSwapBlacklist.Contains(v.Model.Hash))
+                    .Select(v => new { Veh = v, Dist = v.Position.DistanceTo(Game.Player.Character.Position), IsBlocked = !IsVehicleVisibleSmart(v, GameplayCamera.Position) })
+                    .Where(x => x.Veh.Position.DistanceToSquared(GameplayCamera.Position) >= 10000f && x.Veh.Position.DistanceToSquared(GameplayCamera.Position) <= _fovealDistSq)
+                    .Where(x => x.IsBlocked || !x.Veh.IsOnScreen)
+                    .OrderByDescending(x => x.Dist)
+                    .Select(x => x.Veh)
+                    .FirstOrDefault();
+
+                if (fallback != null)
+                {
+                    if (AttemptSwap(fallback, readyModels))
+                    {
+                        _nextSwapTime = Game.GameTime + _swapCooldown;
+                        swappedThisCycle = true;
+                    }
+                }
+            }
+            catch { }
         }
 
         // Commit observed models collected this tick into the short-term memory after
@@ -674,13 +709,15 @@ public class TrafficEnhanced : Script
 
             if (!swapSucceeded)
             {
-                try {
+                try
+                {
                     if (newVeh != null && newVeh.Exists())
                     {
                         RemoveFadeEntryForHandle(newVeh.Handle);
                         newVeh.Delete();
                     }
-                } catch { }
+                }
+                catch { }
                 // Abort the swap - do not delete the original vehicle.
                 return false;
             }
@@ -709,6 +746,8 @@ public class TrafficEnhanced : Script
             _recentSwaps.Add(newVeh.Handle);
             _spawnHistory.Add(model.Hash);
             _spawnTimestamps[model.Hash] = Game.GameTime;
+            // record a successful swap for boredom/backoff logic
+            _lastSuccessfulSwap = Game.GameTime;
             if (_spawnHistory.Count > _historyDepth) _spawnHistory.RemoveAt(0);
 
             return true;
