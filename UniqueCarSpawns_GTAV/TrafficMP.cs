@@ -28,13 +28,14 @@ public class TrafficMP : Script
     private int _historyCapacity = 10;
 
     // SCORING
-    private float MaxSpawnDist = 240f;
+    private float MaxSpawnDist = 320f; // Increased to allow room for the 250m visible cutoff
     private float SpawnFOV = 60f;
     private float ScoreThreshold = 200f;
 
     // BONUSES
     private float ScoreVisible = 50f;
     private float ScoreSameRoad = 150f;
+    private float ScoreDeadAhead = 300f; // NEW: Massive priority for cars directly in front
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
@@ -145,6 +146,7 @@ public class TrafficMP : Script
 
         _nextCheckTime = Game.GameTime + CheckInterval;
     }
+
     private void RunDirectorAI()
     {
         if (Game.GameTime < _nextSpawnTime) return;
@@ -154,7 +156,7 @@ public class TrafficMP : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
         Vector3 playerVel = player.Velocity;
-        Vector3 playerRight = player.RightVector; // Pass the right vector to calculate lateral distance
+        Vector3 playerRight = player.RightVector;
 
         int playerRoadID = GetVehicleNodeID(player.Position);
 
@@ -167,7 +169,6 @@ public class TrafficMP : Script
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
             if (IsExcludedCategory(v)) continue;
 
-            // Notice we are passing playerRight here now
             float score = GetCinematicScore(v, camPos, camDir, playerVel, playerRight, playerRoadID);
 
             if (score > bestScore)
@@ -222,6 +223,13 @@ public class TrafficMP : Script
         // Calculate lateral distance: How many meters to the left or right of your car is the target?
         float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
 
+        // DEAD AHEAD PRIORITY
+        // If the car is within 15 meters laterally (your lane or immediate oncoming lane), give a massive boost
+        if (lateralDist < 15f)
+        {
+            score += ScoreDeadAhead;
+        }
+
         if (isSameRoad) score += ScoreSameRoad;
 
         // 3. THE OCCLUSION DECISION
@@ -244,8 +252,8 @@ public class TrafficMP : Script
         }
         else
         {
-            // Visible or recently visible. Enforce a strict minimum distance to prevent pop-in.
-            if (dist < 180f) return 0f;
+            // UPDATED: Visible or recently visible cars must be at least 250m away.
+            if (dist < 250f) return 0f;
             score += ScoreVisible;
         }
 
@@ -257,12 +265,8 @@ public class TrafficMP : Script
     // --- STEALTH SWAP RAYCAST ---
     private bool IsVehicleOccluded(Vehicle v, Vector3 camPos)
     {
-        // Intersect Map (buildings) AND Vehicles (traffic, big rigs)
         IntersectFlags flags = IntersectFlags.Map | IntersectFlags.Vehicles;
-
-        // Pass 'v' so the ray ignores the target car itself
         RaycastResult result = World.Raycast(camPos, v.Position, flags, v);
-
         return result.DidHit;
     }
 
@@ -338,7 +342,6 @@ public class TrafficMP : Script
 
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
 
-            // Clean up the memory tracker so it doesn't hold onto the old entity handle
             _lockedVehicles.Remove(oldVehicle.Handle);
             oldVehicle.Delete();
 
@@ -350,7 +353,6 @@ public class TrafficMP : Script
 
             driver.BlockPermanentEvents = true;
 
-            // Immediately assign standard wander AI so they drive naturally
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
