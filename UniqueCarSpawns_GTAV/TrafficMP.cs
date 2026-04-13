@@ -20,19 +20,19 @@ public class TrafficMP : Script
     private int MaxActiveSwaps = 2;
     private List<Vehicle> _activeSwaps = new List<Vehicle>();
 
+    // TRACKERS
+    private HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
+
     // VARIETY CONTROL
     private List<string> _recentSpawnHistory = new List<string>();
     private int _historyCapacity = 10;
 
     // SCORING
-    private float MinSpawnDist = 130f;
     private float MaxSpawnDist = 240f;
-    private float SpawnFOV = 60f; // Wide FOV for windy roads
-    private float ScoreThreshold = 50f;
+    private float SpawnFOV = 60f;
+    private float ScoreThreshold = 200f;
 
     // BONUSES
-    private float ScoreOncoming = 100f;
-    private float ScoreOvertake = 20f;
     private float ScoreVisible = 50f;
     private float ScoreSameRoad = 150f;
 
@@ -89,6 +89,19 @@ public class TrafficMP : Script
 
         Ped player = Game.Player.Character;
 
+        // --- 0. SIGHT TRACKER (Prevent Blinking) ---
+        Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
+        foreach (Vehicle v in nearbyVehicles)
+        {
+            if (!v.Exists() || _lockedVehicles.Contains(v.Handle) || IsSwapped(v)) continue;
+
+            // If it is on screen AND not occluded by the map/traffic, lock it in memory.
+            if (v.IsOnScreen && !IsVehicleOccluded(v, GameplayCamera.Position))
+            {
+                _lockedVehicles.Add(v.Handle);
+            }
+        }
+
         // --- 1. REGISTRY CLEANUP ---
         for (int i = _activeSwaps.Count - 1; i >= 0; i--)
         {
@@ -96,6 +109,7 @@ public class TrafficMP : Script
 
             if (!v.Exists())
             {
+                _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + SpawnCooldown;
                 continue;
@@ -114,7 +128,9 @@ public class TrafficMP : Script
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 v.MarkAsNoLongerNeeded();
+                _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
+                continue;
             }
         }
 
@@ -129,7 +145,6 @@ public class TrafficMP : Script
 
         _nextCheckTime = Game.GameTime + CheckInterval;
     }
-
     private void RunDirectorAI()
     {
         if (Game.GameTime < _nextSpawnTime) return;
@@ -139,9 +154,8 @@ public class TrafficMP : Script
         Vector3 camPos = GameplayCamera.Position;
         Vector3 camDir = GameplayCamera.Direction;
         Vector3 playerVel = player.Velocity;
-        Vector3 playerDir = player.ForwardVector;
+        Vector3 playerRight = player.RightVector; // Pass the right vector to calculate lateral distance
 
-        // Get Player Road ID for comparison
         int playerRoadID = GetVehicleNodeID(player.Position);
 
         Vehicle[] allVehicles = World.GetAllVehicles();
@@ -153,7 +167,8 @@ public class TrafficMP : Script
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
             if (IsExcludedCategory(v)) continue;
 
-            float score = GetCinematicScore(v, camPos, camDir, playerDir, playerVel, playerRoadID);
+            // Notice we are passing playerRight here now
+            float score = GetCinematicScore(v, camPos, camDir, playerVel, playerRight, playerRoadID);
 
             if (score > bestScore)
             {
@@ -172,90 +187,88 @@ public class TrafficMP : Script
         }
     }
 
-    // --- HELPER: Get Road ID ---
     private int GetVehicleNodeID(Vector3 pos)
     {
         return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
     }
 
     // --- MAIN SCORING LOGIC ---
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerDir, Vector3 playerVel, int playerRoadID)
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
     {
         float score = 0f;
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
-        // 1. CHEAP FILTERS (Fail Fast)
-        if (dist < MinSpawnDist || dist > MaxSpawnDist) return 0f;
+        // 1. CHEAP FILTERS
+        if (dist < 60f || dist > MaxSpawnDist) return 0f;
 
-        // Slope Check (Replaces strict Z check for hills)
+        // Height Check 
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
-        double slopeAngle = Math.Atan2(heightDiff, dist) * (180 / Math.PI);
-        if (slopeAngle > 45) return 0f; // Only reject if it's practically vertical (bridges)
+        if (heightDiff > 15f) return 0f;
 
-        // FOV Check
-        Vector3 toCar = (vPos - camPos).Normalized;
-        if (Vector3.Angle(camDir, toCar) > SpawnFOV) return 0f;
+        // FOV & Direction Checks
+        Vector3 toCarDir = (vPos - camPos).Normalized;
+        if (Vector3.Angle(camDir, toCarDir) > SpawnFOV) return 0f;
 
-        // 2. LOGIC BONUSES
-
-        // Same Road Bonus
         int carRoadID = GetVehicleNodeID(vPos);
-        if (playerRoadID != 0 && carRoadID == playerRoadID) score += ScoreSameRoad;
 
-        // Movement Bonus
-        float closingSpeed = Vector3.Dot(v.Velocity.Normalized, playerVel.Normalized);
-        if (closingSpeed < -0.5f) score += ScoreOncoming;
-        else if (closingSpeed > 0.5f) score += ScoreOvertake;
+        // Trajectory Check
+        float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
+        if (movementDirection > 5f && carRoadID != playerRoadID) return 0f;
 
-        // 3. EXPENSIVE VISIBILITY CHECK (The "Super Raycast")
-        // Only run this if we are serious about this car
-        if (IsVehicleVisibleSmart(v, camPos))
+        // --- NEW LATERAL MATH & SCORING ---
+        bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
+
+        // Calculate lateral distance: How many meters to the left or right of your car is the target?
+        float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
+
+        if (isSameRoad) score += ScoreSameRoad;
+
+        // 3. THE OCCLUSION DECISION
+        bool isHidden = IsVehicleOccluded(v, camPos);
+
+        if (isHidden && !_lockedVehicles.Contains(v.Handle))
         {
-            score += ScoreVisible;
+            // Give the massive stealth bonus ONLY if it's on our exact road (blind corners, hills)
+            // OR if it's a cross-street directly in front of us (< 40m left/right).
+            if (isSameRoad || lateralDist < 40f)
+            {
+                score += 500f;
+            }
+            else
+            {
+                // It is hidden, but far off to the side on a different road (parallel street).
+                // Nerf the stealth bonus heavily so it loses to cars actually in your path.
+                score += 50f;
+            }
         }
         else
         {
-            return 0f; // If invisible, it's worthless
+            // Visible or recently visible. Enforce a strict minimum distance to prevent pop-in.
+            if (dist < 180f) return 0f;
+            score += ScoreVisible;
         }
 
-        score += dist * 0.5f;
+        score += (MaxSpawnDist - dist) * 0.5f;
+
         return score;
     }
 
-    // --- SUPER RAYCAST: Cascading Checks ---
-    private bool IsVehicleVisibleSmart(Vehicle v, Vector3 camPos)
+    // --- STEALTH SWAP RAYCAST ---
+    private bool IsVehicleOccluded(Vehicle v, Vector3 camPos)
     {
-        if (!v.IsOnScreen) return false;
+        // Intersect Map (buildings) AND Vehicles (traffic, big rigs)
+        IntersectFlags flags = IntersectFlags.Map | IntersectFlags.Vehicles;
 
-        Vector3 min, max;
-        v.Model.GetDimensions(out min, out max);
+        // Pass 'v' so the ray ignores the target car itself
+        RaycastResult result = World.Raycast(camPos, v.Position, flags, v);
 
-        // 1. Check Roof (Most likely)
-        Vector3 roof = v.GetOffsetPosition(new Vector3(0, 0, max.Z + 0.1f));
-        if (!World.Raycast(camPos, roof, IntersectFlags.Map).DidHit) return true;
-
-        // 2. Check Bumpers (Peekers)
-        Vector3 front = v.GetOffsetPosition(new Vector3(0, max.Y, 0.5f));
-        if (!World.Raycast(camPos, front, IntersectFlags.Map).DidHit) return true;
-
-        Vector3 rear = v.GetOffsetPosition(new Vector3(0, min.Y, 0.5f));
-        if (!World.Raycast(camPos, rear, IntersectFlags.Map).DidHit) return true;
-
-        // 3. Check Sides (Cross traffic)
-        Vector3 left = v.GetOffsetPosition(new Vector3(min.X, 0, 0.5f));
-        if (!World.Raycast(camPos, left, IntersectFlags.Map).DidHit) return true;
-
-        Vector3 right = v.GetOffsetPosition(new Vector3(max.X, 0, 0.5f));
-        if (!World.Raycast(camPos, right, IntersectFlags.Map).DidHit) return true;
-
-        return false;
+        return result.DidHit;
     }
 
-    // --- TRANSFORMATION & ZONES (Unchanged) ---
+    // --- TRANSFORMATION & ZONES ---
     private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
     {
-        // 1. Safety Checks
         if (IsSwapped(oldVehicle)) return false;
 
         SelectionLayer layer;
@@ -273,25 +286,17 @@ public class TrafficMP : Script
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
-        // --- NEW HISTORY LOGIC START ---
         string modelName = null;
-
-        // Create a list of Valid Candidates by subtracting History from the Full List
-        // This guarantees we never pick a history car if a fresh one exists
         var candidates = layer.List.Except(_recentSpawnHistory).ToList();
 
         if (candidates.Count > 0)
         {
-            // Pick a random car from the SAFE list
             modelName = candidates[_rnd.Next(candidates.Count)];
         }
         else
         {
-            // Fallback: If we have seen EVERY car in this category recently,
-            // we have no choice but to pick a random one from the full list.
             modelName = layer.List.ElementAt(_rnd.Next(layer.List.Count));
         }
-        // --- NEW HISTORY LOGIC END ---
 
         if (modelName == null) return false;
 
@@ -307,17 +312,14 @@ public class TrafficMP : Script
         }
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
 
-        // Final validation
         if (!oldVehicle.Exists() || IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
 
         Ped driver = oldVehicle.Driver;
         if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
 
-        // 2. CAPTURE OLD PHYSICS STATE
         Vector3 oldVelocity = oldVehicle.Velocity;
         float oldSpeed = oldVehicle.Speed;
 
-        // 3. THE SWAP
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
         Vehicle newVehicle = World.CreateVehicle(model, oldVehicle.Position, oldVehicle.Heading);
 
@@ -335,17 +337,21 @@ public class TrafficMP : Script
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
 
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
+
+            // Clean up the memory tracker so it doesn't hold onto the old entity handle
+            _lockedVehicles.Remove(oldVehicle.Handle);
             oldVehicle.Delete();
 
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
 
-            // --- PHYSICS FIX ---
             Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
             newVehicle.Velocity = oldVelocity;
             newVehicle.ForwardSpeed = oldSpeed;
 
             driver.BlockPermanentEvents = true;
-            Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, DriveStyle);
+
+            // Immediately assign standard wander AI so they drive naturally
+            Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
