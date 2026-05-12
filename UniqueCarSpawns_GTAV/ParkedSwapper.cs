@@ -7,12 +7,12 @@ using System.Linq;
 using System.Windows.Forms;
 using System.IO;
 
-public class SpawnMP : Script
+public class SwapParked : Script
 {
     // ==========================================
     //              QUICK SETTINGS
     // ==========================================
-    private bool ShowBlips = true;
+    private bool ShowBlips = false;
     private bool LockDoors = true;
     private float SpawnDistance = 200f;
     private float SpawnDistMin = 150f;
@@ -32,7 +32,7 @@ public class SpawnMP : Script
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
-    public SpawnMP()
+    public SwapParked()
     {
         string onlineVersion = Function.Call<string>(Hash.GET_ONLINE_VERSION);
         if (onlineVersion != mod_version)

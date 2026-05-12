@@ -7,13 +7,15 @@ using GTA.Math;
 using GTA.Native;
 using System.Drawing;
 
-public class TrafficMP : Script
+public class TrafficSwapper : Script
 {
     // =============================================================
     //                 TUNING DASHBOARD
     // =============================================================
 
-    private int SpawnCooldown = 2500;
+    // Randomized Cooldown (15 to 40 seconds)
+    private int MinSpawnCooldown = 2500;
+    private int MaxSpawnCooldown = 25000;
     private int CheckInterval = 250;
 
     // LIMITS
@@ -28,14 +30,14 @@ public class TrafficMP : Script
     private int _historyCapacity = 10;
 
     // SCORING
-    private float MaxSpawnDist = 320f; // Increased to allow room for the 250m visible cutoff
+    private float MaxSpawnDist = 250f; // Fixed: Expanded to allow room for the 250m visible cutoff
     private float SpawnFOV = 60f;
-    private float ScoreThreshold = 200f;
+    private float ScoreThreshold = 400f; // Fixed: Raised to properly gate the inflated static bonuses
 
     // BONUSES
     private float ScoreVisible = 50f;
     private float ScoreSameRoad = 150f;
-    private float ScoreDeadAhead = 300f; // NEW: Massive priority for cars directly in front
+    private float ScoreDeadAhead = 200f;
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
@@ -73,7 +75,7 @@ public class TrafficMP : Script
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
     };
 
-    public TrafficMP()
+    public TrafficSwapper()
     {
         Function.Call(Hash.DECOR_REGISTER, DECOR_NAME, 3);
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
@@ -112,7 +114,7 @@ public class TrafficMP : Script
             {
                 _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
-                _nextSpawnTime = Game.GameTime + SpawnCooldown;
+                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
                 continue;
             }
 
@@ -121,14 +123,15 @@ public class TrafficMP : Script
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 v.MarkAsNoLongerNeeded();
                 _activeSwaps.RemoveAt(i);
-                _nextSpawnTime = Game.GameTime + SpawnCooldown;
+                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
                 continue;
             }
 
-            if (v.Position.DistanceTo(player.Position) > 400f)
+            if (v.Position.DistanceTo(player.Position) > 270f)
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
-                v.MarkAsNoLongerNeeded();
+                //v.MarkAsNoLongerNeeded();
+                v.Delete();
                 _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 continue;
@@ -164,10 +167,25 @@ public class TrafficMP : Script
         Vehicle bestCandidate = null;
         float bestScore = 0f;
 
+        float minimumDistanceBetweenSwaps = 150f;
+
         foreach (Vehicle v in allVehicles)
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
             if (IsExcludedCategory(v)) continue;
+
+            // Spatial Proximity Check
+            bool isTooCloseToExistingSwap = false;
+            foreach (Vehicle activeSwap in _activeSwaps)
+            {
+                if (activeSwap.Exists() && v.Position.DistanceTo(activeSwap.Position) < minimumDistanceBetweenSwaps)
+                {
+                    isTooCloseToExistingSwap = true;
+                    break;
+                }
+            }
+
+            if (isTooCloseToExistingSwap) continue;
 
             float score = GetCinematicScore(v, camPos, camDir, playerVel, playerRight, playerRoadID);
 
@@ -183,7 +201,8 @@ public class TrafficMP : Script
             bool isDirt = IsVehicleOnDirt(bestCandidate);
             if (TransformVehicle(bestCandidate, isDirt))
             {
-                _nextSpawnTime = Game.GameTime + SpawnCooldown;
+                // Randomized Cooldown
+                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
             }
         }
     }
@@ -217,15 +236,15 @@ public class TrafficMP : Script
         float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
         if (movementDirection > 5f && carRoadID != playerRoadID) return 0f;
 
-        // --- NEW LATERAL MATH & SCORING ---
+        // --- STATIC LATERAL MATH & SCORING ---
         bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
 
-        // Calculate lateral distance: How many meters to the left or right of your car is the target?
+        // Calculate lateral distance
         float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
 
-        // DEAD AHEAD PRIORITY
-        // If the car is within 15 meters laterally (your lane or immediate oncoming lane), give a massive boost
-        if (lateralDist < 15f)
+        // STATIC DEAD AHEAD PRIORITY
+        // Widened to 20 meters to capture desirable cars slightly off-center 
+        if (lateralDist < 20f)
         {
             score += ScoreDeadAhead;
         }
@@ -237,7 +256,7 @@ public class TrafficMP : Script
 
         if (isHidden && !_lockedVehicles.Contains(v.Handle))
         {
-            // Give the massive stealth bonus ONLY if it's on our exact road (blind corners, hills)
+            // Massive stealth bonus ONLY if it's on our exact road (blind corners, hills)
             // OR if it's a cross-street directly in front of us (< 40m left/right).
             if (isSameRoad || lateralDist < 40f)
             {
@@ -245,15 +264,14 @@ public class TrafficMP : Script
             }
             else
             {
-                // It is hidden, but far off to the side on a different road (parallel street).
-                // Nerf the stealth bonus heavily so it loses to cars actually in your path.
+                // Hidden, but far off to the side on a parallel street.
                 score += 50f;
             }
         }
         else
         {
-            // UPDATED: Visible or recently visible cars must be at least 250m away.
-            if (dist < 250f) return 0f;
+            // FIXED: Visible cars must be at least 250m away to ensure a safe swap
+            if (dist < 200f) return 0f;
             score += ScoreVisible;
         }
 
@@ -358,9 +376,9 @@ public class TrafficMP : Script
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
 
-            newVehicle.MarkAsNoLongerNeeded();
-            driver.MarkAsNoLongerNeeded();
-            model.MarkAsNoLongerNeeded();
+          //  newVehicle.MarkAsNoLongerNeeded();
+         //   driver.MarkAsNoLongerNeeded();
+         //   model.MarkAsNoLongerNeeded();
 
             return true;
         }
@@ -492,7 +510,7 @@ public class TrafficMP : Script
     }
 
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
-    private void CreateBlip(Vehicle v, string modelKey) { Blip b = v.AddBlip(); b.Sprite = BlipSprite.Standard; b.Color = BlipColor.Blue; b.Scale = 0.7f; b.IsShortRange = true; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false); b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash)); if (!_debugMode && !ShowBlips) b.Alpha = 0; _activeBlips.Add(b); }
+    private void CreateBlip(Vehicle v, string modelKey) { Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY); b.Sprite = BlipSprite.Standard; b.Color = BlipColor.Blue; b.Scale = 0.7f; b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false); b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash)); if (!_debugMode && !ShowBlips) b.Alpha = 0; _activeBlips.Add(b); }
     private void CleanupBlips() { Ped player = Game.Player.Character; for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity)) { if (b.Exists()) b.Delete(); _activeBlips.RemoveAt(i); } } }
     private void DrawDebugInfo() { foreach (Vehicle v in World.GetAllVehicles()) { if (v.Exists() && IsSwapped(v) && v.IsOnScreen) World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow); } }
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e) { if (e.KeyCode == System.Windows.Forms.Keys.F11) { _debugMode = !_debugMode; GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true, false); foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0; } }
