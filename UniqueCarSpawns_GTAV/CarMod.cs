@@ -18,14 +18,24 @@ public static class CarMod
 {
     private static Random random = new Random();
 
-    private static readonly Dictionary<string, HashSet<int>> LiveryBlacklist = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase)
-    {
-     //   { "monstrociti", new HashSet<int> { 5, 10, 11 } },
-       { "eudora", new HashSet<int> { 10 } },
-       { "monstrociti", new HashSet<int> { 10, 11 } },
-       { "arbitergt", new HashSet<int> { 10, 11 } },
-        // Add more here: { "modelname", new HashSet<int> { 1, 2, 3 } },
-    };
+    private static readonly Dictionary<string, Dictionary<VehicleModType, HashSet<int>>> ModBlacklist = new Dictionary<string, Dictionary<VehicleModType, HashSet<int>>>(StringComparer.OrdinalIgnoreCase)
+{
+    // --- WEAPON / PHYSICAL PART BLACKLISTS ---
+    { "comet4", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Roof, new HashSet<int> { 0 } }     
+    }},
+
+    // --- LIVERY BLACKLISTS ---
+    { "eudora", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Livery, new HashSet<int> { 10 } }
+    }},
+    { "monstrociti", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } }
+    }},
+    { "arbitergt", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } }
+    }}
+};
 
     // ==========================================
     //           HERO CONFIGURATIONS
@@ -372,38 +382,32 @@ public static class CarMod
 
     public static void RandomizeLivery(Vehicle v, string modelName, int keepPct = 100)
     {
-        int count = v.Mods.LiveryCount; //
+        int count = v.Mods.LiveryCount;
         if (count > 0)
         {
-            // 1. Calculate the Percentage Limit (SmartMod Logic)
-            // e.g. If count is 10 and keepPct is 20, maxIndex becomes 2.
             int maxIndex = (count * keepPct) / 100;
 
-            // Safety: Always check at least 1 livery if the car has them, 
-            // but don't exceed the actual count.
             if (maxIndex < 1) maxIndex = 1;
             if (maxIndex > count) maxIndex = count;
 
-            // 2. Filter Valid Liveries (Blacklist Logic)
             List<int> validLiveries = new List<int>();
-
             HashSet<int> bannedIndices = null;
-            if (LiveryBlacklist.ContainsKey(modelName))
-            {
-                bannedIndices = LiveryBlacklist[modelName];
-            }
 
+            // --- NEW UNIFIED BLACKLIST LOOKUP ---
+            if (ModBlacklist.ContainsKey(modelName) && ModBlacklist[modelName].ContainsKey(VehicleModType.Livery))
+            {
+                bannedIndices = ModBlacklist[modelName][VehicleModType.Livery];
+            }
+           
             // Loop ONLY up to the calculated percentage (maxIndex)
             for (int i = 0; i < maxIndex; i++)
             {
-                // Skip if this specific livery ID is blacklisted
                 if (bannedIndices != null && bannedIndices.Contains(i))
                 {
-                    continue;
+                    continue; // Skip blacklisted livery
                 }
                 validLiveries.Add(i);
             }
-
             // 3. Apply a random livery from the valid list
             if (validLiveries.Count > 0)
             {
