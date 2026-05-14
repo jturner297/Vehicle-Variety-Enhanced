@@ -7,7 +7,7 @@ using System.Linq;
 using System.Windows.Forms;
 using System.IO;
 
-public class SwapParked : Script
+public class SpawnParked : Script
 {
     // ==========================================
     //              QUICK SETTINGS
@@ -32,7 +32,7 @@ public class SwapParked : Script
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
-    public SwapParked()
+    public SpawnParked()
     {
         string onlineVersion = Function.Call<string>(Hash.GET_ONLINE_VERSION);
         if (onlineVersion != mod_version)

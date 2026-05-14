@@ -7,7 +7,7 @@ using GTA.Math;
 using GTA.Native;
 using System.Drawing;
 
-public class TrafficSwapper : Script
+public class TrafficSwaps : Script
 {
     // =============================================================
     //                 TUNING DASHBOARD
@@ -75,7 +75,7 @@ public class TrafficSwapper : Script
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
     };
 
-    public TrafficSwapper()
+    public TrafficSwaps()
     {
         Function.Call(Hash.DECOR_REGISTER, DECOR_NAME, 3);
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
@@ -310,6 +310,18 @@ public class TrafficSwapper : Script
 
         string modelName = null;
         var candidates = layer.List.Except(_recentSpawnHistory).ToList();
+
+        // --- OPTION #2: HISTORY CHOKE PURGE ---
+        // If the history blocked every single car in this zone, 
+        // clear the oldest half of the history to breathe life back into the candidates.
+        if (candidates.Count == 0 && layer.List.Count > 1)
+        {
+            _recentSpawnHistory.RemoveRange(0, _recentSpawnHistory.Count / 2);
+            candidates = layer.List.Except(_recentSpawnHistory).ToList();
+        }
+        // --------------------------------------
+
+
 
         if (candidates.Count > 0)
         {

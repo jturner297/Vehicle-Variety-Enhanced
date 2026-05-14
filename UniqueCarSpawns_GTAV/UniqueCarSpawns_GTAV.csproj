@@ -54,9 +54,9 @@
   <ItemGroup>
     <Compile Include="CarMod.cs" />
     <Compile Include="ParkedDatabase.cs" />
-    <Compile Include="ParkedSwapper.cs" />
+    <Compile Include="ParkedSpawns.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TrafficSwapper.cs" />
+    <Compile Include="TrafficSwaps.cs" />
     <Compile Include="VehicleSelector.cs" />
     <Compile Include="VehList.cs" />
   </ItemGroup>
