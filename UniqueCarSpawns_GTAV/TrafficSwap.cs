@@ -7,7 +7,7 @@ using GTA.Math;
 using GTA.Native;
 using System.Drawing;
 
-public class TrafficSwaps : Script
+public class TrafficSwap : Script
 {
     // =============================================================
     //                 TUNING DASHBOARD
@@ -41,6 +41,7 @@ public class TrafficSwaps : Script
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
+    private bool ShowVehicleNameOnBlips = false;
     private bool EnableFileLogging = false;
     private bool _debugMode = false;
 
@@ -75,7 +76,7 @@ public class TrafficSwaps : Script
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
     };
 
-    public TrafficSwaps()
+    public TrafficSwap()
     {
         Function.Call(Hash.DECOR_REGISTER, DECOR_NAME, 3);
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
@@ -131,6 +132,15 @@ public class TrafficSwaps : Script
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 //v.MarkAsNoLongerNeeded();
+              
+                // Delete all occupants before deleting the car so they don't drop to the road
+                foreach (Ped occupant in v.Occupants)
+                {
+                    if (occupant != null && occupant.Exists())
+                    {
+                        occupant.Delete();
+                    }
+                }
                 v.Delete();
                 _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
@@ -373,6 +383,16 @@ public class TrafficSwaps : Script
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
 
             _lockedVehicles.Remove(oldVehicle.Handle);
+
+            // Delete any extra occupants so they don't get stranded on the road
+            foreach (Ped occupant in oldVehicle.Occupants)
+            {
+                if (occupant != null && occupant.Exists() && occupant != driver)
+                {
+                    occupant.Delete();
+                }
+            }
+
             oldVehicle.Delete();
 
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
@@ -522,7 +542,22 @@ public class TrafficSwaps : Script
     }
 
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
-    private void CreateBlip(Vehicle v, string modelKey) { Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY); b.Sprite = BlipSprite.Standard; b.Color = BlipColor.Blue; b.Scale = 0.7f; b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false); b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash)); if (!_debugMode && !ShowBlips) b.Alpha = 0; _activeBlips.Add(b); }
+    private void CreateBlip(Vehicle v, string modelKey) { 
+        Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY); 
+        b.Sprite = BlipSprite.Standard;
+        b.Color = BlipColor.Blue; b.Scale = 0.7f; 
+        b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
+        if (ShowVehicleNameOnBlips)
+        {
+            b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash));
+        }
+        else
+        {
+            b.Name = "Vehicle";
+        }
+        if (!_debugMode && !ShowBlips) b.Alpha = 0; 
+        _activeBlips.Add(b); 
+    }
     private void CleanupBlips() { Ped player = Game.Player.Character; for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity)) { if (b.Exists()) b.Delete(); _activeBlips.RemoveAt(i); } } }
     private void DrawDebugInfo() { foreach (Vehicle v in World.GetAllVehicles()) { if (v.Exists() && IsSwapped(v) && v.IsOnScreen) World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow); } }
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e) { if (e.KeyCode == System.Windows.Forms.Keys.F11) { _debugMode = !_debugMode; GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true, false); foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0; } }
