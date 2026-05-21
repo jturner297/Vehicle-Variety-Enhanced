@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-using GTA;
+﻿using GTA;
 using GTA.Math;
 using GTA.Native;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Linq;
 
 public class TrafficSwap : Script
 {
@@ -14,30 +14,30 @@ public class TrafficSwap : Script
     // =============================================================
 
     // Randomized Cooldown (15 to 40 seconds)
-    private int MinSpawnCooldown = 2500;
-    private int MaxSpawnCooldown = 25000;
-    private int CheckInterval = 250;
+    private readonly int MinSpawnCooldown = 30000;
+    private readonly int MaxSpawnCooldown = 75000;
+    private readonly int CheckInterval = 250;
 
     // LIMITS
-    private int MaxActiveSwaps = 2;
-    private List<Vehicle> _activeSwaps = new List<Vehicle>();
+    private readonly int MaxActiveSwaps = 1;
+    private readonly List<Vehicle> _activeSwaps = new List<Vehicle>();
 
     // TRACKERS
-    private HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
+    private readonly HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
 
     // VARIETY CONTROL
-    private List<string> _recentSpawnHistory = new List<string>();
-    private int _historyCapacity = 10;
+    private readonly List<string> _recentSpawnHistory = new List<string>();
+    private readonly int _historyCapacity = 10;
 
     // SCORING
-    private float MaxSpawnDist = 250f; // Fixed: Expanded to allow room for the 250m visible cutoff
-    private float SpawnFOV = 60f;
-    private float ScoreThreshold = 400f; // Fixed: Raised to properly gate the inflated static bonuses
+    private readonly float MaxSpawnDist = 250f; // Fixed: Expanded to allow room for the 250m visible cutoff
+    private readonly float SpawnFOV = 60f;
+    private readonly float ScoreThreshold = 400f; // Fixed: Raised to properly gate the inflated static bonuses
 
     // BONUSES
-    private float ScoreVisible = 50f;
-    private float ScoreSameRoad = 150f;
-    private float ScoreDeadAhead = 200f;
+    private readonly float ScoreVisible = 50f;
+    private readonly float ScoreSameRoad = 150f;
+    private readonly float ScoreDeadAhead = 200f;
 
     // DEBUG & LOGGING
     private bool ShowBlips = true;
@@ -47,26 +47,29 @@ public class TrafficSwap : Script
 
     // =============================================================
 
-    private bool IgnoreEmergency = true;
-    private bool IgnoreService = true;
-    private bool IgnoreBig = true;
+    private readonly bool IgnoreEmergency = true;
+    private readonly bool IgnoreService = true;
+    private readonly bool IgnoreBig = true;
 
     private const string DECOR_NAME = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
 
-    private VehicleDrivingFlags DriveStyle = (VehicleDrivingFlags)786603 | (VehicleDrivingFlags)262144;
+    private bool _isInMissionMode = false;
+
+    private readonly VehicleDrivingFlags DriveStyle = (VehicleDrivingFlags)786603 | (VehicleDrivingFlags)262144;
 
     private int _nextCheckTime = 0;
     private int _nextSpawnTime = 0;
 
-    private HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
-    private HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
-    private Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
-    private List<Blip> _activeBlips = new List<Blip>();
-    private Random _rnd = new Random();
+    private readonly HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
+    private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
-    private HashSet<string> _urbanZones = new HashSet<string>
+    private readonly Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
+    private readonly List<Blip> _activeBlips = new List<Blip>();
+    private readonly Random _rnd = new Random();
+
+    private readonly HashSet<string> _urbanZones = new HashSet<string>
     {
         "AIRP", "PBOX", "TEXTI", "SKID", "DOWNT", "LOSPUER", "DELSOL", "KOREAT", "STAD", "LEGSQU",
         "VINE", "WVINE", "DTVINE", "BURTON", "HAWICK", "ALTA", "RGLEN", "CHIL", "BAYTRE", "GALLI", "OBSERV",
@@ -93,6 +96,29 @@ public class TrafficSwap : Script
 
         Ped player = Game.Player.Character;
 
+        // --- SMART MISSION LOGIC ---
+        bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
+        if (isMissionActive)
+        {
+            if (!_isInMissionMode)
+            {
+                ReleaseAllToGame(); // Handoff active swaps to the game
+                _isInMissionMode = true; // Lock the door
+            }
+            return; // Stop all script logic during the mission
+        }
+        else
+        {
+            // Mission is over, reset the flag so we can spawn again
+            if (_isInMissionMode)
+            {
+                _isInMissionMode = false;
+                // Force a small cooldown so we don't start swapping immediately upon mission exit
+                _nextSpawnTime = Game.GameTime + 5000;
+                _nextCheckTime = Game.GameTime + 5000;
+            }
+        }
+
         // --- 0. SIGHT TRACKER (Prevent Blinking) ---
         Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
         foreach (Vehicle v in nearbyVehicles)
@@ -111,7 +137,7 @@ public class TrafficSwap : Script
         {
             Vehicle v = _activeSwaps[i];
 
-            if (!v.Exists())
+            if (!v.Exists() || v.IsDead)
             {
                 _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
@@ -132,7 +158,7 @@ public class TrafficSwap : Script
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 //v.MarkAsNoLongerNeeded();
-              
+
                 // Delete all occupants before deleting the car so they don't drop to the road
                 foreach (Ped occupant in v.Occupants)
                 {
@@ -401,16 +427,16 @@ public class TrafficSwap : Script
             newVehicle.Velocity = oldVelocity;
             newVehicle.ForwardSpeed = oldSpeed;
 
-            driver.BlockPermanentEvents = true;
+            driver.BlockPermanentEvents = false;
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
             if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
             if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
 
-          //  newVehicle.MarkAsNoLongerNeeded();
-         //   driver.MarkAsNoLongerNeeded();
-         //   model.MarkAsNoLongerNeeded();
+            //  newVehicle.MarkAsNoLongerNeeded();
+            //   driver.MarkAsNoLongerNeeded();
+            //   model.MarkAsNoLongerNeeded();
 
             return true;
         }
@@ -488,7 +514,7 @@ public class TrafficSwap : Script
         private List<Ingredient> _ingredients = new List<Ingredient>();
         private Queue<Ingredient> _tokenDeck = new Queue<Ingredient>();
         private HashSet<string> _blacklist;
-        private Random _rnd = new Random();
+        private readonly Random _rnd = new Random();
 
         public ZoneProfile(string name, HashSet<string> blacklist) { Name = name; _blacklist = blacklist; }
 
@@ -542,10 +568,11 @@ public class TrafficSwap : Script
     }
 
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
-    private void CreateBlip(Vehicle v, string modelKey) { 
-        Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY); 
+    private void CreateBlip(Vehicle v, string modelKey)
+    {
+        Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
         b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Blue; b.Scale = 0.7f; 
+        b.Color = BlipColor.Blue; b.Scale = 0.7f;
         b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
         if (ShowVehicleNameOnBlips)
         {
@@ -555,10 +582,42 @@ public class TrafficSwap : Script
         {
             b.Name = "Vehicle";
         }
-        if (!_debugMode && !ShowBlips) b.Alpha = 0; 
-        _activeBlips.Add(b); 
+        if (!_debugMode && !ShowBlips) b.Alpha = 0;
+        _activeBlips.Add(b);
     }
-    private void CleanupBlips() { Ped player = Game.Player.Character; for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity)) { if (b.Exists()) b.Delete(); _activeBlips.RemoveAt(i); } } }
+    private void CleanupBlips() { 
+        Ped player = Game.Player.Character; 
+        for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; 
+            if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity) || b.Entity.IsDead)
+            { 
+                if (b.Exists()) b.Delete(); 
+                _activeBlips.RemoveAt(i);
+            }
+        } 
+    }
+
+    private void ReleaseAllToGame()
+    {
+        // 1. Delete Blips (Clean the map UI immediately)
+        foreach (var blip in _activeBlips)
+        {
+            if (blip != null && blip.Exists()) blip.Delete();
+        }
+        _activeBlips.Clear();
+
+        // 2. Release Vehicles (Don't delete! Just let the game manage them)
+        foreach (var vehicle in _activeSwaps)
+        {
+            if (vehicle != null && vehicle.Exists())
+            {
+                vehicle.MarkAsNoLongerNeeded();
+            }
+        }
+
+        // 3. Clear memory trackers
+        _activeSwaps.Clear();
+        _lockedVehicles.Clear();
+    }
     private void DrawDebugInfo() { foreach (Vehicle v in World.GetAllVehicles()) { if (v.Exists() && IsSwapped(v) && v.IsOnScreen) World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow); } }
     private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e) { if (e.KeyCode == System.Windows.Forms.Keys.F11) { _debugMode = !_debugMode; GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true, false); foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0; } }
     private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }

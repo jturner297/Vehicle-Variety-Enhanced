@@ -12,7 +12,7 @@ public class SpawnParked : Script
     // ==========================================
     //              QUICK SETTINGS
     // ==========================================
-    private bool ShowBlips = false;
+    private bool ShowBlips = true;
     private bool LockDoors = true;
     private float SpawnDistance = 200f;
     private float SpawnDistMin = 150f;
@@ -153,7 +153,7 @@ public class SpawnParked : Script
                 continue;
             }
 
-            if (player.IsInVehicle(car))
+            if (player.IsInVehicle(car) || car.IsDead)
             {
                 DeleteBlipForSpot(spot);
                 car.MarkAsNoLongerNeeded();
