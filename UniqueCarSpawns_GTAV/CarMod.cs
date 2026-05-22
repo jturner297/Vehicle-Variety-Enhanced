@@ -22,7 +22,8 @@ public static class CarMod
 {
     // --- WEAPON / PHYSICAL PART BLACKLISTS ---
     { "comet4", new Dictionary<VehicleModType, HashSet<int>> {
-        { VehicleModType.Roof, new HashSet<int> { 0 } }     
+        { VehicleModType.Roof, new HashSet<int> { 0 } },
+             { VehicleModType.Livery, new HashSet<int> { 20,21,22,23,24,25,26,27,28,29} }
     }},
 
     // --- LIVERY BLACKLISTS ---
@@ -35,6 +36,7 @@ public static class CarMod
     { "arbitergt", new Dictionary<VehicleModType, HashSet<int>> {
         { VehicleModType.Livery, new HashSet<int> { 10, 11 } }
     }}
+      
 };
 
     // ==========================================

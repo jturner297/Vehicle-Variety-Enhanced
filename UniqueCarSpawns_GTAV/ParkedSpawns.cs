@@ -14,8 +14,9 @@ public class SpawnParked : Script
     // ==========================================
     private bool ShowBlips = true;
     private bool LockDoors = true;
-    private float SpawnDistance = 200f;
-    private float SpawnDistMin = 150f;
+    private float SpawnDistance = 150f;
+    private float SpawnDistMin = 80f;
+    private float DefaultDespawnBuffer = 50f;
     // ==========================================
 
     private int nextSpawnCheck = 0;
@@ -92,19 +93,17 @@ public class SpawnParked : Script
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
-            //    float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : SpawnDistance;
-         //       float activeDespawnDist = activeSpawnDist + 150f;
+                //    float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : SpawnDistance;
+                //       float activeDespawnDist = activeSpawnDist + 150f;
 
                 // 1. Determine Spawn Distance
                 // If the spot has a custom range (Military/Arena), use it. Otherwise use default (250).
                 float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : SpawnDistance;
 
-                // 2. Determine Buffer (The Fix)
-                // If it's a "Custom Large Spot" (Range > 0), give it a HUGE 400f buffer.
-                // If it's a normal city spot, give it a TINY 50f buffer.
-                float buffer = (spot.CustomSpawnRange > 0) ? 300f : 200f;
-
-                float activeDespawnDist = activeSpawnDist + buffer;
+                // 2. THE Despawn buffer 
+                // If a custom buffer is defined (> 0), use it. Otherwise, use the global DefaultDespawnBuffer.
+                float activeBuffer = (spot.CustomDespawnBuffer > 0) ? spot.CustomDespawnBuffer : DefaultDespawnBuffer;
+                float activeDespawnDist = activeSpawnDist + activeBuffer;
 
                 // A. COOLDOWN CHECK
                 if (distance > activeDespawnDist && cooldownSpots.Contains(spot))
@@ -224,7 +223,7 @@ public class SpawnParked : Script
         }
         // Start Invisible for fading logic
         car.Opacity = 0;
-        
+
         int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, car);
         if (comboCount > 0)
         {
@@ -238,6 +237,7 @@ public class SpawnParked : Script
         Blip mark = car.AddBlip();
         mark.Sprite = BlipSprite.Standard;
         mark.Color = BlipColor.Blue;
+      //  mark.Scale = 0.7f;
         mark.Name = "Unique Vehicle";
         Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
         markerDict[spot] = mark;
@@ -299,65 +299,65 @@ public class SpawnParked : Script
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
         // F10: ADVANCED COORDINATE LOGGER
-       /* if (e.KeyCode == Keys.F10)
-        {
-            Ped player = Game.Player.Character;
-            Vehicle currentCar = player.CurrentVehicle;
-            Vector3 pos;
-            float heading;
-            string refModel = "OnFoot";
-            string suggestedList = "VehList.models_city_rich";
+        /* if (e.KeyCode == Keys.F10)
+         {
+             Ped player = Game.Player.Character;
+             Vehicle currentCar = player.CurrentVehicle;
+             Vector3 pos;
+             float heading;
+             string refModel = "OnFoot";
+             string suggestedList = "VehList.models_city_rich";
 
-            // 1. Get Position & Reference Info
-            if (player.IsInVehicle())
-            {
-                pos = currentCar.Position;
-                heading = currentCar.Heading;
-                refModel = currentCar.DisplayName;
-            }
-            else
-            {
-                pos = player.Position;
-                heading = player.Heading;
-            }
+             // 1. Get Position & Reference Info
+             if (player.IsInVehicle())
+             {
+                 pos = currentCar.Position;
+                 heading = currentCar.Heading;
+                 refModel = currentCar.DisplayName;
+             }
+             else
+             {
+                 pos = player.Position;
+                 heading = player.Heading;
+             }
 
-            // 2. Get Location Data (Zone & Street)
-            // Get Short Code (e.g., "AIRP")
-            string zoneShort = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
+             // 2. Get Location Data (Zone & Street)
+             // Get Short Code (e.g., "AIRP")
+             string zoneShort = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
 
-            // Get Full Name (e.g., "Los Santos International Airport")
-            // FIX: Using Raw Hash 0x7B5280EBA9840C72 for GET_LABEL_TEXT to avoid Enum errors
-            string zoneName = Function.Call<string>((Hash)0x7B5280EBA9840C72, zoneShort);
+             // Get Full Name (e.g., "Los Santos International Airport")
+             // FIX: Using Raw Hash 0x7B5280EBA9840C72 for GET_LABEL_TEXT to avoid Enum errors
+             string zoneName = Function.Call<string>((Hash)0x7B5280EBA9840C72, zoneShort);
 
-            // Fallback if null
-            if (string.IsNullOrEmpty(zoneName)) zoneName = zoneShort;
+             // Fallback if null
+             if (string.IsNullOrEmpty(zoneName)) zoneName = zoneShort;
 
-            string streetName = World.GetStreetName(pos);
+             string streetName = World.GetStreetName(pos);
 
-            // 3. Format Data
-            string x = pos.X.ToString("F3") + "f";
-            string y = pos.Y.ToString("F3") + "f";
-            string z = pos.Z.ToString("F3") + "f";
-            string h = heading.ToString("F3") + "f";
+             // 3. Format Data
+             string x = pos.X.ToString("F3") + "f";
+             string y = pos.Y.ToString("F3") + "f";
+             string z = pos.Z.ToString("F3") + "f";
+             string h = heading.ToString("F3") + "f";
 
-            // Clean up zone name for ID generation (Remove spaces/quotes)
-            string cleanZone = zoneName.Replace(" ", "").Replace("'", "");
-            string autoId = $"{cleanZone}_{DateTime.Now.ToString("HHmmss")}";
+             // Clean up zone name for ID generation (Remove spaces/quotes)
+             string cleanZone = zoneName.Replace(" ", "").Replace("'", "");
+             string autoId = $"{cleanZone}_{DateTime.Now.ToString("HHmmss")}";
 
-            string line = $"new SpawnSpot(\"{autoId}\", new Vector3({x}, {y}, {z}), {h}, {suggestedList}, SpawnBehavior.RandomSpec), // {zoneName} - {streetName} - Ref: {refModel}";
+             string line = $"new SpawnSpot(\"{autoId}\", new Vector3({x}, {y}, {z}), {h}, {suggestedList}, SpawnBehavior.RandomSpec), // {zoneName} - {streetName} - Ref: {refModel}";
 
-            // 4. Save to File
-            try
-            {
-                File.AppendAllText("NewSpawns.txt", line + Environment.NewLine);
-                // FIX: PostTicker
-                GTA.UI.Notification.PostTicker($"~g~Saved: {autoId}\n~w~{refModel} @ {streetName}", true);
-            }
-            catch (Exception ex)
-            {
-                GTA.UI.Notification.PostTicker($"~r~Error: {ex.Message}", true);
-            }
-        } */
+             // 4. Save to File
+             try
+             {
+                 File.AppendAllText("NewSpawns.txt", line + Environment.NewLine);
+                 // FIX: PostTicker
+                 GTA.UI.Notification.PostTicker($"~g~Saved: {autoId}\n~w~{refModel} @ {streetName}", true);
+             }
+             catch (Exception ex)
+             {
+                 GTA.UI.Notification.PostTicker($"~r~Error: {ex.Message}", true);
+             }
+         } */
 
         // F12: FORCE REFRESH
         if (e.KeyCode == Keys.F12)
@@ -386,8 +386,8 @@ public class SpawnSpot
     public HashSet<string> RareList { get; set; }
     public int RareChance { get; set; }
     public float CustomSpawnRange { get; set; }
-
-    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f)
+    public float CustomDespawnBuffer { get; set; } // NEW: The specific buffer for this spot
+    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f, float customBuffer = 50f)
     {
         Id = id;
         Position = pos;
@@ -397,6 +397,6 @@ public class SpawnSpot
         RareList = rareList;
         RareChance = rareChance;
         CustomSpawnRange = customRange;
+        CustomDespawnBuffer = customBuffer;
     }
 }
-
