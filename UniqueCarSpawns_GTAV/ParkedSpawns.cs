@@ -9,18 +9,9 @@ using System.IO;
 
 public class SpawnParked : Script
 {
-    // ==========================================
-    //              QUICK SETTINGS
-    // ==========================================
-    private bool ShowBlips = true;
-    private bool LockDoors = true;
-    private float SpawnDistance = 150f;
-    private float SpawnDistMin = 80f;
-    private float DefaultDespawnBuffer = 50f;
-    // ==========================================
+
 
     private int nextSpawnCheck = 0;
-    private string mod_version = "1.72";
     private static Random random = new Random();
 
     private bool _isInMissionMode = false; // State Flag to prevent loop spam
@@ -35,12 +26,8 @@ public class SpawnParked : Script
 
     public SpawnParked()
     {
-        string onlineVersion = Function.Call<string>(Hash.GET_ONLINE_VERSION);
-        if (onlineVersion != mod_version)
-        {
-            GTA.UI.Notification.PostTicker($"~r~WARNING: Game Version Mismatch.\nRequired: {mod_version}", true);
-        }
 
+       ModSettings.Load(); // Initialize Settings First
         // INITIALIZE SPAWNS
         // REMINDER: SpawnBehavior.Spec handles "NoVisuals", "Hero Specs", "Higgins", and "Armoured" internally via CarMod.
         // REMINDER: SpawnBehavior.RandomSpec handles "Standard" and "Cult" (Epsilon check) internally.
@@ -49,7 +36,6 @@ public class SpawnParked : Script
 
         Tick += OnTick;
         Aborted += OnAborted;
-        KeyDown += OnKeyDown;
     }
 
     private void OnTick(object sender, EventArgs e)
@@ -93,16 +79,16 @@ public class SpawnParked : Script
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
-                //    float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : SpawnDistance;
+                //    float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : ModSettings.ParkedSpawnDistance;
                 //       float activeDespawnDist = activeSpawnDist + 150f;
 
                 // 1. Determine Spawn Distance
                 // If the spot has a custom range (Military/Arena), use it. Otherwise use default (250).
-                float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : SpawnDistance;
+                float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : ModSettings.SpotSpawnDistance;
 
                 // 2. THE Despawn buffer 
-                // If a custom buffer is defined (> 0), use it. Otherwise, use the global DefaultDespawnBuffer.
-                float activeBuffer = (spot.CustomDespawnBuffer > 0) ? spot.CustomDespawnBuffer : DefaultDespawnBuffer;
+                // If a custom buffer is defined (> 0), use it. Otherwise, use the global ModSettings.SpotDefaultDespawnBuffer.
+                float activeBuffer = (spot.CustomDespawnBuffer > 0) ? spot.CustomDespawnBuffer : ModSettings.SpotDefaultDespawnBuffer;
                 float activeDespawnDist = activeSpawnDist + activeBuffer;
 
                 // A. COOLDOWN CHECK
@@ -112,7 +98,7 @@ public class SpawnParked : Script
                 }
 
                 // B. SPAWN CHECK
-                if (distance < activeSpawnDist && distance > SpawnDistMin && !vehDict.ContainsKey(spot) && !cooldownSpots.Contains(spot))
+                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !cooldownSpots.Contains(spot))
                 {
                     string modelName = GetUniqueModel(spot);
 
@@ -122,7 +108,7 @@ public class SpawnParked : Script
                         if (vehicle != null)
                         {
                             vehDict[spot] = vehicle;
-                            if (ShowBlips) CreateMarkerAboveCar(vehicle, spot);
+                            if (ModSettings.ParkedShowBlips) CreateMarkerAboveCar(vehicle, spot);
 
                             // UPDATED: Now calls Unified CarMod
                             CarMod.ApplyStyle(vehicle, spot.Behavior, modelName);
@@ -213,7 +199,7 @@ public class SpawnParked : Script
         // CHECK: Is this a "Free Ride" spot? (Arena/Casino/Openwheel)
         bool isFreeRide = spot.Id.Contains("Arena") || spot.Id.Contains("Casino");
 
-        if (LockDoors && !isFreeRide)
+        if (ModSettings.LockDoors && !isFreeRide)
         {
 
             Function.Call(Hash.SET_VEHICLE_HAS_BEEN_OWNED_BY_PLAYER, car, false);
@@ -237,8 +223,16 @@ public class SpawnParked : Script
         Blip mark = car.AddBlip();
         mark.Sprite = BlipSprite.Standard;
         mark.Color = BlipColor.Blue;
-      //  mark.Scale = 0.7f;
-        mark.Name = "Unique Vehicle";
+        //  mark.Scale = 0.7f;
+        if (ModSettings.ShowVehicleNameOnBlips)
+        {
+            mark.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, car.Model.Hash));
+        }
+        else
+        {
+            mark.Name = "Vehicle";
+        }
+    
         Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
         markerDict[spot] = mark;
     }
@@ -296,78 +290,7 @@ public class SpawnParked : Script
     }
     private void OnAborted(object sender, EventArgs e) => CleanupAll();
 
-    private void OnKeyDown(object sender, KeyEventArgs e)
-    {
-        // F10: ADVANCED COORDINATE LOGGER
-        /* if (e.KeyCode == Keys.F10)
-         {
-             Ped player = Game.Player.Character;
-             Vehicle currentCar = player.CurrentVehicle;
-             Vector3 pos;
-             float heading;
-             string refModel = "OnFoot";
-             string suggestedList = "VehList.models_city_rich";
-
-             // 1. Get Position & Reference Info
-             if (player.IsInVehicle())
-             {
-                 pos = currentCar.Position;
-                 heading = currentCar.Heading;
-                 refModel = currentCar.DisplayName;
-             }
-             else
-             {
-                 pos = player.Position;
-                 heading = player.Heading;
-             }
-
-             // 2. Get Location Data (Zone & Street)
-             // Get Short Code (e.g., "AIRP")
-             string zoneShort = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z);
-
-             // Get Full Name (e.g., "Los Santos International Airport")
-             // FIX: Using Raw Hash 0x7B5280EBA9840C72 for GET_LABEL_TEXT to avoid Enum errors
-             string zoneName = Function.Call<string>((Hash)0x7B5280EBA9840C72, zoneShort);
-
-             // Fallback if null
-             if (string.IsNullOrEmpty(zoneName)) zoneName = zoneShort;
-
-             string streetName = World.GetStreetName(pos);
-
-             // 3. Format Data
-             string x = pos.X.ToString("F3") + "f";
-             string y = pos.Y.ToString("F3") + "f";
-             string z = pos.Z.ToString("F3") + "f";
-             string h = heading.ToString("F3") + "f";
-
-             // Clean up zone name for ID generation (Remove spaces/quotes)
-             string cleanZone = zoneName.Replace(" ", "").Replace("'", "");
-             string autoId = $"{cleanZone}_{DateTime.Now.ToString("HHmmss")}";
-
-             string line = $"new SpawnSpot(\"{autoId}\", new Vector3({x}, {y}, {z}), {h}, {suggestedList}, SpawnBehavior.RandomSpec), // {zoneName} - {streetName} - Ref: {refModel}";
-
-             // 4. Save to File
-             try
-             {
-                 File.AppendAllText("NewSpawns.txt", line + Environment.NewLine);
-                 // FIX: PostTicker
-                 GTA.UI.Notification.PostTicker($"~g~Saved: {autoId}\n~w~{refModel} @ {streetName}", true);
-             }
-             catch (Exception ex)
-             {
-                 GTA.UI.Notification.PostTicker($"~r~Error: {ex.Message}", true);
-             }
-         } */
-
-        // F12: FORCE REFRESH
-        if (e.KeyCode == Keys.F12)
-        {
-            CleanupAll();
-            cooldownSpots.Clear();
-            nextSpawnCheck = 0;
-            GTA.UI.Notification.PostTicker("~y~Spawns Force Cycled", true);
-        }
-    }
+    
 }
 
 // ==================================================

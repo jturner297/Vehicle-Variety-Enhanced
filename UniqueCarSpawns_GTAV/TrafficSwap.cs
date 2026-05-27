@@ -4,52 +4,23 @@ using GTA.Native;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 
 public class TrafficSwap : Script
 {
-    // =============================================================
-    //                 TUNING DASHBOARD
-    // =============================================================
 
-    // Randomized Cooldown (15 to 40 seconds)
-    private readonly int MinSpawnCooldown = 30000;
-    private readonly int MaxSpawnCooldown = 75000;
-    private readonly int CheckInterval = 250;
 
-    // LIMITS
-    private readonly int MaxActiveSwaps = 1;
     private readonly List<Vehicle> _activeSwaps = new List<Vehicle>();
 
-    // TRACKERS
+ 
     private readonly HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
 
-    // VARIETY CONTROL
+
     private readonly List<string> _recentSpawnHistory = new List<string>();
-    private readonly int _historyCapacity = 10;
 
-    // SCORING
-    private readonly float MaxSpawnDist = 250f; // Fixed: Expanded to allow room for the 250m visible cutoff
-    private readonly float SpawnFOV = 60f;
-    private readonly float ScoreThreshold = 400f; // Fixed: Raised to properly gate the inflated static bonuses
 
-    // BONUSES
-    private readonly float ScoreVisible = 50f;
-    private readonly float ScoreSameRoad = 150f;
-    private readonly float ScoreDeadAhead = 200f;
 
-    // DEBUG & LOGGING
-    private bool ShowBlips = true;
-    private bool ShowVehicleNameOnBlips = false;
-    private bool EnableFileLogging = false;
-    private bool _debugMode = false;
 
-    // =============================================================
-
-    private readonly bool IgnoreEmergency = true;
-    private readonly bool IgnoreService = true;
-    private readonly bool IgnoreBig = true;
 
     private const string DECOR_NAME = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
@@ -81,18 +52,18 @@ public class TrafficSwap : Script
 
     public TrafficSwap()
     {
+        ModSettings.Load();
         Function.Call(Hash.DECOR_REGISTER, DECOR_NAME, 3);
         Function.Call(Hash.DECOR_REGISTER, AMB_TAG, 3);
 
         InitializeZones();
         Tick += OnTick;
-        KeyDown += OnKeyDown;
         Aborted += OnAborted;
     }
 
     private void OnTick(object sender, EventArgs e)
     {
-        if (_debugMode) DrawDebugInfo();
+   
 
         Ped player = Game.Player.Character;
 
@@ -141,7 +112,7 @@ public class TrafficSwap : Script
             {
                 _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
-                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
+                _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
                 continue;
             }
 
@@ -150,7 +121,7 @@ public class TrafficSwap : Script
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 v.MarkAsNoLongerNeeded();
                 _activeSwaps.RemoveAt(i);
-                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
+                _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
                 continue;
             }
 
@@ -183,13 +154,13 @@ public class TrafficSwap : Script
         }
         catch (Exception) { }
 
-        _nextCheckTime = Game.GameTime + CheckInterval;
+        _nextCheckTime = Game.GameTime + ModSettings.CheckInterval;
     }
 
     private void RunDirectorAI()
     {
         if (Game.GameTime < _nextSpawnTime) return;
-        if (_activeSwaps.Count >= MaxActiveSwaps) return;
+        if (_activeSwaps.Count >= ModSettings.MaxActiveSwaps) return;
 
         Ped player = Game.Player.Character;
         Vector3 camPos = GameplayCamera.Position;
@@ -232,13 +203,13 @@ public class TrafficSwap : Script
             }
         }
 
-        if (bestCandidate != null && bestScore > ScoreThreshold)
+        if (bestCandidate != null && bestScore > ModSettings.ScoreThreshold)
         {
             bool isDirt = IsVehicleOnDirt(bestCandidate);
             if (TransformVehicle(bestCandidate, isDirt))
             {
                 // Randomized Cooldown
-                _nextSpawnTime = Game.GameTime + _rnd.Next(MinSpawnCooldown, MaxSpawnCooldown);
+                _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
             }
         }
     }
@@ -256,7 +227,7 @@ public class TrafficSwap : Script
         float dist = vPos.DistanceTo(camPos);
 
         // 1. CHEAP FILTERS
-        if (dist < 60f || dist > MaxSpawnDist) return 0f;
+        if (dist < 60f || dist > ModSettings.MaxSwapDist) return 0f;
 
         // Height Check 
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
@@ -264,7 +235,7 @@ public class TrafficSwap : Script
 
         // FOV & Direction Checks
         Vector3 toCarDir = (vPos - camPos).Normalized;
-        if (Vector3.Angle(camDir, toCarDir) > SpawnFOV) return 0f;
+        if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
 
         int carRoadID = GetVehicleNodeID(vPos);
 
@@ -282,10 +253,10 @@ public class TrafficSwap : Script
         // Widened to 20 meters to capture desirable cars slightly off-center 
         if (lateralDist < 20f)
         {
-            score += ScoreDeadAhead;
+            score += ModSettings.ScoreDeadAhead;
         }
 
-        if (isSameRoad) score += ScoreSameRoad;
+        if (isSameRoad) score += ModSettings.ScoreSameRoad;
 
         // 3. THE OCCLUSION DECISION
         bool isHidden = IsVehicleOccluded(v, camPos);
@@ -308,10 +279,10 @@ public class TrafficSwap : Script
         {
             // FIXED: Visible cars must be at least 250m away to ensure a safe swap
             if (dist < 200f) return 0f;
-            score += ScoreVisible;
+            score += ModSettings.ScoreVisible;
         }
 
-        score += (MaxSpawnDist - dist) * 0.5f;
+        score += (ModSettings.MaxSwapDist - dist) * 0.5f;
 
         return score;
     }
@@ -397,7 +368,7 @@ public class TrafficSwap : Script
         {
             _activeSwaps.Add(newVehicle);
             _recentSpawnHistory.Add(modelName);
-            if (_recentSpawnHistory.Count > _historyCapacity) _recentSpawnHistory.RemoveAt(0);
+            if (_recentSpawnHistory.Count > ModSettings._historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
             newVehicle.IsEngineRunning = true;
 
@@ -431,8 +402,7 @@ public class TrafficSwap : Script
 
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
-            if (EnableFileLogging) LogSwap(layer.SourceProfile, modelName, layer.Behavior);
-            if (ShowBlips || _debugMode) CreateBlip(newVehicle, modelName);
+            if (ModSettings.TrafficShowBlips) CreateBlip(newVehicle, modelName);
 
             //  newVehicle.MarkAsNoLongerNeeded();
             //   driver.MarkAsNoLongerNeeded();
@@ -547,16 +517,15 @@ public class TrafficSwap : Script
     }
 
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
-    private void LogSwap(string zoneName, string carModel, SpawnBehavior behavior) { try { File.AppendAllText("TrafficMP_SwapLog.txt", $"[{DateTime.Now:HH:mm:ss}] {zoneName}: {carModel} ({behavior}){Environment.NewLine}"); } catch { } }
     private SelectionLayer GetLayerForLocation(Vector3 pos) { string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z); if (string.IsNullOrEmpty(zone) || _bannedZones.Contains(zone)) return new SelectionLayer(); return _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone].PickLayer() : new SelectionLayer(); }
 
     private bool IsExcludedCategory(Vehicle v)
     {
         if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.ClassType == VehicleClass.Motorcycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
         VehicleClass vc = v.ClassType;
-        if (IgnoreEmergency && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
-        if (IgnoreService && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
-        if (IgnoreBig && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true;
+        if (ModSettings.IgnoreEmergencyTraffic && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
+        if (ModSettings.IgnoreServiceTraffic && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
+        if (ModSettings.IgnoreBigTraffic && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true;
         return false;
     }
 
@@ -572,9 +541,9 @@ public class TrafficSwap : Script
     {
         Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
         b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Blue; b.Scale = 0.7f;
+        b.Color = BlipColor.Blue; b.Scale = ModSettings.BlipSize;
         b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
-        if (ShowVehicleNameOnBlips)
+        if (ModSettings.ShowVehicleNameOnBlips)
         {
             b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash));
         }
@@ -582,7 +551,6 @@ public class TrafficSwap : Script
         {
             b.Name = "Vehicle";
         }
-        if (!_debugMode && !ShowBlips) b.Alpha = 0;
         _activeBlips.Add(b);
     }
     private void CleanupBlips() { 
@@ -618,8 +586,8 @@ public class TrafficSwap : Script
         _activeSwaps.Clear();
         _lockedVehicles.Clear();
     }
-    private void DrawDebugInfo() { foreach (Vehicle v in World.GetAllVehicles()) { if (v.Exists() && IsSwapped(v) && v.IsOnScreen) World.DrawMarker(MarkerType.Chevron1, v.Position + new Vector3(0, 0, 2), Vector3.Zero, Vector3.Zero, new Vector3(0.5f, 0.5f, 0.5f), Color.Yellow); } }
-    private void OnKeyDown(object sender, System.Windows.Forms.KeyEventArgs e) { if (e.KeyCode == System.Windows.Forms.Keys.F11) { _debugMode = !_debugMode; GTA.UI.Notification.PostTicker($"TrafficMP Debug: {(_debugMode ? "~g~ON" : "~r~OFF")}", true, false); foreach (var b in _activeBlips) if (b.Exists()) b.Alpha = _debugMode || ShowBlips ? 255 : 0; } }
+   
+
     private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }
     public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; public string SourceProfile; }
     [Flags] public enum VehicleNodeFlags { None = 0, Dirt = 32 }
