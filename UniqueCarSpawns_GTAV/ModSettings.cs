@@ -39,12 +39,21 @@ public static class ModSettings
 
 
     // ==========================================
-    //              SHARED SETTINGS
+    //              BLIPS SETTINGS
     // ==========================================
     public static bool ShowVehicleNameOnBlips { get; private set; } = false;
     public static float BlipSize { get; private set; } = 1.0f;
 
+    // ==========================================
+    //              IMMERSION SETTINGS
+    // ==========================================
+
     public static bool EnableSpotCooldowns = true; // Set to false to disable immersion cooldowns
+    public static int SpotCooldown { get; private set; } = 50000;
+    public static float CooldownResetDistance { get; private set; } = 1000f;
+    public static bool RngSpots { get; private set; } = false;
+    public static int SpotRngChancePercent { get; private set; } = 60;
+
     public static void Load()
     {
         if (_isLoaded) return; // Prevent loading multiple times
@@ -58,6 +67,8 @@ public static class ModSettings
         SpotSpawnDistance = settings.GetValue("PARKED", "SpotSpawnDistance", SpotSpawnDistance);
         SpotSpawnDistMin = settings.GetValue("PARKED", "SpotSpawnDistMin", SpotSpawnDistMin);
         SpotDefaultDespawnBuffer = settings.GetValue("PARKED", "SpotDefaultDespawnBuffer", SpotDefaultDespawnBuffer);
+
+     
 
         // TrafficSwap
         MinSwapCooldown = settings.GetValue("TRAFFIC", "MinSwapCooldown", MinSwapCooldown);
@@ -76,11 +87,18 @@ public static class ModSettings
         IgnoreBigTraffic = settings.GetValue("TRAFFIC", "IgnoreBigTraffic", IgnoreBigTraffic);
         _historyCapacity = settings.GetValue("TRAFFIC", "HistoryCapacity", _historyCapacity);
 
-        // Shared
-        ShowVehicleNameOnBlips = settings.GetValue("SHARED", "ShowVehicleNameOnBlips", ShowVehicleNameOnBlips);
-        BlipSize = settings.GetValue("SHARED", "BlipSize", BlipSize);
-        EnableSpotCooldowns = settings.GetValue("SHARED", "EnableSpotCooldowns", EnableSpotCooldowns);
+        // Blips
+        ShowVehicleNameOnBlips = settings.GetValue("BLIPS", "ShowVehicleNameOnBlips", ShowVehicleNameOnBlips);
+        BlipSize = settings.GetValue("BLIPS", "BlipSize", BlipSize);
+        
+        // Immersion
+        EnableSpotCooldowns = settings.GetValue("IMMERSION", "EnableSpotCooldowns", EnableSpotCooldowns);
+        SpotCooldown = settings.GetValue("IMMERSION", "SpotCooldown", SpotCooldown);
+        CooldownResetDistance = settings.GetValue("IMMERSION", "CooldownResetDistance", CooldownResetDistance);
 
+        RngSpots = settings.GetValue("IMMERSION", "RngSpots", RngSpots);
+        SpotRngChancePercent = settings.GetValue("IMMERSION", "SpotRngChancePercent", SpotRngChancePercent);
+       
         _isLoaded = true;
     }
 }

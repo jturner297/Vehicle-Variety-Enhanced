@@ -19,12 +19,14 @@ public class SpawnParked : Script
 
     // Time & Distance Cooldown Tracking
     private Dictionary<SpawnSpot, int> spotCooldowns = new Dictionary<SpawnSpot, int>();
-    private const int CooldownDuration = 180000; // 3 minutes real-time
-    private const float CooldownResetDistance = 1500f; // "Super far away" distance threshold
+
 
     // Player State Tracking for Resets
     private int lastPlayerHandle = 0;
     private bool wasPlayerDead = false;
+
+    // RNG spawn tracking: track whether we've attempted the RNG roll for the current player entry into a spot
+    private HashSet<SpawnSpot> attemptedRng = new HashSet<SpawnSpot>();
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
@@ -103,7 +105,7 @@ public class SpawnParked : Script
                             spotCooldowns.Remove(spot);
                         }
                         // 2. Distance-based reset (Driven "super far away")
-                        else if (distance > CooldownResetDistance)
+                        else if (distance > ModSettings.CooldownResetDistance)
                         {
                             spotCooldowns.Remove(spot);
                         }
@@ -120,6 +122,30 @@ public class SpawnParked : Script
 
                 if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown)
                 {
+                    // If RNG spawns enabled, perform a single chance roll the first time the player enters the radius
+                    if (ModSettings.RngSpots)
+                    {
+                        if (attemptedRng.Contains(spot))
+                        {
+                            // already attempted while inside this radius; skip further attempts until player leaves and re-enters
+                            continue;
+                        }
+
+                        attemptedRng.Add(spot);
+                        int roll = random.Next(0, 100);
+                        if (roll >= ModSettings.SpotRngChancePercent)
+                        {
+                            // failed the RNG chance, put spot on cooldown so it's treated as a 'bust'
+                            if (ModSettings.EnableSpotCooldowns)
+                            {
+                                spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
+                            }
+                            // failed the RNG chance, do not spawn now
+                            continue;
+                        }
+                        // else allow spawn to proceed
+                    }
+
                     string modelName = GetUniqueModel(spot);
 
                     if (modelName != null)
@@ -135,6 +161,12 @@ public class SpawnParked : Script
                     }
                 }
 
+                // If player moved out of spawn radius, reset RNG attempt flag so a new roll can occur on re-entry
+                if (distance >= activeSpawnDist && attemptedRng.Contains(spot))
+                {
+                    attemptedRng.Remove(spot);
+                }
+
                 // C. DESPAWN CHECK
                 if (vehDict.ContainsKey(spot))
                 {
@@ -143,9 +175,9 @@ public class SpawnParked : Script
                         DeleteSpotResources(spot);
 
                         // Apply cooldown when naturally despawning off-screen
-                        if (ModSettings.EnableSpotCooldowns)
+                        if (ModSettings.EnableSpotCooldowns)    
                         {
-                            spotCooldowns[spot] = Game.GameTime + CooldownDuration;
+                            spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
                         }
                     }
                 }
@@ -172,7 +204,7 @@ public class SpawnParked : Script
                 // Apply cooldown when stolen or destroyed
                 if (ModSettings.EnableSpotCooldowns)
                 {
-                    spotCooldowns[spot] = Game.GameTime + CooldownDuration;
+                    spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
                 }
 
                 car.Opacity = 255;
