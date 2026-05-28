@@ -35,11 +35,16 @@ public static class ModSettings
     public static bool IgnoreServiceTraffic { get; private set; } = true;
     public static bool IgnoreBigTraffic { get; private set; } = true;
 
+
+
+
     // ==========================================
     //              SHARED SETTINGS
     // ==========================================
     public static bool ShowVehicleNameOnBlips { get; private set; } = false;
     public static float BlipSize { get; private set; } = 1.0f;
+
+    public static bool EnableSpotCooldowns = true; // Set to false to disable immersion cooldowns
     public static void Load()
     {
         if (_isLoaded) return; // Prevent loading multiple times
@@ -74,6 +79,7 @@ public static class ModSettings
         // Shared
         ShowVehicleNameOnBlips = settings.GetValue("SHARED", "ShowVehicleNameOnBlips", ShowVehicleNameOnBlips);
         BlipSize = settings.GetValue("SHARED", "BlipSize", BlipSize);
+        EnableSpotCooldowns = settings.GetValue("SHARED", "EnableSpotCooldowns", EnableSpotCooldowns);
 
         _isLoaded = true;
     }

@@ -86,24 +86,7 @@ public class TrafficSwap : Script
                 _nextCheckTime = Game.GameTime + 5000;
             }
         }
-        // --- NEW: INTERIOR LOGIC ---
-        if (ModUtilities.IsPlayerInInterior())
-        {
-            // Set active blips to short range so they don't clutter the minimap edge
-            foreach (Blip b in _activeBlips)
-            {
-                if (b.Exists() && !b.IsShortRange) b.IsShortRange = true;
-            }
-            return; // Pause all spawn logic while indoors
-        }
-        else
-        {
-            // Restore global visibility when walking back outside
-            foreach (Blip b in _activeBlips)
-            {
-                if (b.Exists() && b.IsShortRange) b.IsShortRange = false;
-            }
-        }
+
         // --- 0. SIGHT TRACKER (Prevent Blinking) ---
         Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
         foreach (Vehicle v in nearbyVehicles)
