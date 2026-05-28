@@ -42,32 +42,20 @@ public class SpawnParked : Script
     {
         var player = Game.Player.Character;
         var playerPos = player.Position;
-        bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
-
-        /* if (isMissionActive)
-         {
-             CleanupAll();
-             return;
-         }*/
-
-        // --- SMART MISSION LOGIC ---
-        if (isMissionActive)
+        if (ModUtilities.IsMissionOrCutsceneActive())
         {
-            // Only run this ONCE when the mission first starts
             if (!_isInMissionMode)
             {
-                ReleaseAllToGame(); // Handoff cars to game
-                _isInMissionMode = true; // Lock the door
+                ReleaseAllToGame();
+                _isInMissionMode = true;
             }
-            return; // Stop script logic during mission
+            return;
         }
         else
         {
-            // Mission is over, reset the flag so we can spawn again
             if (_isInMissionMode)
             {
                 _isInMissionMode = false;
-                // Optional: Force a small cooldown so we don't spawn instantly on top of the old cars
                 nextSpawnCheck = Game.GameTime + 5000;
             }
         }
@@ -108,7 +96,7 @@ public class SpawnParked : Script
                         if (vehicle != null)
                         {
                             vehDict[spot] = vehicle;
-                            if (ModSettings.ParkedShowBlips) CreateMarkerAboveCar(vehicle, spot);
+                            if (ModSettings.ParkedShowBlips) CreateBlip(vehicle, spot);
 
                             // UPDATED: Now calls Unified CarMod
                             CarMod.ApplyStyle(vehicle, spot.Behavior, modelName);
@@ -218,23 +206,11 @@ public class SpawnParked : Script
         return car;
     }
 
-    private void CreateMarkerAboveCar(Vehicle car, SpawnSpot spot)
+    private void CreateBlip(Vehicle v, SpawnSpot spot)
     {
-        Blip mark = car.AddBlip();
-        mark.Sprite = BlipSprite.Standard;
-        mark.Color = BlipColor.Blue;
-        //  mark.Scale = 0.7f;
-        if (ModSettings.ShowVehicleNameOnBlips)
-        {
-            mark.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, car.Model.Hash));
-        }
-        else
-        {
-            mark.Name = "Vehicle";
-        }
-    
-        Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
-        markerDict[spot] = mark;
+        Blip b = ModUtilities.CreateVehicleBlip(v, BlipColor.Blue);
+        markerDict[spot] = b;
+
     }
 
     private void DeleteSpotResources(SpawnSpot spot)

@@ -67,29 +67,43 @@ public class TrafficSwap : Script
 
         Ped player = Game.Player.Character;
 
-        // --- SMART MISSION LOGIC ---
-        bool isMissionActive = Function.Call<bool>(Hash.GET_MISSION_FLAG) || Function.Call<bool>(Hash.IS_CUTSCENE_PLAYING);
-        if (isMissionActive)
+        // --- SMART MISSION LOGIC (Now using shared manager) ---
+        if (ModUtilities.IsMissionOrCutsceneActive())
         {
             if (!_isInMissionMode)
             {
-                ReleaseAllToGame(); // Handoff active swaps to the game
-                _isInMissionMode = true; // Lock the door
+                ReleaseAllToGame();
+                _isInMissionMode = true;
             }
-            return; // Stop all script logic during the mission
+            return;
         }
         else
         {
-            // Mission is over, reset the flag so we can spawn again
             if (_isInMissionMode)
             {
                 _isInMissionMode = false;
-                // Force a small cooldown so we don't start swapping immediately upon mission exit
                 _nextSpawnTime = Game.GameTime + 5000;
                 _nextCheckTime = Game.GameTime + 5000;
             }
         }
-
+        // --- NEW: INTERIOR LOGIC ---
+        if (ModUtilities.IsPlayerInInterior())
+        {
+            // Set active blips to short range so they don't clutter the minimap edge
+            foreach (Blip b in _activeBlips)
+            {
+                if (b.Exists() && !b.IsShortRange) b.IsShortRange = true;
+            }
+            return; // Pause all spawn logic while indoors
+        }
+        else
+        {
+            // Restore global visibility when walking back outside
+            foreach (Blip b in _activeBlips)
+            {
+                if (b.Exists() && b.IsShortRange) b.IsShortRange = false;
+            }
+        }
         // --- 0. SIGHT TRACKER (Prevent Blinking) ---
         Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
         foreach (Vehicle v in nearbyVehicles)
@@ -539,18 +553,8 @@ public class TrafficSwap : Script
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
     private void CreateBlip(Vehicle v, string modelKey)
     {
-        Blip b = v.AddBlip(); Function.Call(Hash.FLASH_MINIMAP_DISPLAY);
-        b.Sprite = BlipSprite.Standard;
-        b.Color = BlipColor.Blue; b.Scale = ModSettings.BlipSize;
-        b.IsShortRange = false; Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
-        if (ModSettings.ShowVehicleNameOnBlips)
-        {
-            b.Name = Game.GetLocalizedString(Function.Call<string>(Hash.GET_DISPLAY_NAME_FROM_VEHICLE_MODEL, v.Model.Hash));
-        }
-        else
-        {
-            b.Name = "Vehicle";
-        }
+        // TrafficSwap explicitly wants height hidden and long-range visibility initially
+        Blip b = ModUtilities.CreateVehicleBlip(v, BlipColor.Blue);
         _activeBlips.Add(b);
     }
     private void CleanupBlips() { 
