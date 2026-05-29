@@ -20,7 +20,6 @@ public class SpawnParked : Script
     // Time & Distance Cooldown Tracking
     private Dictionary<SpawnSpot, int> spotCooldowns = new Dictionary<SpawnSpot, int>();
 
-
     // Player State Tracking for Resets
     private int lastPlayerHandle = 0;
     private bool wasPlayerDead = false;
@@ -86,6 +85,10 @@ public class SpawnParked : Script
         // --- 1. SPAWN & DESPAWN LOGIC ---
         if (Game.GameTime > nextSpawnCheck)
         {
+            // Cache camera data once per check cycle for performance
+            Vector3 camPos = GameplayCamera.Position;
+            Vector3 camDir = GameplayCamera.Direction;
+
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
@@ -122,6 +125,16 @@ public class SpawnParked : Script
 
                 if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown)
                 {
+                    // --- DIRECTIONAL FOV LOGIC ---
+                    Vector3 toSpotDir = (spot.Position - camPos).Normalized;
+
+                    // Only spawn if we are looking in the spot's general direction
+                    if (Vector3.Angle(camDir, toSpotDir) > ModSettings.SwapFOV)
+                    {
+                        continue; // Spot is out of view (behind us), skip spawn
+                    }
+                    // -----------------------------
+
                     // If RNG spawns enabled, perform a single chance roll the first time the player enters the radius
                     if (ModSettings.RngSpots)
                     {
@@ -132,8 +145,12 @@ public class SpawnParked : Script
                         }
 
                         attemptedRng.Add(spot);
+
+                        // DETERMINE ACTIVE RNG (Override vs Global)
+                        int activeRngChance = (spot.CustomRngChance >= 0) ? spot.CustomRngChance : ModSettings.SpotRngChancePercent;
+
                         int roll = random.Next(0, 100);
-                        if (roll >= ModSettings.SpotRngChancePercent)
+                        if (roll >= activeRngChance)
                         {
                             // failed the RNG chance, put spot on cooldown so it's treated as a 'bust'
                             if (ModSettings.EnableSpotCooldowns)
@@ -154,7 +171,9 @@ public class SpawnParked : Script
                         if (vehicle != null)
                         {
                             vehDict[spot] = vehicle;
-                            if (ModSettings.ParkedShowBlips) CreateBlip(vehicle, spot);
+
+                            // Respect the localized ShowBlip override
+                            if (ModSettings.ParkedShowBlips && spot.ShowBlip) CreateBlip(vehicle, spot);
 
                             CarMod.ApplyStyle(vehicle, spot.Behavior, modelName);
                         }
@@ -174,8 +193,8 @@ public class SpawnParked : Script
                     {
                         DeleteSpotResources(spot);
 
-                        // Apply cooldown when naturally despawning off-screen
-                        if (ModSettings.EnableSpotCooldowns)    
+                        // Apply standard cooldown when naturally despawning off-screen
+                        if (ModSettings.EnableSpotCooldowns)
                         {
                             spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
                         }
@@ -201,10 +220,10 @@ public class SpawnParked : Script
                 car.MarkAsNoLongerNeeded();
                 vehDict.Remove(spot);
 
-                // Apply cooldown when stolen or destroyed
+                // Apply DOUBLED cooldown when stolen or destroyed
                 if (ModSettings.EnableSpotCooldowns)
                 {
-                    spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
+                    spotCooldowns[spot] = Game.GameTime + (ModSettings.SpotCooldown * 2);
                 }
 
                 car.Opacity = 255;
@@ -342,8 +361,10 @@ public class SpawnSpot
     public int RareChance { get; set; }
     public float CustomSpawnRange { get; set; }
     public float CustomDespawnBuffer { get; set; }
+    public bool ShowBlip { get; set; }
+    public int CustomRngChance { get; set; }
 
-    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f, float customBuffer = 50f)
+    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f, float customBuffer = 50f, bool showBlip = true, int customRng = -1)
     {
         Id = id;
         Position = pos;
@@ -354,5 +375,7 @@ public class SpawnSpot
         RareChance = rareChance;
         CustomSpawnRange = customRange;
         CustomDespawnBuffer = customBuffer;
+        ShowBlip = showBlip;
+        CustomRngChance = customRng;
     }
 }

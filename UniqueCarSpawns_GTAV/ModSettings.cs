@@ -95,7 +95,6 @@ public static class ModSettings
         EnableSpotCooldowns = settings.GetValue("IMMERSION", "EnableSpotCooldowns", EnableSpotCooldowns);
         SpotCooldown = settings.GetValue("IMMERSION", "SpotCooldown", SpotCooldown);
         CooldownResetDistance = settings.GetValue("IMMERSION", "CooldownResetDistance", CooldownResetDistance);
-
         RngSpots = settings.GetValue("IMMERSION", "RngSpots", RngSpots);
         SpotRngChancePercent = settings.GetValue("IMMERSION", "SpotRngChancePercent", SpotRngChancePercent);
        
