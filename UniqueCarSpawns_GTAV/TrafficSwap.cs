@@ -163,7 +163,7 @@ public class TrafficSwap : Script
                 continue;
             }
         }
-
+        ModUtilities.ActiveTrafficCars = _activeSwaps.Count;
         if (Game.GameTime < _nextCheckTime) return;
 
         try
@@ -180,6 +180,9 @@ public class TrafficSwap : Script
     {
         if (Game.GameTime < _nextSpawnTime) return;
         if (_activeSwaps.Count >= ModSettings.MaxActiveSwaps) return;
+
+        // NEW: If a standard parked car is spawned, pause TrafficSwap to give it the spotlight
+        if (ModSettings.PreventModOverlap && ModUtilities.ActiveParkedCars > 0) return;
 
         Ped player = Game.Player.Character;
         Vector3 camPos = GameplayCamera.Position;
@@ -301,7 +304,7 @@ public class TrafficSwap : Script
             score += ModSettings.ScoreVisible;
         }
 
-        score += (ModSettings.MaxSwapDist - dist) * 0.5f;
+        score += (ModSettings.MaxSwapDist - dist) * 3.0f;
 
         return score;
     }

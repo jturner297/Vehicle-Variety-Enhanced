@@ -3,6 +3,11 @@ using GTA.Native;
 
 public static class ModUtilities
 {
+    // --- CROSS-MOD COMMUNICATION ---
+    // Tracks how many standard (non-exception) parked cars are currently spawned
+    public static int ActiveParkedCars { get; set; } = 0;
+    public static int ActiveTrafficCars { get; set; } = 0; // NEW
+
 
     // Global State Tracking for Startup Delay
     private static int _modUnlockTime = 0;

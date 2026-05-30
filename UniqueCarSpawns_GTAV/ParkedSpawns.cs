@@ -101,6 +101,13 @@ public class SpawnParked : Script
             Vector3 camPos = GameplayCamera.Position;
             Vector3 camDir = GameplayCamera.Direction;
 
+            // NEW: Count only standard cars that enforce limits
+            int standardCarsActive = 0;
+            foreach (var activeSpot in vehDict.Keys)
+            {
+                if (!activeSpot.IgnoreLimits) standardCarsActive++;
+            }
+
             foreach (var spot in AllSpawns)
             {
                 float distance = Vector3.Distance(spot.Position, playerPos);
@@ -144,9 +151,11 @@ public class SpawnParked : Script
 
                 // B. SPAWN CHECK
                 bool isCoolingDown = ModSettings.EnableSpotCooldowns && spotCooldowns.ContainsKey(spot);
-
+                // NEW: Calculate if the 1-car limit has been hit, respecting the exception flag
+                bool limitReached = (ModSettings.LimitOneParkedVehicle && standardCarsActive > 0 && !spot.IgnoreLimits) ||
+                                     (ModSettings.PreventModOverlap && ModUtilities.ActiveTrafficCars > 0 && !spot.IgnoreLimits);
                 // Added stolenPendingReset check to block instant respawns
-                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
+                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot) && !limitReached)
                 {
                     // --- DIRECTIONAL FOV LOGIC ---
                     Vector3 toSpotDir = (spot.Position - camPos).Normalized;
@@ -194,6 +203,9 @@ public class SpawnParked : Script
                         if (vehicle != null)
                         {
                             vehDict[spot] = vehicle;
+
+                            // NEW FIX: Update the counter instantly so the next spot in the loop knows we hit the limit!
+                            if (!spot.IgnoreLimits) standardCarsActive++;
 
                             // Respect the localized ShowBlip override
                             if (ModSettings.ParkedShowBlips && spot.ShowBlip) CreateBlip(vehicle, spot);
@@ -273,6 +285,15 @@ public class SpawnParked : Script
                 }
             }
         }
+
+        // --- 4. CROSS-MOD BROADCAST ---
+        // TrafficSwap will only halt if a STANDARD parked car is active
+        int standardBroadcastCount = 0;
+        foreach (var activeSpot in vehDict.Keys)
+        {
+            if (!activeSpot.IgnoreLimits) standardBroadcastCount++;
+        }
+        ModUtilities.ActiveParkedCars = standardBroadcastCount;
     }
 
     private string GetUniqueModel(SpawnSpot spot)
@@ -390,8 +411,9 @@ public class SpawnSpot
     public float CustomDespawnBuffer { get; set; }
     public bool ShowBlip { get; set; }
     public int CustomRngChance { get; set; }
+    public bool IgnoreLimits { get; set; }
 
-    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f, float customBuffer = 50f, bool showBlip = true, int customRng = -1)
+    public SpawnSpot(string id, Vector3 pos, float head, HashSet<string> list, SpawnBehavior behavior, HashSet<string> rareList = null, int rareChance = 0, float customRange = -1f, float customBuffer = 50f, bool showBlip = true, int customRng = -1, bool ignoreLimits = false)
     {
         Id = id;
         Position = pos;
@@ -404,5 +426,6 @@ public class SpawnSpot
         CustomDespawnBuffer = customBuffer;
         ShowBlip = showBlip;
         CustomRngChance = customRng;
+        IgnoreLimits = ignoreLimits; // NEW
     }
 }

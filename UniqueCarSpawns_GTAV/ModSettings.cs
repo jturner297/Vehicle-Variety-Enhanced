@@ -60,7 +60,8 @@ public static class ModSettings
     public static float CooldownResetDistance { get; private set; } = 1000f;
     public static bool RngSpots { get; private set; } = false;
     public static int SpotRngChancePercent { get; private set; } = 60;
-
+    public static bool LimitOneParkedVehicle { get; private set; } = true;
+    public static bool PreventModOverlap { get; private set; } = true; // NEW
     public static void Load()
     {
         if (_isLoaded) return; // Prevent loading multiple times
@@ -109,6 +110,8 @@ public static class ModSettings
         CooldownResetDistance = settings.GetValue("IMMERSION", "CooldownResetDistance", CooldownResetDistance);
         RngSpots = settings.GetValue("IMMERSION", "RngSpots", RngSpots);
         SpotRngChancePercent = settings.GetValue("IMMERSION", "SpotRngChancePercent", SpotRngChancePercent);
+        LimitOneParkedVehicle = settings.GetValue("IMMERSION", "LimitOneParkedVehicle", LimitOneParkedVehicle);
+        PreventModOverlap = settings.GetValue("IMMERSION", "PreventModOverlap", PreventModOverlap);
        
         _isLoaded = true;
     }
