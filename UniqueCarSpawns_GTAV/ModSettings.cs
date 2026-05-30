@@ -65,7 +65,7 @@ public static class ModSettings
     {
         if (_isLoaded) return; // Prevent loading multiple times
 
-        string iniPath = "scripts\\UniqueVehiclesSP.ini";
+        string iniPath = "scripts\\VehicleVarietyEnhanced.ini";
         ScriptSettings settings = ScriptSettings.Load(iniPath);
 
         // General
