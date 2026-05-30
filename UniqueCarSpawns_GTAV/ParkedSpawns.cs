@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 public class SpawnParked : Script
 {
@@ -39,6 +40,14 @@ public class SpawnParked : Script
 
         Tick += OnTick;
         Aborted += OnAborted;
+    }
+
+    // Helper: horizontal distance (2D) between two vectors
+    private float GetHorizontalDistance(Vector3 a, Vector3 b)
+    {
+        float dx = a.X - b.X;
+        float dy = a.Y - b.Y;
+        return (float)Math.Sqrt(dx * dx + dy * dy);
     }
 
     private void OnTick(object sender, EventArgs e)
@@ -103,7 +112,10 @@ public class SpawnParked : Script
 
             foreach (var spot in AllSpawns)
             {
-                float distance = Vector3.Distance(spot.Position, playerPos);
+                // Use horizontal distance for most spawn/despawn/cooldown checks so vertical flight
+                // doesn't constantly toggle/reset spots. Keep vertical difference for edge checks.
+                float horizDistance = GetHorizontalDistance(spot.Position, playerPos);
+                float verticalDiff = Math.Abs(spot.Position.Z - playerPos.Z);
 
                 float activeSpawnDist = (spot.CustomSpawnRange > 0) ? spot.CustomSpawnRange : ModSettings.SpotSpawnDistance;
                 float activeBuffer = (spot.CustomDespawnBuffer > 0) ? spot.CustomDespawnBuffer : ModSettings.SpotDefaultDespawnBuffer;
@@ -113,7 +125,7 @@ public class SpawnParked : Script
                 // Even with immersion off, you must leave the area before a stolen spot respawns
                 if (stolenPendingReset.Contains(spot))
                 {
-                    if (distance > activeDespawnDist)
+                    if (horizDistance > activeDespawnDist)
                     {
                         stolenPendingReset.Remove(spot);
                     }
@@ -129,8 +141,8 @@ public class SpawnParked : Script
                         {
                             spotCooldowns.Remove(spot);
                         }
-                        // 2. Distance-based reset (Driven "super far away")
-                        else if (distance > ModSettings.CooldownResetDistance)
+                        // 2. Distance-based reset (Driven "super far away") - use horizontal distance
+                        else if (horizDistance > ModSettings.CooldownResetDistance)
                         {
                             spotCooldowns.Remove(spot);
                         }
@@ -146,13 +158,28 @@ public class SpawnParked : Script
                 bool isCoolingDown = ModSettings.EnableSpotCooldowns && spotCooldowns.ContainsKey(spot);
 
                 // Added stolenPendingReset check to block instant respawns
-                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
+                // Only consider spawning when horizontally within range and not extremely high/low compared to the spot
+                const float MaxVerticalSpawnOffset = 80f; // prevents spawning directly beneath/above while flying
+                if (horizDistance < activeSpawnDist && horizDistance > ModSettings.SpotSpawnDistMin && verticalDiff < MaxVerticalSpawnOffset && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
                 {
                     // --- DIRECTIONAL FOV LOGIC ---
-                    Vector3 toSpotDir = (spot.Position - camPos).Normalized;
+                    Vector3 toSpotDirFull = (spot.Position - camPos);
+                    // Prefer horizontal FOV check so vertical camera tilt (looking up/down) doesn't block/allow spawns incorrectly
+                    Vector3 camDirHor = new Vector3(camDir.X, camDir.Y, 0f);
+                    Vector3 toSpotDirHor = new Vector3(toSpotDirFull.X, toSpotDirFull.Y, 0f);
 
-                    // Only spawn if we are looking in the spot's general direction
-                    if (Vector3.Angle(camDir, toSpotDir) > 45f)
+                    bool skipDueToFOV = false;
+                    if (camDirHor.Length() < 0.001f || toSpotDirHor.Length() < 0.001f)
+                    {
+                        // Camera pointing nearly straight up/down or spot exactly above/below camera: fallback to full 3D angle
+                        if (Vector3.Angle(camDir, toSpotDirFull / toSpotDirFull.Length()) > 45f) skipDueToFOV = true;
+                    }
+                    else
+                    {
+                        if (Vector3.Angle(camDirHor / camDirHor.Length(), toSpotDirHor / toSpotDirHor.Length()) > 45f) skipDueToFOV = true;
+                    }
+
+                    if (skipDueToFOV)
                     {
                         continue; // Spot is out of view (behind us), skip spawn
                     }
@@ -204,7 +231,7 @@ public class SpawnParked : Script
                 }
 
                 // If player moved out of spawn radius, reset RNG attempt flag so a new roll can occur on re-entry
-                if (distance >= activeSpawnDist && attemptedRng.Contains(spot))
+                if (horizDistance >= activeSpawnDist && attemptedRng.Contains(spot))
                 {
                     attemptedRng.Remove(spot);
                 }
@@ -212,7 +239,10 @@ public class SpawnParked : Script
                 // C. DESPAWN CHECK
                 if (vehDict.ContainsKey(spot))
                 {
-                    if (distance > activeDespawnDist)
+                    // Despawn if they leave the horizontal radius OR fly too high above the spot
+                    const float MaxVerticalDespawnOffset = 400f;
+
+                    if (horizDistance > activeDespawnDist || verticalDiff > MaxVerticalDespawnOffset)
                     {
                         DeleteSpotResources(spot);
 

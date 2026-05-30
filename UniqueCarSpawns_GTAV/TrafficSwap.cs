@@ -78,9 +78,9 @@ public class TrafficSwap : Script
             ReleaseAllToGame(); // Instantly wipe the old blips off the map!
             ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay); // Tell the mod to pause
 
-            // STAGGERED WAKE-UP: Make TrafficSwap wait an extra 10 seconds after the pause ends
-            _nextSpawnTime = Game.GameTime + ModSettings.StartupDelay + 10000;
-            _nextCheckTime = Game.GameTime + ModSettings.StartupDelay + 10000;
+            // STAGGERED WAKE-UP: Make TrafficSwap wait an extra 5 seconds after the pause ends
+            _nextSpawnTime = Game.GameTime + ModSettings.StartupDelay + 5000;
+            _nextCheckTime = Game.GameTime + ModSettings.StartupDelay + 5000;
         }
 
         _lastPlayerHandle = currentHandle;

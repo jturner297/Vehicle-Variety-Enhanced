@@ -40,7 +40,7 @@ public static class ModUtilities
         b.Color = color;
         b.Scale = ModSettings.BlipSize;
         b.IsShortRange = false;
-        Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, false);
+        Function.Call(Hash.SHOW_HEIGHT_ON_BLIP, b, true);
    
 
         if (ModSettings.ShowVehicleNameOnBlips)
