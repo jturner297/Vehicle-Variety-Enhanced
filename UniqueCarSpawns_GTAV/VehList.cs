@@ -269,7 +269,7 @@ public class VehList
     "wastelander",
     };
 
-    public static HashSet<string> models_weaponboats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+    public static HashSet<string> models_largeboats = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "tug",
     };
 

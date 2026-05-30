@@ -50,6 +50,7 @@ public static class ModSettings
 
     public static bool EnableSpotCooldowns = true; // Set to false to disable immersion cooldowns
     public static int SpotCooldown { get; private set; } = 50000;
+    public static int SpotStolenCooldown { get; private set; } = 100000; // Default to 10 minutes
     public static float CooldownResetDistance { get; private set; } = 1000f;
     public static bool RngSpots { get; private set; } = false;
     public static int SpotRngChancePercent { get; private set; } = 60;
@@ -94,6 +95,7 @@ public static class ModSettings
         // Immersion
         EnableSpotCooldowns = settings.GetValue("IMMERSION", "EnableSpotCooldowns", EnableSpotCooldowns);
         SpotCooldown = settings.GetValue("IMMERSION", "SpotCooldown", SpotCooldown);
+        SpotStolenCooldown = settings.GetValue("IMMERSION", "SpotStolenCooldown", SpotStolenCooldown);
         CooldownResetDistance = settings.GetValue("IMMERSION", "CooldownResetDistance", CooldownResetDistance);
         RngSpots = settings.GetValue("IMMERSION", "RngSpots", RngSpots);
         SpotRngChancePercent = settings.GetValue("IMMERSION", "SpotRngChancePercent", SpotRngChancePercent);

@@ -63,6 +63,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="ModUtilities.cs" />
+    <Compile Include="SpawnSpotDebugger.cs" />
     <Compile Include="TrafficSwap.cs" />
     <Compile Include="VehicleSelector.cs" />
     <Compile Include="VehList.cs" />

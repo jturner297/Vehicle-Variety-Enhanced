@@ -27,6 +27,9 @@ public class SpawnParked : Script
     // RNG spawn tracking: track whether we've attempted the RNG roll for the current player entry into a spot
     private HashSet<SpawnSpot> attemptedRng = new HashSet<SpawnSpot>();
 
+    // NEW: Tracks stolen cars to prevent instant respawns when immersion is off
+    private HashSet<SpawnSpot> stolenPendingReset = new HashSet<SpawnSpot>();
+
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
     public SpawnParked()
@@ -46,22 +49,21 @@ public class SpawnParked : Script
         var playerPos = player.Position;
 
         // --- 0. EVENT RESETS (Death & Character Switch) ---
-        if (ModSettings.EnableSpotCooldowns) // Only process if toggle is on
+        int currentHandle = player.Handle;
+        if (lastPlayerHandle != 0 && currentHandle != lastPlayerHandle)
         {
-            int currentHandle = player.Handle;
-            if (lastPlayerHandle != 0 && currentHandle != lastPlayerHandle)
-            {
-                spotCooldowns.Clear(); // Switched Characters
-            }
-            lastPlayerHandle = currentHandle;
-
-            bool isDead = player.IsDead;
-            if (!isDead && wasPlayerDead)
-            {
-                spotCooldowns.Clear(); // Respawned
-            }
-            wasPlayerDead = isDead;
+            stolenPendingReset.Clear();
+            if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear(); // Switched Characters
         }
+        lastPlayerHandle = currentHandle;
+
+        bool isDead = player.IsDead;
+        if (!isDead && wasPlayerDead)
+        {
+            stolenPendingReset.Clear();
+            if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear(); // Respawned
+        }
+        wasPlayerDead = isDead;
 
         // --- MISSION HANDLING ---
         if (ModUtilities.IsMissionOrCutsceneActive())
@@ -97,6 +99,16 @@ public class SpawnParked : Script
                 float activeBuffer = (spot.CustomDespawnBuffer > 0) ? spot.CustomDespawnBuffer : ModSettings.SpotDefaultDespawnBuffer;
                 float activeDespawnDist = activeSpawnDist + activeBuffer;
 
+                // --- BASELINE STOLEN DISTANCE RESET ---
+                // Even with immersion off, you must leave the area before a stolen spot respawns
+                if (stolenPendingReset.Contains(spot))
+                {
+                    if (distance > activeDespawnDist)
+                    {
+                        stolenPendingReset.Remove(spot);
+                    }
+                }
+
                 // A. COOLDOWN MANAGEMENT
                 if (ModSettings.EnableSpotCooldowns)
                 {
@@ -123,13 +135,14 @@ public class SpawnParked : Script
                 // B. SPAWN CHECK
                 bool isCoolingDown = ModSettings.EnableSpotCooldowns && spotCooldowns.ContainsKey(spot);
 
-                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown)
+                // Added stolenPendingReset check to block instant respawns
+                if (distance < activeSpawnDist && distance > ModSettings.SpotSpawnDistMin && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
                 {
                     // --- DIRECTIONAL FOV LOGIC ---
                     Vector3 toSpotDir = (spot.Position - camPos).Normalized;
 
                     // Only spawn if we are looking in the spot's general direction
-                    if (Vector3.Angle(camDir, toSpotDir) > ModSettings.SwapFOV)
+                    if (Vector3.Angle(camDir, toSpotDir) > 45f)
                     {
                         continue; // Spot is out of view (behind us), skip spawn
                     }
@@ -219,6 +232,8 @@ public class SpawnParked : Script
                 DeleteBlipForSpot(spot);
                 car.MarkAsNoLongerNeeded();
                 vehDict.Remove(spot);
+
+                stolenPendingReset.Add(spot); // Adds the spot to the baseline reset distance tracker
 
                 // Apply DOUBLED cooldown when stolen or destroyed
                 if (ModSettings.EnableSpotCooldowns)
@@ -327,6 +342,7 @@ public class SpawnParked : Script
         markerDict.Clear();
         vehDict.Clear();
         spotCooldowns.Clear();
+        stolenPendingReset.Clear();
     }
 
     private void ReleaseAllToGame()
@@ -346,6 +362,7 @@ public class SpawnParked : Script
         }
         vehDict.Clear();
         spotCooldowns.Clear();
+        stolenPendingReset.Clear();
     }
     private void OnAborted(object sender, EventArgs e) => CleanupAll();
 }
