@@ -6,6 +6,12 @@ public static class ModSettings
     private static bool _isLoaded = false;
 
     // ==========================================
+    //              GENERAL SETTINGS
+    // ==========================================
+    public static int StartupDelay { get; private set; } = 15000;
+    public static int MissionEndDelay { get; private set; } = 15000;
+
+    // ==========================================
     //              PARKED SETTINGS
     // ==========================================
     public static bool ParkedShowBlips { get; private set; } = true;
@@ -61,6 +67,10 @@ public static class ModSettings
 
         string iniPath = "scripts\\UniqueVehiclesSP.ini";
         ScriptSettings settings = ScriptSettings.Load(iniPath);
+
+        // General
+        StartupDelay = settings.GetValue("GENERAL", "StartupDelay", StartupDelay);
+        MissionEndDelay = settings.GetValue("GENERAL", "MissionEndDelay", MissionEndDelay);
 
         // ParkedSpawns
         ParkedShowBlips = settings.GetValue("PARKED", "ShowBlips", ParkedShowBlips);

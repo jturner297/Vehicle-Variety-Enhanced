@@ -19,7 +19,8 @@ public class TrafficSwap : Script
     private readonly List<string> _recentSpawnHistory = new List<string>();
 
 
-
+    private int _lastPlayerHandle = 0;
+    private bool _wasPlayerDead = false;
 
 
     private const string DECOR_NAME = "TMP_Swap_ID";
@@ -63,9 +64,30 @@ public class TrafficSwap : Script
 
     private void OnTick(object sender, EventArgs e)
     {
-   
+
 
         Ped player = Game.Player.Character;
+        if (player == null || !player.Exists()) return;
+
+        int currentHandle = player.Handle;
+        bool isDead = player.IsDead;
+
+        // 1. Detect Character Switch or Respawn
+        if (_lastPlayerHandle == 0 || currentHandle != _lastPlayerHandle || (!isDead && _wasPlayerDead))
+        {
+            ReleaseAllToGame(); // Instantly wipe the old blips off the map!
+            ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay); // Tell the mod to pause
+
+            // STAGGERED WAKE-UP: Make TrafficSwap wait an extra 10 seconds after the pause ends
+            _nextSpawnTime = Game.GameTime + ModSettings.StartupDelay + 10000;
+            _nextCheckTime = Game.GameTime + ModSettings.StartupDelay + 10000;
+        }
+
+        _lastPlayerHandle = currentHandle;
+        _wasPlayerDead = isDead;
+
+        // 2. Gatekeeper Check (Pauses the rest of the script if timer is active)
+        if (!ModUtilities.IsModReady()) return;
 
         // --- SMART MISSION LOGIC (Now using shared manager) ---
         if (ModUtilities.IsMissionOrCutsceneActive())
@@ -82,8 +104,8 @@ public class TrafficSwap : Script
             if (_isInMissionMode)
             {
                 _isInMissionMode = false;
-                _nextSpawnTime = Game.GameTime + 5000;
-                _nextCheckTime = Game.GameTime + 5000;
+                _nextSpawnTime = Game.GameTime + ModSettings.MissionEndDelay;
+                _nextCheckTime = Game.GameTime + ModSettings.MissionEndDelay;
             }
         }
 

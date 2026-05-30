@@ -46,24 +46,34 @@ public class SpawnParked : Script
         var player = Game.Player.Character;
         if (player == null || !player.Exists()) return;
 
-        var playerPos = player.Position;
-
-        // --- 0. EVENT RESETS (Death & Character Switch) ---
         int currentHandle = player.Handle;
-        if (lastPlayerHandle != 0 && currentHandle != lastPlayerHandle)
-        {
-            stolenPendingReset.Clear();
-            if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear(); // Switched Characters
-        }
-        lastPlayerHandle = currentHandle;
-
         bool isDead = player.IsDead;
-        if (!isDead && wasPlayerDead)
+
+        // --- 0. EVENT RESETS & STARTUP DELAY ---
+        // Must run BEFORE IsModReady() so it can catch the switch/respawn instantly
+        if (lastPlayerHandle == 0 || currentHandle != lastPlayerHandle || (!isDead && wasPlayerDead))
         {
+            ReleaseAllToGame(); // Instantly wipe the old parked blips
+
+            // Wipe memory for the new character / respawn
+            if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear();
             stolenPendingReset.Clear();
-            if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear(); // Respawned
+            attemptedRng.Clear();
+
+            // Tell the mod to pause
+            ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay);
+
+            // STAGGERED WAKE-UP
+            nextSpawnCheck = Game.GameTime + ModSettings.StartupDelay + 500;
         }
+
+        lastPlayerHandle = currentHandle;
         wasPlayerDead = isDead;
+
+        // Gatekeeper Check (Pauses the rest of the script if timer is active)
+        if (!ModUtilities.IsModReady()) return;
+
+        var playerPos = player.Position;
 
         // --- MISSION HANDLING ---
         if (ModUtilities.IsMissionOrCutsceneActive())
@@ -80,7 +90,7 @@ public class SpawnParked : Script
             if (_isInMissionMode)
             {
                 _isInMissionMode = false;
-                nextSpawnCheck = Game.GameTime + 5000;
+                nextSpawnCheck = Game.GameTime + ModSettings.MissionEndDelay;
             }
         }
 

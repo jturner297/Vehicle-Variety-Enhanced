@@ -4,6 +4,22 @@ using GTA.Native;
 public static class ModUtilities
 {
 
+    // Global State Tracking for Startup Delay
+    private static int _modUnlockTime = 0;
+
+    public static void TriggerGlobalDelay(int delayMs)
+    {
+        _modUnlockTime = Game.GameTime + delayMs;
+    }
+
+    public static bool IsModReady()
+    {
+        var player = Game.Player.Character;
+        if (player == null || !player.Exists()) return false;
+
+        // Mod is ready if the timer has passed and the player is alive
+        return Game.GameTime > _modUnlockTime && !player.IsDead;
+    }
     public static bool IsPlayerInInterior()
     {
         int interiorId = Function.Call<int>(Hash.GET_INTERIOR_FROM_ENTITY, Game.Player.Character);
