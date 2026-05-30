@@ -35,6 +35,14 @@ public static class ModSettings
     public static float ScoreSameRoad { get; private set; } = 150f;
     public static float ScoreDeadAhead { get; private set; } = 200f;
     public static bool TrafficShowBlips { get; private set; } = true;
+    // Allow swapping vehicles that are on-screen
+    public static bool AllowOnScreenSwaps { get; private set; } = false;
+    // Minimum visible distance when on-screen swaps are enabled
+    public static float MinVisibleSwapDist { get; private set; } = 40f;
+    // Preference settings for proximity-based swapping
+    public static float SwapProximityWeight { get; private set; } = 0.5f; // multiplier for distance-based score
+    public static float CloseSwapDistance { get; private set; } = 80f; // distance considered "close"
+    public static float CloseSwapBonus { get; private set; } = 300f; // extra score for very close candidates
 
    
     public static bool IgnoreEmergencyTraffic { get; private set; } = true;
@@ -92,6 +100,11 @@ public static class ModSettings
         ScoreVisible = settings.GetValue("TRAFFIC", "ScoreVisible", ScoreVisible);
         ScoreSameRoad = settings.GetValue("TRAFFIC", "ScoreSameRoad", ScoreSameRoad);
         ScoreDeadAhead = settings.GetValue("TRAFFIC", "ScoreDeadAhead", ScoreDeadAhead);
+        AllowOnScreenSwaps = settings.GetValue("TRAFFIC", "AllowOnScreenSwaps", AllowOnScreenSwaps);
+        MinVisibleSwapDist = settings.GetValue("TRAFFIC", "MinVisibleSwapDist", MinVisibleSwapDist);
+        SwapProximityWeight = settings.GetValue("TRAFFIC", "SwapProximityWeight", SwapProximityWeight);
+        CloseSwapDistance = settings.GetValue("TRAFFIC", "CloseSwapDistance", CloseSwapDistance);
+        CloseSwapBonus = settings.GetValue("TRAFFIC", "CloseSwapBonus", CloseSwapBonus);
         TrafficShowBlips = settings.GetValue("TRAFFIC", "ShowBlips", TrafficShowBlips);
         IgnoreEmergencyTraffic = settings.GetValue("TRAFFIC", "IgnoreEmergencyTraffic", IgnoreEmergencyTraffic);
         IgnoreServiceTraffic = settings.GetValue("TRAFFIC", "IgnoreServiceTraffic", IgnoreServiceTraffic);

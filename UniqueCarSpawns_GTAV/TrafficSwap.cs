@@ -118,7 +118,11 @@ public class TrafficSwap : Script
             // If it is on screen AND not occluded by the map/traffic, lock it in memory.
             if (v.IsOnScreen && !IsVehicleOccluded(v, GameplayCamera.Position))
             {
-                _lockedVehicles.Add(v.Handle);
+                // If on-screen swaps are allowed, do not lock these vehicles so they remain candidates.
+                if (!ModSettings.AllowOnScreenSwaps)
+                {
+                    _lockedVehicles.Add(v.Handle);
+                }
             }
         }
 
@@ -186,6 +190,8 @@ public class TrafficSwap : Script
         Vector3 camDir = GameplayCamera.Direction;
         Vector3 playerVel = player.Velocity;
         Vector3 playerRight = player.RightVector;
+        Vector3 playerForward = player.ForwardVector;
+        Vector3 playerPos = player.Position;
 
         int playerRoadID = GetVehicleNodeID(player.Position);
 
@@ -213,7 +219,7 @@ public class TrafficSwap : Script
 
             if (isTooCloseToExistingSwap) continue;
 
-            float score = GetCinematicScore(v, camPos, camDir, playerVel, playerRight, playerRoadID);
+            float score = GetCinematicScore(v, camPos, camDir, playerPos, playerForward, playerVel, playerRight, playerRoadID);
 
             if (score > bestScore)
             {
@@ -239,14 +245,17 @@ public class TrafficSwap : Script
     }
 
     // --- MAIN SCORING LOGIC ---
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
+    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerPos, Vector3 playerForward, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
     {
         float score = 0f;
         Vector3 vPos = v.Position;
         float dist = vPos.DistanceTo(camPos);
 
         // 1. CHEAP FILTERS
-        if (dist < 60f || dist > ModSettings.MaxSwapDist) return 0f;
+        // Allow closer cars when on-screen swaps are enabled (use configurable min visible distance)
+        float minDist = 60f;
+        if (ModSettings.AllowOnScreenSwaps && dist <= ModSettings.MinVisibleSwapDist) minDist = 0f; // bypass minDist for very close allowed visible swaps
+        if (dist < minDist || dist > ModSettings.MaxSwapDist) return 0f;
 
         // Height Check 
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
@@ -254,13 +263,22 @@ public class TrafficSwap : Script
 
         // FOV & Direction Checks
         Vector3 toCarDir = (vPos - camPos).Normalized;
-        if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
+        if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV)
+        {
+            // If on-screen swaps allowed, relax the FOV restriction for cars that are on screen
+            if (!(ModSettings.AllowOnScreenSwaps && v.IsOnScreen)) return 0f;
+        }
 
         int carRoadID = GetVehicleNodeID(vPos);
 
         // Trajectory Check
         float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
         if (movementDirection > 5f && carRoadID != playerRoadID) return 0f;
+
+        // Reject cars that are behind the player to avoid swaps spawning behind
+        float behindDot = Vector3.Dot((vPos - playerPos).Normalized, playerForward);
+        // behindDot: 1 = in front, -1 = behind. Reject if substantially behind (-0.2 threshold)
+        if (behindDot < -0.2f) return 0f;
 
         // --- STATIC LATERAL MATH & SCORING ---
         bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
@@ -297,11 +315,18 @@ public class TrafficSwap : Script
         else
         {
             // FIXED: Visible cars must be at least 250m away to ensure a safe swap
-            if (dist < 200f) return 0f;
+            // If on-screen swaps allowed, permit closer visible cars using MinVisibleSwapDist
+            if (!ModSettings.AllowOnScreenSwaps && dist < 200f) return 0f;
+            if (ModSettings.AllowOnScreenSwaps && dist < ModSettings.MinVisibleSwapDist) return 0f;
             score += ModSettings.ScoreVisible;
         }
 
-        score += (ModSettings.MaxSwapDist - dist) * 0.5f;
+        // Prefer closer cars by adding a stronger proximity component
+        float proximityComponent = (ModSettings.MaxSwapDist - dist) * ModSettings.SwapProximityWeight;
+        score += proximityComponent;
+
+        // Bonus for very close candidates
+        if (dist <= ModSettings.CloseSwapDistance) score += ModSettings.CloseSwapBonus;
 
         return score;
     }
