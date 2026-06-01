@@ -3,25 +3,51 @@ using GTA.Math;
 using GTA.Native;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
+using System.Windows.Forms;
 
 public class TrafficSwap : Script
 {
 
 
+    // ==========================================
+    //      TUNING VARIABLES & DEBUG SETTINGS
+    // ==========================================
+
+    // --- GEOMETRY & ANGLES ---
+    private const int SWEEP_ATTEMPTS = 100;                // Brute-force checking to guarantee a hit
+    private const int MAX_CONE_ANGLE = 45;                 // 180-degree peripheral vision sweep (90 left, 90 right)
+    private const int DEAD_AHEAD_ANGLE_LIMIT = 45;         // Massive dead-ahead wedge
+    private const float MAX_Z_DIFFERENCE = 100.0f;         // Ignores height limits; overpasses and tunnels are fair game
+
+    // --- SPAWN DISTANCES (EXTREME CLOSE QUARTERS) ---
+    private const int CROSS_STREET_MIN_DIST = 15;          // Spawns practically on top of the player
+    private const int CROSS_STREET_MAX_DIST = 45;          // Extremely tight corner spawns
+    private const int OPEN_ROAD_MIN_DIST = 80;             // Severe pop-in territory for straightaways
+    private const int OPEN_ROAD_MAX_DIST = 200;             // Barely down the block
+    private const float LOD_HAZE_FALLBACK_DIST = 40f;      // Completely ignores the on-screen pop-in safeguard
+
+    // --- RAYCASTING & SYSTEM ---
+    // Despawn distance is fixed: player moving 150m away from an active car will despawn it
+    private const float RAYCAST_CORNER_PADDING = 0.5f;     // Zero margin for error; if it's 1 inch behind a pole, it spawns
+
+    // --- VEHICLE SPEEDS ---
+    private const float SPAWN_FORWARD_SPEED = 10.0f;       // Spawns coming in hot (approx 55 mph)
+    private const float WANDER_DRIVE_SPEED = 15.0f;        // Fast cruising
+
+    // --- DEBUGGING ---
+    private const Keys DEBUG_SPAWN_KEY = Keys.NumPad9;
+    private const bool ENABLE_DEBUG_NOTIFICATIONS = true;
+
+    // ==========================================
+    //               INTERNAL STATE
+    // ==========================================
+
     private readonly List<Vehicle> _activeSwaps = new List<Vehicle>();
-
- 
-    private readonly HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
-
-
     private readonly List<string> _recentSpawnHistory = new List<string>();
-
 
     private int _lastPlayerHandle = 0;
     private bool _wasPlayerDead = false;
-
 
     private const string DECOR_NAME = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
@@ -32,7 +58,6 @@ public class TrafficSwap : Script
 
     private int _nextCheckTime = 0;
     private int _nextSpawnTime = 0;
-
 
     private readonly HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
     private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
@@ -59,26 +84,31 @@ public class TrafficSwap : Script
 
         InitializeZones();
         Tick += OnTick;
+        KeyDown += OnKeyDown;
         Aborted += OnAborted;
+    }
+
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == DEBUG_SPAWN_KEY)
+        {
+            ExecuteNodeInjectionSweep(forceSpawn: true);
+        }
     }
 
     private void OnTick(object sender, EventArgs e)
     {
-
-
         Ped player = Game.Player.Character;
         if (player == null || !player.Exists()) return;
 
         int currentHandle = player.Handle;
         bool isDead = player.IsDead;
 
-        // 1. Detect Character Switch or Respawn
         if (_lastPlayerHandle == 0 || currentHandle != _lastPlayerHandle || (!isDead && _wasPlayerDead))
         {
-            ReleaseAllToGame(); // Instantly wipe the old blips off the map!
-            ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay); // Tell the mod to pause
+            ReleaseAllToGame();
+            ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay);
 
-            // STAGGERED WAKE-UP: Make TrafficSwap wait an extra 5 seconds after the pause ends
             _nextSpawnTime = Game.GameTime + ModSettings.StartupDelay + 5000;
             _nextCheckTime = Game.GameTime + ModSettings.StartupDelay + 5000;
         }
@@ -86,10 +116,8 @@ public class TrafficSwap : Script
         _lastPlayerHandle = currentHandle;
         _wasPlayerDead = isDead;
 
-        // 2. Gatekeeper Check (Pauses the rest of the script if timer is active)
         if (!ModUtilities.IsModReady()) return;
 
-        // --- SMART MISSION LOGIC (Now using shared manager) ---
         if (ModUtilities.IsMissionOrCutsceneActive())
         {
             if (!_isInMissionMode)
@@ -109,27 +137,12 @@ public class TrafficSwap : Script
             }
         }
 
-        // --- 0. SIGHT TRACKER (Prevent Blinking) ---
-        Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
-        foreach (Vehicle v in nearbyVehicles)
-        {
-            if (!v.Exists() || _lockedVehicles.Contains(v.Handle) || IsSwapped(v)) continue;
-
-            // If it is on screen AND not occluded by the map/traffic, lock it in memory.
-            if (v.IsOnScreen && !IsVehicleOccluded(v, GameplayCamera.Position))
-            {
-                _lockedVehicles.Add(v.Handle);
-            }
-        }
-
-        // --- 1. REGISTRY CLEANUP ---
         for (int i = _activeSwaps.Count - 1; i >= 0; i--)
         {
             Vehicle v = _activeSwaps[i];
 
             if (!v.Exists() || v.IsDead)
             {
-                _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
                 continue;
@@ -144,21 +157,15 @@ public class TrafficSwap : Script
                 continue;
             }
 
-            if (v.Position.DistanceTo(player.Position) > 270f)
+            float activeDespawnDist = 150f;
+            if (v.Position.DistanceTo(player.Position) > activeDespawnDist)
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
-                //v.MarkAsNoLongerNeeded();
-
-                // Delete all occupants before deleting the car so they don't drop to the road
                 foreach (Ped occupant in v.Occupants)
                 {
-                    if (occupant != null && occupant.Exists())
-                    {
-                        occupant.Delete();
-                    }
+                    if (occupant != null && occupant.Exists()) occupant.Delete();
                 }
                 v.Delete();
-                _lockedVehicles.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 continue;
             }
@@ -169,158 +176,268 @@ public class TrafficSwap : Script
         try
         {
             CleanupBlips();
-            RunDirectorAI();
+            ExecuteNodeInjectionSweep(forceSpawn: false);
         }
         catch (Exception) { }
 
         _nextCheckTime = Game.GameTime + ModSettings.CheckInterval;
     }
 
-    private void RunDirectorAI()
+    private void ForceDeleteAllSwaps()
     {
-        if (Game.GameTime < _nextSpawnTime) return;
-        if (_activeSwaps.Count >= ModSettings.MaxActiveSwaps) return;
-
-        Ped player = Game.Player.Character;
-        Vector3 camPos = GameplayCamera.Position;
-        Vector3 camDir = GameplayCamera.Direction;
-        Vector3 playerVel = player.Velocity;
-        Vector3 playerRight = player.RightVector;
-
-        int playerRoadID = GetVehicleNodeID(player.Position);
-
-        Vehicle[] allVehicles = World.GetAllVehicles();
-        Vehicle bestCandidate = null;
-        float bestScore = 0f;
-
-        float minimumDistanceBetweenSwaps = 150f;
-
-        foreach (Vehicle v in allVehicles)
+        foreach (var blip in _activeBlips)
         {
-            if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
-            if (IsExcludedCategory(v)) continue;
+            if (blip != null && blip.Exists()) blip.Delete();
+        }
+        _activeBlips.Clear();
 
-            // Spatial Proximity Check
-            bool isTooCloseToExistingSwap = false;
-            foreach (Vehicle activeSwap in _activeSwaps)
+        foreach (var vehicle in _activeSwaps)
+        {
+            if (vehicle != null && vehicle.Exists())
             {
-                if (activeSwap.Exists() && v.Position.DistanceTo(activeSwap.Position) < minimumDistanceBetweenSwaps)
+                foreach (Ped p in vehicle.Occupants)
                 {
-                    isTooCloseToExistingSwap = true;
-                    break;
+                    if (p != null && p.Exists()) p.Delete();
                 }
-            }
-
-            if (isTooCloseToExistingSwap) continue;
-
-            float score = GetCinematicScore(v, camPos, camDir, playerVel, playerRight, playerRoadID);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestCandidate = v;
+                vehicle.Delete();
             }
         }
-
-        if (bestCandidate != null && bestScore > ModSettings.ScoreThreshold)
-        {
-            bool isDirt = IsVehicleOnDirt(bestCandidate);
-            if (TransformVehicle(bestCandidate, isDirt))
-            {
-                // Randomized Cooldown
-                _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
-            }
-        }
+        _activeSwaps.Clear();
     }
 
-    private int GetVehicleNodeID(Vector3 pos)
+    private void ExecuteNodeInjectionSweep(bool forceSpawn)
     {
-        return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
-    }
-
-    // --- MAIN SCORING LOGIC ---
-    private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
-    {
-        float score = 0f;
-        Vector3 vPos = v.Position;
-        float dist = vPos.DistanceTo(camPos);
-
-        // 1. CHEAP FILTERS
-        if (dist < 60f || dist > ModSettings.MaxSwapDist) return 0f;
-
-        // Height Check 
-        float heightDiff = Math.Abs(vPos.Z - camPos.Z);
-        if (heightDiff > 15f) return 0f;
-
-        // FOV & Direction Checks
-        Vector3 toCarDir = (vPos - camPos).Normalized;
-        if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
-
-        int carRoadID = GetVehicleNodeID(vPos);
-
-        // Trajectory Check
-        float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
-        if (movementDirection > 5f && carRoadID != playerRoadID) return 0f;
-
-        // --- STATIC LATERAL MATH & SCORING ---
-        bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
-
-        // Calculate lateral distance
-        float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
-
-        // STATIC DEAD AHEAD PRIORITY
-        // Widened to 20 meters to capture desirable cars slightly off-center 
-        if (lateralDist < 20f)
+        if (forceSpawn)
         {
-            score += ModSettings.ScoreDeadAhead;
-        }
-
-        if (isSameRoad) score += ModSettings.ScoreSameRoad;
-
-        // 3. THE OCCLUSION DECISION
-        bool isHidden = IsVehicleOccluded(v, camPos);
-
-        if (isHidden && !_lockedVehicles.Contains(v.Handle))
-        {
-            // Massive stealth bonus ONLY if it's on our exact road (blind corners, hills)
-            // OR if it's a cross-street directly in front of us (< 40m left/right).
-            if (isSameRoad || lateralDist < 40f)
-            {
-                score += 500f;
-            }
-            else
-            {
-                // Hidden, but far off to the side on a parallel street.
-                score += 50f;
-            }
+            ForceDeleteAllSwaps();
         }
         else
         {
-            // FIXED: Visible cars must be at least 250m away to ensure a safe swap
-            if (dist < 200f) return 0f;
-            score += ModSettings.ScoreVisible;
+            if (Game.GameTime < _nextSpawnTime) return;
+            if (_activeSwaps.Count >= ModSettings.MaxActiveSwaps) return;
         }
 
-        score += (ModSettings.MaxSwapDist - dist) * 0.5f;
+        Ped player = Game.Player.Character;
+        Vector3 pPos = player.Position;
+        Vector3 camPos = GameplayCamera.Position;
+        Vector3 camDir = GameplayCamera.Direction;
+        Vector3 forward2D = new Vector3(camDir.X, camDir.Y, 0).Normalized;
 
-        return score;
+        bool foundSpawn = false;
+        string failReason = "No valid main roads found nearby";
+
+        // Track a best candidate in case we don't immediately find a same-road ahead node
+        float bestScore = float.MinValue;
+        Vector3 bestNodePos = Vector3.Zero;
+        float bestNodeHeading = 0f;
+        bool bestNodeOnDirt = false;
+        bool haveBest = false;
+
+        for (int attempt = 0; attempt < SWEEP_ATTEMPTS; attempt++)
+        {
+            int sign = _rnd.Next(0, 2) == 0 ? 1 : -1;
+            float randomAngleOffset = _rnd.Next(0, MAX_CONE_ANGLE) * sign;
+
+            float targetDist;
+
+            if (Math.Abs(randomAngleOffset) <= DEAD_AHEAD_ANGLE_LIMIT)
+            {
+                targetDist = _rnd.Next(OPEN_ROAD_MIN_DIST, OPEN_ROAD_MAX_DIST);
+            }
+            else
+            {
+                targetDist = _rnd.Next(CROSS_STREET_MIN_DIST, CROSS_STREET_MAX_DIST);
+            }
+
+            float angleRad = randomAngleOffset * (float)(Math.PI / 180.0);
+            float cos = (float)Math.Cos(angleRad);
+            float sin = (float)Math.Sin(angleRad);
+
+            Vector3 projectedDir = new Vector3(
+                forward2D.X * cos - forward2D.Y * sin,
+                forward2D.X * sin + forward2D.Y * cos,
+                0
+            ).Normalized;
+
+            Vector3 searchPos = pPos + (projectedDir * targetDist);
+            searchPos.Z = pPos.Z;
+
+            OutputArgument outPos = new OutputArgument();
+            OutputArgument outHeading = new OutputArgument();
+
+            if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHeading, 1, 3.0f, 0))
+            {
+                Vector3 nodePos = outPos.GetResult<Vector3>();
+                float nodeHeading = outHeading.GetResult<float>();
+                float horizDist = GetHorizontalDistance(pPos, nodePos);
+
+                if (Math.Abs(nodePos.Z - pPos.Z) > MAX_Z_DIFFERENCE)
+                {
+                    failReason = "Node is on a different vertical level";
+                    continue;
+                }
+
+                OutputArgument outDensity = new OutputArgument();
+                OutputArgument outFlags = new OutputArgument();
+                if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, nodePos.X, nodePos.Y, nodePos.Z, outDensity, outFlags))
+                {
+                    int density = outDensity.GetResult<int>();
+                    int flags = outFlags.GetResult<int>();
+
+                    string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, nodePos.X, nodePos.Y, nodePos.Z);
+                    bool isUrban = _urbanZones.Contains(currentZone);
+
+                    if (density == 0) { failReason = "Node has zero traffic density"; continue; }
+                    if ((flags & 8) != 0) { failReason = "Node is switched off"; continue; }
+
+                    if (isUrban && (flags & 1) != 0)
+                    {
+                        failReason = "Node is an alley/dirt path in the city";
+                        continue;
+                    }
+                }
+
+                if (horizDist < (CROSS_STREET_MIN_DIST - 10f) || horizDist > (OPEN_ROAD_MAX_DIST + 10f))
+                {
+                    failReason = "Node fell out of absolute bounds";
+                    continue;
+                }
+
+                bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, nodePos.X, nodePos.Y, nodePos.Z, 3.0f);
+
+                if (isOnScreen && horizDist < LOD_HAZE_FALLBACK_DIST)
+                {
+                    failReason = "Node bled into screen and is too close to pop-in smoothly";
+                    continue;
+                }
+
+                bool tooCloseToAnother = false;
+                foreach (Vehicle activeSpawn in _activeSwaps)
+                {
+                    if (activeSpawn.Exists() && GetHorizontalDistance(nodePos, activeSpawn.Position) < 150f)
+                    {
+                        tooCloseToAnother = true;
+                        break;
+                    }
+                }
+                if (tooCloseToAnother)
+                {
+                    failReason = "Too close to existing spawn";
+                    continue;
+                }
+
+                RaycastResult hit = World.Raycast(camPos, nodePos, IntersectFlags.Map | IntersectFlags.Vehicles);
+
+                bool hidden = false;
+                if (hit.DidHit)
+                {
+                    if (hit.HitPosition.DistanceTo(nodePos) > RAYCAST_CORNER_PADDING) hidden = true;
+                }
+                else if (horizDist >= LOD_HAZE_FALLBACK_DIST)
+                {
+                    hidden = true;
+                }
+
+                if (hidden)
+                {
+                    bool isDirt = IsNodeOnDirt(nodePos);
+
+                    // Get street hashes for player and node to prefer same-road spawns
+                    OutputArgument playerStreetArg = new OutputArgument();
+                    OutputArgument playerCross = new OutputArgument();
+                    Function.Call(Hash.GET_STREET_NAME_AT_COORD, pPos.X, pPos.Y, pPos.Z, playerStreetArg, playerCross);
+                    int playerStreetHash = playerStreetArg.GetResult<int>();
+
+                    OutputArgument nodeStreetArg = new OutputArgument();
+                    OutputArgument nodeCross = new OutputArgument();
+                    Function.Call(Hash.GET_STREET_NAME_AT_COORD, nodePos.X, nodePos.Y, nodePos.Z, nodeStreetArg, nodeCross);
+                    int nodeStreetHash = nodeStreetArg.GetResult<int>();
+
+                    bool sameRoad = (playerStreetHash != 0 && playerStreetHash == nodeStreetHash);
+
+                    // Directional alignment: prefer nodes ahead of player's forward vector
+                    Vector3 dirToNode = new Vector3(nodePos.X - pPos.X, nodePos.Y - pPos.Y, 0f);
+                    if (dirToNode.Length() > 0.001f) dirToNode = dirToNode.Normalized;
+                    float forwardDot = Vector3.Dot(forward2D, dirToNode); // 1.0 = straight ahead
+
+                    // If it's the same road and roughly ahead, prefer immediately
+                    if (sameRoad && forwardDot > 0.5f)
+                    {
+                        if (SpawnVehicleAtNode(nodePos, nodeHeading, isDirt))
+                        {
+                            foundSpawn = true;
+                            break;
+                        }
+                        else
+                        {
+                            // failed to spawn here; record reason and continue
+                            failReason = "Spawn failed on a preferred same-road node";
+                            continue;
+                        }
+                    }
+
+                    // Score other candidates so we can fall back to the best option
+                    float score = 0f;
+                    // prefer same road even if not perfectly ahead
+                    if (sameRoad) score += 250f;
+                    // directional preference (ahead is better)
+                    score += forwardDot * 200f; // can be negative if behind
+                    // closer nodes score higher
+                    score += Math.Max(0f, (OPEN_ROAD_MAX_DIST - horizDist));
+                    // penalize nodes that are too far off the ideal range
+                    if (horizDist > OPEN_ROAD_MAX_DIST) score -= (horizDist - OPEN_ROAD_MAX_DIST) * 0.5f;
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestNodePos = nodePos;
+                        bestNodeHeading = nodeHeading;
+                        bestNodeOnDirt = isDirt;
+                        haveBest = true;
+                    }
+                }
+                else
+                {
+                    failReason = "Node is not physically hidden by geometry or traffic";
+                }
+            }
+        }
+
+        if (foundSpawn)
+        {
+            if (forceSpawn && ENABLE_DEBUG_NOTIFICATIONS) GTA.UI.Notification.Show("~g~Forced Spawn Successful!");
+            _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
+        }
+        else
+        {
+            // If we didn't find an immediate preferred spawn, try the best-scored fallback
+            if (!foundSpawn && haveBest)
+            {
+                if (SpawnVehicleAtNode(bestNodePos, bestNodeHeading, bestNodeOnDirt))
+                {
+                    foundSpawn = true;
+                }
+                else
+                {
+                    // fallback failed; let the failure notification show original reason
+                }
+            }
+
+            if (forceSpawn && ENABLE_DEBUG_NOTIFICATIONS) GTA.UI.Notification.Show($"~r~Forced Spawn Failed:~s~ {failReason}");
+        }
     }
 
-    // --- STEALTH SWAP RAYCAST ---
-    private bool IsVehicleOccluded(Vehicle v, Vector3 camPos)
+    private float GetHorizontalDistance(Vector3 a, Vector3 b)
     {
-        IntersectFlags flags = IntersectFlags.Map | IntersectFlags.Vehicles;
-        RaycastResult result = World.Raycast(camPos, v.Position, flags, v);
-        return result.DidHit;
+        float dx = a.X - b.X;
+        float dy = a.Y - b.Y;
+        return (float)Math.Sqrt(dx * dx + dy * dy);
     }
 
-    // --- TRANSFORMATION & ZONES ---
-    private bool TransformVehicle(Vehicle oldVehicle, bool onDirt)
+    private bool SpawnVehicleAtNode(Vector3 spawnPos, float heading, bool onDirt)
     {
-        if (IsSwapped(oldVehicle)) return false;
-
         SelectionLayer layer;
-        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, oldVehicle.Position.X, oldVehicle.Position.Y, oldVehicle.Position.Z);
+        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, spawnPos.X, spawnPos.Y, spawnPos.Z);
         bool isUrban = _urbanZones.Contains(currentZone);
 
         if (isUrban && onDirt) return false;
@@ -330,33 +447,21 @@ public class TrafficSwap : Script
             layer = _zoneRegistry["_OVERRIDE_OFFROAD_"].PickLayer();
             layer.SourceProfile = "OFFROAD (Dirt Override)";
         }
-        else { layer = GetLayerForLocation(oldVehicle.Position); }
+        else { layer = GetLayerForLocation(spawnPos); }
 
         if (layer.List == null || layer.List.Count == 0) return false;
 
         string modelName = null;
         var candidates = layer.List.Except(_recentSpawnHistory).ToList();
 
-        // --- OPTION #2: HISTORY CHOKE PURGE ---
-        // If the history blocked every single car in this zone, 
-        // clear the oldest half of the history to breathe life back into the candidates.
         if (candidates.Count == 0 && layer.List.Count > 1)
         {
             _recentSpawnHistory.RemoveRange(0, _recentSpawnHistory.Count / 2);
             candidates = layer.List.Except(_recentSpawnHistory).ToList();
         }
-        // --------------------------------------
 
-
-
-        if (candidates.Count > 0)
-        {
-            modelName = candidates[_rnd.Next(candidates.Count)];
-        }
-        else
-        {
-            modelName = layer.List.ElementAt(_rnd.Next(layer.List.Count));
-        }
+        if (candidates.Count > 0) modelName = candidates[_rnd.Next(candidates.Count)];
+        else modelName = layer.List.ElementAt(_rnd.Next(layer.List.Count));
 
         if (modelName == null) return false;
 
@@ -368,23 +473,23 @@ public class TrafficSwap : Script
         while (!model.IsLoaded && Game.GameTime < timeout)
         {
             Script.Yield();
-            if (!oldVehicle.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
         }
         if (!model.IsLoaded) { model.MarkAsNoLongerNeeded(); return false; }
 
-        if (!oldVehicle.Exists() || IsSwapped(oldVehicle)) { model.MarkAsNoLongerNeeded(); return false; }
-
-        Ped driver = oldVehicle.Driver;
-        if (driver == null || !driver.Exists()) { model.MarkAsNoLongerNeeded(); return false; }
-
-        Vector3 oldVelocity = oldVehicle.Velocity;
-        float oldSpeed = oldVehicle.Speed;
-
-        Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
-        Vehicle newVehicle = World.CreateVehicle(model, oldVehicle.Position, oldVehicle.Heading);
+        Vehicle newVehicle = World.CreateVehicle(model, spawnPos, heading);
 
         if (newVehicle != null)
         {
+            // ==========================================
+            // THE LANE-SNAP FIX
+            // Push the car 2.5 meters to its right so it spawns 
+            // in the actual lane instead of on the center yellow line.
+            // ==========================================
+            newVehicle.Position = newVehicle.Position + (newVehicle.RightVector * 2.5f);
+
+            // Now we drop it to the pavement so the suspension settles correctly
+            newVehicle.PlaceOnGround();
+
             _activeSwaps.Add(newVehicle);
             _recentSpawnHistory.Add(modelName);
             if (_recentSpawnHistory.Count > ModSettings._historyCapacity) _recentSpawnHistory.RemoveAt(0);
@@ -396,41 +501,37 @@ public class TrafficSwap : Script
 
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
 
-            driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
-
-            _lockedVehicles.Remove(oldVehicle.Handle);
-
-            // Delete any extra occupants so they don't get stranded on the road
-            foreach (Ped occupant in oldVehicle.Occupants)
+            Ped driver = newVehicle.CreateRandomPedOnSeat(VehicleSeat.Driver);
+            if (driver != null)
             {
-                if (occupant != null && occupant.Exists() && occupant != driver)
-                {
-                    occupant.Delete();
-                }
+                Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
+                driver.BlockPermanentEvents = false;
+                Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, WANDER_DRIVE_SPEED, (int)DriveStyle);
             }
-
-            oldVehicle.Delete();
 
             CarMod.ApplyStyle(newVehicle, layer.Behavior, modelName);
 
             Function.Call(Hash.SET_ENTITY_LOAD_COLLISION_FLAG, newVehicle, true, 1);
-            newVehicle.Velocity = oldVelocity;
-            newVehicle.ForwardSpeed = oldSpeed;
 
-            driver.BlockPermanentEvents = false;
-
-            Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
+            newVehicle.ForwardSpeed = SPAWN_FORWARD_SPEED;
 
             if (ModSettings.TrafficShowBlips) CreateBlip(newVehicle, modelName);
-
-            //  newVehicle.MarkAsNoLongerNeeded();
-            //   driver.MarkAsNoLongerNeeded();
-            //   model.MarkAsNoLongerNeeded();
 
             return true;
         }
 
         model.MarkAsNoLongerNeeded();
+        return false;
+    }
+
+    private bool IsNodeOnDirt(Vector3 pos)
+    {
+        OutputArgument outDensity = new OutputArgument();
+        OutputArgument outFlags = new OutputArgument();
+        if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, pos.X, pos.Y, pos.Z, outDensity, outFlags))
+        {
+            if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true;
+        }
         return false;
     }
 
@@ -538,64 +639,41 @@ public class TrafficSwap : Script
     private void AssignToProfile(ZoneProfile profile, params string[] zones) { foreach (string z in zones) _zoneRegistry[z] = profile; }
     private SelectionLayer GetLayerForLocation(Vector3 pos) { string zone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, pos.X, pos.Y, pos.Z); if (string.IsNullOrEmpty(zone) || _bannedZones.Contains(zone)) return new SelectionLayer(); return _zoneRegistry.ContainsKey(zone) ? _zoneRegistry[zone].PickLayer() : new SelectionLayer(); }
 
-    private bool IsExcludedCategory(Vehicle v)
-    {
-        if (v.Model.IsTrain || v.Model.IsBoat || v.Model.IsHelicopter || v.Model.IsPlane || v.ClassType == VehicleClass.Cycles || v.ClassType == VehicleClass.Motorcycles || v.IsPersistent || Function.Call<bool>(Hash.IS_ENTITY_A_MISSION_ENTITY, v) || v.PopulationType == EntityPopulationType.RandomScenario || IsSwapped(v)) return true;
-        VehicleClass vc = v.ClassType;
-        if (ModSettings.IgnoreEmergencyTraffic && (vc == VehicleClass.Emergency || v.Driver.IsInPoliceVehicle)) return true;
-        if (ModSettings.IgnoreServiceTraffic && (vc == VehicleClass.Service || vc == VehicleClass.Commercial || v.Model.IsBus || v.Model.Hash == unchecked((int)VehicleHash.Taxi))) return true;
-        if (ModSettings.IgnoreBigTraffic && (vc == VehicleClass.Industrial || vc == VehicleClass.Utility || vc == VehicleClass.Military)) return true;
-        return false;
-    }
-
-    private bool IsSwapped(Vehicle v)
-    {
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, DECOR_NAME)) return true;
-        if (Function.Call<bool>(Hash.DECOR_EXIST_ON, v, AMB_TAG)) return true;
-        return false;
-    }
-
-    private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
     private void CreateBlip(Vehicle v, string modelKey)
     {
-        // TrafficSwap explicitly wants height hidden and long-range visibility initially
         Blip b = ModUtilities.CreateVehicleBlip(v, BlipColor.Blue);
         _activeBlips.Add(b);
     }
-    private void CleanupBlips() { 
-        Ped player = Game.Player.Character; 
-        for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; 
+
+    private void CleanupBlips()
+    {
+        Ped player = Game.Player.Character;
+        for (int i = _activeBlips.Count - 1; i >= 0; i--)
+        {
+            Blip b = _activeBlips[i];
             if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity) || b.Entity.IsDead)
-            { 
-                if (b.Exists()) b.Delete(); 
+            {
+                if (b.Exists()) b.Delete();
                 _activeBlips.RemoveAt(i);
             }
-        } 
+        }
     }
 
     private void ReleaseAllToGame()
     {
-        // 1. Delete Blips (Clean the map UI immediately)
         foreach (var blip in _activeBlips)
         {
             if (blip != null && blip.Exists()) blip.Delete();
         }
         _activeBlips.Clear();
 
-        // 2. Release Vehicles (Don't delete! Just let the game manage them)
         foreach (var vehicle in _activeSwaps)
         {
-            if (vehicle != null && vehicle.Exists())
-            {
-                vehicle.MarkAsNoLongerNeeded();
-            }
+            if (vehicle != null && vehicle.Exists()) vehicle.MarkAsNoLongerNeeded();
         }
 
-        // 3. Clear memory trackers
         _activeSwaps.Clear();
-        _lockedVehicles.Clear();
     }
-   
 
     private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }
     public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; public string SourceProfile; }

@@ -36,6 +36,9 @@ public static class ModSettings
     public static float ScoreDeadAhead { get; private set; } = 200f;
     public static bool TrafficShowBlips { get; private set; } = true;
 
+    // Traffic despawn buffer: additional distance added to MaxSwapDist before cleanup
+    public static float TrafficDespawnBuffer { get; private set; } = 50f;
+
    
     public static bool IgnoreEmergencyTraffic { get; private set; } = true;
     public static bool IgnoreServiceTraffic { get; private set; } = true;
