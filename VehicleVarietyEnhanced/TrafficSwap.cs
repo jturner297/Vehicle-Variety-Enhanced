@@ -24,8 +24,12 @@ public class TrafficSwap : Script
     private const int CROSS_STREET_MIN_DIST = 15;          // Spawns practically on top of the player
     private const int CROSS_STREET_MAX_DIST = 45;          // Extremely tight corner spawns
     private const int OPEN_ROAD_MIN_DIST = 80;             // Severe pop-in territory for straightaways
-    private const int OPEN_ROAD_MAX_DIST = 200;             // Barely down the block
+    private const int OPEN_ROAD_MAX_DIST = 400;             // Far spawn probing range
     private const float LOD_HAZE_FALLBACK_DIST = 40f;      // Completely ignores the on-screen pop-in safeguard
+    // Minimum safe ahead distance; prefer spawning at least this far ahead unless disguised by traffic/terrain
+    private const float MIN_SAFE_AHEAD = 250f;
+    private const int DENSITY_ALLOW_THRESHOLD = 4; // if node density >= this, allow closer disguised spawns
+    private const float FORWARD_ALLOW_DOT = 0.6f; // forward alignment allowance
 
     // --- RAYCASTING & SYSTEM ---
     // Despawn distance is fixed: player moving 150m away from an active car will despawn it
@@ -226,179 +230,226 @@ public class TrafficSwap : Script
         bool foundSpawn = false;
         string failReason = "No valid main roads found nearby";
 
-        // Track a best candidate in case we don't immediately find a same-road ahead node
-        float bestScore = float.MinValue;
-        Vector3 bestNodePos = Vector3.Zero;
-        float bestNodeHeading = 0f;
-        bool bestNodeOnDirt = false;
-        bool haveBest = false;
-
-        for (int attempt = 0; attempt < SWEEP_ATTEMPTS; attempt++)
+        // 1) Deterministic ahead-first pass: step forward along player's heading and try nodes
+        for (float testDist = OPEN_ROAD_MIN_DIST; testDist <= OPEN_ROAD_MAX_DIST; testDist += 10f)
         {
-            int sign = _rnd.Next(0, 2) == 0 ? 1 : -1;
-            float randomAngleOffset = _rnd.Next(0, MAX_CONE_ANGLE) * sign;
+            Vector3 probePos = pPos + (forward2D * testDist);
+            probePos.Z = pPos.Z;
 
-            float targetDist;
+            OutputArgument outPosProbe = new OutputArgument();
+            OutputArgument outHeadingProbe = new OutputArgument();
+            if (!Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, probePos.X, probePos.Y, probePos.Z, outPosProbe, outHeadingProbe, 1, 3.0f, 0)) continue;
 
-            if (Math.Abs(randomAngleOffset) <= DEAD_AHEAD_ANGLE_LIMIT)
+            Vector3 nodePos = outPosProbe.GetResult<Vector3>();
+            float nodeHeading = outHeadingProbe.GetResult<float>();
+            float horizDist = GetHorizontalDistance(pPos, nodePos);
+
+            if (Math.Abs(nodePos.Z - pPos.Z) > MAX_Z_DIFFERENCE) continue;
+
+            OutputArgument outDensity = new OutputArgument();
+            OutputArgument outFlags = new OutputArgument();
+            if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, nodePos.X, nodePos.Y, nodePos.Z, outDensity, outFlags))
             {
-                targetDist = _rnd.Next(OPEN_ROAD_MIN_DIST, OPEN_ROAD_MAX_DIST);
+                int density = outDensity.GetResult<int>();
+                int flags = outFlags.GetResult<int>();
+                string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, nodePos.X, nodePos.Y, nodePos.Z);
+                bool isUrban = _urbanZones.Contains(currentZone);
+                if (density == 0) continue;
+                if ((flags & 8) != 0) continue;
+                if (isUrban && (flags & 1) != 0) continue;
             }
-            else
+
+            if (horizDist < (CROSS_STREET_MIN_DIST - 10f) || horizDist > (OPEN_ROAD_MAX_DIST + 10f)) continue;
+
+            bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, nodePos.X, nodePos.Y, nodePos.Z, 3.0f);
+            if (isOnScreen && horizDist < LOD_HAZE_FALLBACK_DIST) continue;
+
+            bool tooCloseToAnother = false;
+            foreach (Vehicle activeSpawn in _activeSwaps)
             {
-                targetDist = _rnd.Next(CROSS_STREET_MIN_DIST, CROSS_STREET_MAX_DIST);
-            }
-
-            float angleRad = randomAngleOffset * (float)(Math.PI / 180.0);
-            float cos = (float)Math.Cos(angleRad);
-            float sin = (float)Math.Sin(angleRad);
-
-            Vector3 projectedDir = new Vector3(
-                forward2D.X * cos - forward2D.Y * sin,
-                forward2D.X * sin + forward2D.Y * cos,
-                0
-            ).Normalized;
-
-            Vector3 searchPos = pPos + (projectedDir * targetDist);
-            searchPos.Z = pPos.Z;
-
-            OutputArgument outPos = new OutputArgument();
-            OutputArgument outHeading = new OutputArgument();
-
-            if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHeading, 1, 3.0f, 0))
-            {
-                Vector3 nodePos = outPos.GetResult<Vector3>();
-                float nodeHeading = outHeading.GetResult<float>();
-                float horizDist = GetHorizontalDistance(pPos, nodePos);
-
-                if (Math.Abs(nodePos.Z - pPos.Z) > MAX_Z_DIFFERENCE)
+                if (activeSpawn.Exists() && GetHorizontalDistance(nodePos, activeSpawn.Position) < 150f)
                 {
-                    failReason = "Node is on a different vertical level";
-                    continue;
+                    tooCloseToAnother = true;
+                    break;
+                }
+            }
+            if (tooCloseToAnother) continue;
+
+            RaycastResult hit = World.Raycast(camPos, nodePos, IntersectFlags.Map | IntersectFlags.Vehicles);
+            bool hidden = false;
+            if (hit.DidHit)
+            {
+                if (hit.HitPosition.DistanceTo(nodePos) > RAYCAST_CORNER_PADDING) hidden = true;
+            }
+            else if (horizDist >= LOD_HAZE_FALLBACK_DIST)
+            {
+                hidden = true;
+            }
+
+            if (hidden)
+            {
+                bool isDirt = IsNodeOnDirt(nodePos);
+                if (SpawnVehicleAtNode(nodePos, nodeHeading, isDirt))
+                {
+                    foundSpawn = true;
+                    break;
+                }
+            }
+        }
+
+        // 2) Randomized sweep fallback
+        if (!foundSpawn)
+        {
+            for (int attempt = 0; attempt < SWEEP_ATTEMPTS; attempt++)
+            {
+                int sign = _rnd.Next(0, 2) == 0 ? 1 : -1;
+                float randomAngleOffset = _rnd.Next(0, MAX_CONE_ANGLE) * sign;
+
+                float targetDist;
+                if (Math.Abs(randomAngleOffset) <= DEAD_AHEAD_ANGLE_LIMIT)
+                {
+                    targetDist = _rnd.Next(OPEN_ROAD_MIN_DIST, OPEN_ROAD_MAX_DIST);
+                }
+                else
+                {
+                    targetDist = _rnd.Next(CROSS_STREET_MIN_DIST, CROSS_STREET_MAX_DIST);
                 }
 
-                OutputArgument outDensity = new OutputArgument();
-                OutputArgument outFlags = new OutputArgument();
-                if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, nodePos.X, nodePos.Y, nodePos.Z, outDensity, outFlags))
+                float angleRad = randomAngleOffset * (float)(Math.PI / 180.0);
+                float cos = (float)Math.Cos(angleRad);
+                float sin = (float)Math.Sin(angleRad);
+
+                Vector3 projectedDir = new Vector3(
+                    forward2D.X * cos - forward2D.Y * sin,
+                    forward2D.X * sin + forward2D.Y * cos,
+                    0
+                ).Normalized;
+
+                Vector3 searchPos = pPos + (projectedDir * targetDist);
+                searchPos.Z = pPos.Z;
+
+                OutputArgument outPos = new OutputArgument();
+                OutputArgument outHeading = new OutputArgument();
+
+                if (Function.Call<bool>(Hash.GET_CLOSEST_VEHICLE_NODE_WITH_HEADING, searchPos.X, searchPos.Y, searchPos.Z, outPos, outHeading, 1, 3.0f, 0))
                 {
-                    int density = outDensity.GetResult<int>();
-                    int flags = outFlags.GetResult<int>();
+                    Vector3 nodePos = outPos.GetResult<Vector3>();
+                    float nodeHeading = outHeading.GetResult<float>();
+                    float horizDist = GetHorizontalDistance(pPos, nodePos);
 
-                    string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, nodePos.X, nodePos.Y, nodePos.Z);
-                    bool isUrban = _urbanZones.Contains(currentZone);
-
-                    if (density == 0) { failReason = "Node has zero traffic density"; continue; }
-                    if ((flags & 8) != 0) { failReason = "Node is switched off"; continue; }
-
-                    if (isUrban && (flags & 1) != 0)
+                    if (Math.Abs(nodePos.Z - pPos.Z) > MAX_Z_DIFFERENCE)
                     {
-                        failReason = "Node is an alley/dirt path in the city";
+                        failReason = "Node is on a different vertical level";
                         continue;
                     }
-                }
 
-                if (horizDist < (CROSS_STREET_MIN_DIST - 10f) || horizDist > (OPEN_ROAD_MAX_DIST + 10f))
-                {
-                    failReason = "Node fell out of absolute bounds";
-                    continue;
-                }
-
-                bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, nodePos.X, nodePos.Y, nodePos.Z, 3.0f);
-
-                if (isOnScreen && horizDist < LOD_HAZE_FALLBACK_DIST)
-                {
-                    failReason = "Node bled into screen and is too close to pop-in smoothly";
-                    continue;
-                }
-
-                bool tooCloseToAnother = false;
-                foreach (Vehicle activeSpawn in _activeSwaps)
-                {
-                    if (activeSpawn.Exists() && GetHorizontalDistance(nodePos, activeSpawn.Position) < 150f)
+                    OutputArgument outDensity = new OutputArgument();
+                    OutputArgument outFlags = new OutputArgument();
+                    if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, nodePos.X, nodePos.Y, nodePos.Z, outDensity, outFlags))
                     {
-                        tooCloseToAnother = true;
-                        break;
+                        int density = outDensity.GetResult<int>();
+                        int flags = outFlags.GetResult<int>();
+
+                        string currentZone = Function.Call<string>(Hash.GET_NAME_OF_ZONE, nodePos.X, nodePos.Y, nodePos.Z);
+                        bool isUrban = _urbanZones.Contains(currentZone);
+
+                        if (density == 0) { failReason = "Node has zero traffic density"; continue; }
+                        if ((flags & 8) != 0) { failReason = "Node is switched off"; continue; }
+
+                        if (isUrban && (flags & 1) != 0)
+                        {
+                            failReason = "Node is an alley/dirt path in the city";
+                            continue;
+                        }
                     }
-                }
-                if (tooCloseToAnother)
-                {
-                    failReason = "Too close to existing spawn";
-                    continue;
-                }
 
-                RaycastResult hit = World.Raycast(camPos, nodePos, IntersectFlags.Map | IntersectFlags.Vehicles);
-
-                bool hidden = false;
-                if (hit.DidHit)
-                {
-                    if (hit.HitPosition.DistanceTo(nodePos) > RAYCAST_CORNER_PADDING) hidden = true;
-                }
-                else if (horizDist >= LOD_HAZE_FALLBACK_DIST)
-                {
-                    hidden = true;
-                }
-
-                if (hidden)
-                {
-                    bool isDirt = IsNodeOnDirt(nodePos);
-
-                    // Get street hashes for player and node to prefer same-road spawns
-                    OutputArgument playerStreetArg = new OutputArgument();
-                    OutputArgument playerCross = new OutputArgument();
-                    Function.Call(Hash.GET_STREET_NAME_AT_COORD, pPos.X, pPos.Y, pPos.Z, playerStreetArg, playerCross);
-                    int playerStreetHash = playerStreetArg.GetResult<int>();
-
-                    OutputArgument nodeStreetArg = new OutputArgument();
-                    OutputArgument nodeCross = new OutputArgument();
-                    Function.Call(Hash.GET_STREET_NAME_AT_COORD, nodePos.X, nodePos.Y, nodePos.Z, nodeStreetArg, nodeCross);
-                    int nodeStreetHash = nodeStreetArg.GetResult<int>();
-
-                    bool sameRoad = (playerStreetHash != 0 && playerStreetHash == nodeStreetHash);
-
-                    // Directional alignment: prefer nodes ahead of player's forward vector
-                    Vector3 dirToNode = new Vector3(nodePos.X - pPos.X, nodePos.Y - pPos.Y, 0f);
-                    if (dirToNode.Length() > 0.001f) dirToNode = dirToNode.Normalized;
-                    float forwardDot = Vector3.Dot(forward2D, dirToNode); // 1.0 = straight ahead
-
-                    // If it's the same road and roughly ahead, prefer immediately
-                    if (sameRoad && forwardDot > 0.5f)
+                    if (horizDist < (CROSS_STREET_MIN_DIST - 10f) || horizDist > (OPEN_ROAD_MAX_DIST + 10f))
                     {
+                        failReason = "Node fell out of absolute bounds";
+                        continue;
+                    }
+
+                    bool isOnScreen = Function.Call<bool>(Hash.IS_SPHERE_VISIBLE, nodePos.X, nodePos.Y, nodePos.Z, 3.0f);
+
+                    if (isOnScreen && horizDist < LOD_HAZE_FALLBACK_DIST)
+                    {
+                        failReason = "Node bled into screen and is too close to pop-in smoothly";
+                        continue;
+                    }
+
+                    bool tooCloseToAnother = false;
+                    foreach (Vehicle activeSpawn in _activeSwaps)
+                    {
+                        if (activeSpawn.Exists() && GetHorizontalDistance(nodePos, activeSpawn.Position) < 150f)
+                        {
+                            tooCloseToAnother = true;
+                            break;
+                        }
+                    }
+                    if (tooCloseToAnother)
+                    {
+                        failReason = "Too close to existing spawn";
+                        continue;
+                    }
+
+                    RaycastResult hit = World.Raycast(camPos, nodePos, IntersectFlags.Map | IntersectFlags.Vehicles);
+
+                    bool hidden = false;
+                    if (hit.DidHit)
+                    {
+                        if (hit.HitPosition.DistanceTo(nodePos) > RAYCAST_CORNER_PADDING) hidden = true;
+                    }
+                    else if (horizDist >= LOD_HAZE_FALLBACK_DIST)
+                    {
+                        hidden = true;
+                    }
+
+                    if (hidden)
+                    {
+                        bool isDirt = IsNodeOnDirt(nodePos);
+
+                        // Prefer same-road ahead nodes quickly
+                        OutputArgument playerStreetArg = new OutputArgument();
+                        OutputArgument playerCross = new OutputArgument();
+                        Function.Call(Hash.GET_STREET_NAME_AT_COORD, pPos.X, pPos.Y, pPos.Z, playerStreetArg, playerCross);
+                        int playerStreetHash = playerStreetArg.GetResult<int>();
+
+                        OutputArgument nodeStreetArg = new OutputArgument();
+                        OutputArgument nodeCross = new OutputArgument();
+                        Function.Call(Hash.GET_STREET_NAME_AT_COORD, nodePos.X, nodePos.Y, nodePos.Z, nodeStreetArg, nodeCross);
+                        int nodeStreetHash = nodeStreetArg.GetResult<int>();
+
+                        bool sameRoad = (playerStreetHash != 0 && playerStreetHash == nodeStreetHash);
+
+                        Vector3 dirToNode = new Vector3(nodePos.X - pPos.X, nodePos.Y - pPos.Y, 0f);
+                        if (dirToNode.Length() > 0.001f) dirToNode = dirToNode.Normalized;
+                        float forwardDot = Vector3.Dot(forward2D, dirToNode);
+
+                        if (sameRoad && forwardDot > 0.5f)
+                        {
+                            if (SpawnVehicleAtNode(nodePos, nodeHeading, isDirt))
+                            {
+                                foundSpawn = true;
+                                break;
+                            }
+                            else
+                            {
+                                failReason = "Spawn failed on a preferred same-road node";
+                                continue;
+                            }
+                        }
+
+                        // fallback spawn attempt
                         if (SpawnVehicleAtNode(nodePos, nodeHeading, isDirt))
                         {
                             foundSpawn = true;
                             break;
                         }
-                        else
-                        {
-                            // failed to spawn here; record reason and continue
-                            failReason = "Spawn failed on a preferred same-road node";
-                            continue;
-                        }
                     }
-
-                    // Score other candidates so we can fall back to the best option
-                    float score = 0f;
-                    // prefer same road even if not perfectly ahead
-                    if (sameRoad) score += 250f;
-                    // directional preference (ahead is better)
-                    score += forwardDot * 200f; // can be negative if behind
-                    // closer nodes score higher
-                    score += Math.Max(0f, (OPEN_ROAD_MAX_DIST - horizDist));
-                    // penalize nodes that are too far off the ideal range
-                    if (horizDist > OPEN_ROAD_MAX_DIST) score -= (horizDist - OPEN_ROAD_MAX_DIST) * 0.5f;
-
-                    if (score > bestScore)
+                    else
                     {
-                        bestScore = score;
-                        bestNodePos = nodePos;
-                        bestNodeHeading = nodeHeading;
-                        bestNodeOnDirt = isDirt;
-                        haveBest = true;
+                        failReason = "Node is not physically hidden by geometry or traffic";
                     }
-                }
-                else
-                {
-                    failReason = "Node is not physically hidden by geometry or traffic";
                 }
             }
         }
@@ -410,19 +461,6 @@ public class TrafficSwap : Script
         }
         else
         {
-            // If we didn't find an immediate preferred spawn, try the best-scored fallback
-            if (!foundSpawn && haveBest)
-            {
-                if (SpawnVehicleAtNode(bestNodePos, bestNodeHeading, bestNodeOnDirt))
-                {
-                    foundSpawn = true;
-                }
-                else
-                {
-                    // fallback failed; let the failure notification show original reason
-                }
-            }
-
             if (forceSpawn && ENABLE_DEBUG_NOTIFICATIONS) GTA.UI.Notification.Show($"~r~Forced Spawn Failed:~s~ {failReason}");
         }
     }
