@@ -176,10 +176,10 @@ public static class SpawnDatabase
             new SpawnSpot("CypressFlatsNorth", new Vector3(934.148f, -1812.94f, 29.812f), 88.712f, VehList.models_lowriders, SpawnBehavior.RandomSpec),
             new SpawnSpot("CypressFlatsSouth", new Vector3(1028.898f, -2405.95f, 28.494f), 170.017f, VehList.models_muscle, SpawnBehavior.Spec, VehList.models_bikes, 50),
             new SpawnSpot("Hookies", new Vector3(-2221.14f, 4232.757f, 46.132f), 225.108f, VehList.models_bikes, SpawnBehavior.Spec),
-           // new SpawnSpot("ZancudoGasStation", new Vector3(-2555.51f, 2322.827f, 32.06f), 273.837f, VehList.models_bikes, SpawnBehavior.Spec),
+           new SpawnSpot("ZancudoGasStation", new Vector3(-2555.51f, 2322.827f, 32.06f), 273.837f, VehList.models_muscle, SpawnBehavior.RandomSpec, VehList.models_offroad, 30),
 
 
-
+               new SpawnSpot("Wastelander", new Vector3(1111.018f, 2221.073f, 50.140f), 273.390f, VehList.models_offroad, SpawnBehavior.RandomSpec, VehList.models_wastelander, 20),
 
         };
     }
