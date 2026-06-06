@@ -106,7 +106,7 @@ public class VehList
     };
 
 
-    public static HashSet<string> models_karting = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+    public static HashSet<string> models_slingshot = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
     "veto",
     "veto2",
          "locust",
@@ -123,6 +123,10 @@ public class VehList
     };
 
 
+    public static HashSet<string> models_karting = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+    "veto",
+    "veto2",
+    };
 
 
 
@@ -253,6 +257,13 @@ public class VehList
     
     public static HashSet<string> models_doomsday = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { //these cars already spawn in traffic or have an in game location
        "tampa3",
+       "boxville5",
+       "deathbike",
+       "slamvan4",
+       "dominator4",
+       "impaler2",
+        "issi4"
+
     };
 
 
