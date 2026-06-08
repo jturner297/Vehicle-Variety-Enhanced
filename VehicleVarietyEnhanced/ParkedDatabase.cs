@@ -70,7 +70,7 @@ public static class SpawnDatabase
             // --- SPECIAL SPOTS ---
             new SpawnSpot("LagoZancudo", new Vector3(-3092.066f, 3465.729f, -0.474f), 47.552f, VehList.models_largeboats, SpawnBehavior.Stock, null, 0, 500f, 500f, false, 80),
             new SpawnSpot("Cemetery", new Vector3(-1640.42f, -202.879f, 54.146f), 338.279f, VehList.models_cemetery, SpawnBehavior.Spec), // Spec = Clean
-            new SpawnSpot("MovieStudio", new Vector3(-1093.433f, -480.578f, 35.977f), 28.398f, VehList.models_studio, SpawnBehavior.Spec), // Spec calls Hero Specs
+            new SpawnSpot("MovieStudio", new Vector3(-1092.560f, -482.217f, 35.969f), 27.641f, VehList.models_studio, SpawnBehavior.Spec), // Spec calls Hero Specs
             new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.RandomSpec), // RandomSpec + Cult List = Epsilon Blue
             new SpawnSpot("Rockford_Church", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.Spec),
             new SpawnSpot("Pier", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_slingshot, SpawnBehavior.VIP, VehList.models_karting, 20),
@@ -79,10 +79,10 @@ public static class SpawnDatabase
 
             // --- LARGE VEHICLE SPAWNS ---
             // Higgins = Spec (Logic in CarMod detects Higgins List)
-            new SpawnSpot("Higgins_Heli", new Vector3(-746.4702f, -1469.937f, 6.87726f), 140.365f, VehList.models_higgins, SpawnBehavior.Spec, null, 0, 500f, 10f,false, 80),
+            new SpawnSpot("Higgins_Heli", new Vector3(-746.4702f, -1469.937f, 6.87726f), 140.365f, VehList.models_higgins, SpawnBehavior.Spec, null, 0, 500f, 10f,true, 80),
             // Heli = Spec (Logic in CarMod detects Heli list)
-            new SpawnSpot("LSIA_Helicopter", new Vector3(-979.378f, -2996.868f, 13.945f), 331.180f, VehList.models_helicopter, SpawnBehavior.RandomSpec, null, 0, 650f, 600f, false, 80),
-            new SpawnSpot("LSIA_Planes_1", new Vector3(-961.005f, -2963.593f, 13.945f), 147.589f, VehList.models_planes, SpawnBehavior.RandomSpec, null, 0, 650f, 600f, false, 80),
+            new SpawnSpot("LSIA_Helicopter", new Vector3(-979.378f, -2996.868f, 13.945f), 331.180f, VehList.models_helicopter, SpawnBehavior.RandomSpec, null, 0, 650f, 600f, true, 80),
+            new SpawnSpot("LSIA_Planes_1", new Vector3(-961.005f, -2963.593f, 13.945f), 147.589f, VehList.models_planes, SpawnBehavior.RandomSpec, null, 0, 650f, 600f, true, 80),
 
             // Lowriders (RandomSpec)
             new SpawnSpot("Lowrider_1", new Vector3(-229.587f, -1483.44f, 30.352f), 146.244f, VehList.models_lowriders, SpawnBehavior.RandomSpec),

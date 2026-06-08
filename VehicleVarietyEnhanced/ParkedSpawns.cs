@@ -10,6 +10,12 @@ using System.Runtime.CompilerServices;
 
 public class SpawnParked : Script
 {
+    // ==========================================
+    // DYNAMIC BLIP TUNING
+    // ==========================================
+    private float _blipRevealDist = 120f;  // Must get this close to discover the car and trigger the blip
+    private float _blipHideDist = 150f;   // Must back up this far for the blip to fade away
+
     private int nextSpawnCheck = 0;
     private static Random random = new Random();
 
@@ -30,6 +36,9 @@ public class SpawnParked : Script
 
     // NEW: Tracks stolen cars to prevent instant respawns when immersion is off
     private HashSet<SpawnSpot> stolenPendingReset = new HashSet<SpawnSpot>();
+
+    // NEW: Tracks if the player crossed the UI Reveal threshold to validate a "real" encounter
+    private HashSet<SpawnSpot> _discoveredSpots = new HashSet<SpawnSpot>();
 
     private List<SpawnSpot> AllSpawns = new List<SpawnSpot>();
 
@@ -68,6 +77,7 @@ public class SpawnParked : Script
             if (ModSettings.EnableSpotCooldowns) spotCooldowns.Clear();
             stolenPendingReset.Clear();
             attemptedRng.Clear();
+            _discoveredSpots.Clear();
 
             // Tell the mod to pause
             ModUtilities.TriggerGlobalDelay(ModSettings.StartupDelay);
@@ -157,33 +167,20 @@ public class SpawnParked : Script
                 // B. SPAWN CHECK
                 bool isCoolingDown = ModSettings.EnableSpotCooldowns && spotCooldowns.ContainsKey(spot);
 
-                // Added stolenPendingReset check to block instant respawns
-                // Only consider spawning when horizontally within range and not extremely high/low compared to the spot
-                const float MaxVerticalSpawnOffset = 80f; // prevents spawning directly beneath/above while flying
+                const float MaxVerticalSpawnOffset = 80f;
                 if (horizDistance < activeSpawnDist && horizDistance > ModSettings.SpotSpawnDistMin && verticalDiff < MaxVerticalSpawnOffset && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
                 {
-                    // --- DIRECTIONAL FOV LOGIC ---
-                    Vector3 toSpotDirFull = (spot.Position - camPos);
-                    // Prefer horizontal FOV check so vertical camera tilt (looking up/down) doesn't block/allow spawns incorrectly
-                    Vector3 camDirHor = new Vector3(camDir.X, camDir.Y, 0f);
-                    Vector3 toSpotDirHor = new Vector3(toSpotDirFull.X, toSpotDirFull.Y, 0f);
+                    // --- FORWARD HEMISPHERE CHECK ---
+                    // Prevent cars from spawning behind the camera to stop awkward blip pop-ins
+                    Vector3 camDirHor = new Vector3(camDir.X, camDir.Y, 0f).Normalized;
+                    Vector3 toSpotDirHor = new Vector3(spot.Position.X - camPos.X, spot.Position.Y - camPos.Y, 0f).Normalized;
 
-                    bool skipDueToFOV = false;
-                    if (camDirHor.Length() < 0.001f || toSpotDirHor.Length() < 0.001f)
+                    // A 93-degree angle creates a 180-degree half-circle strictly in front of the camera
+                    if (Vector3.Angle(camDirHor, toSpotDirHor) > 30f)
                     {
-                        // Camera pointing nearly straight up/down or spot exactly above/below camera: fallback to full 3D angle
-                        if (Vector3.Angle(camDir, toSpotDirFull / toSpotDirFull.Length()) > 45f) skipDueToFOV = true;
+                        continue; // Spot is behind the player's view plane, skip the spawn
                     }
-                    else
-                    {
-                        if (Vector3.Angle(camDirHor / camDirHor.Length(), toSpotDirHor / toSpotDirHor.Length()) > 45f) skipDueToFOV = true;
-                    }
-
-                    if (skipDueToFOV)
-                    {
-                        continue; // Spot is out of view (behind us), skip spawn
-                    }
-                    // -----------------------------
+                    // --------------------------------
 
                     // If RNG spawns enabled, perform a single chance roll the first time the player enters the radius
                     if (ModSettings.RngSpots)
@@ -202,12 +199,8 @@ public class SpawnParked : Script
                         int roll = random.Next(0, 100);
                         if (roll >= activeRngChance)
                         {
-                            // failed the RNG chance, put spot on cooldown so it's treated as a 'bust'
-                            if (ModSettings.EnableSpotCooldowns)
-                            {
-                                spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
-                            }
-                            // failed the RNG chance, do not spawn now
+                            // FAILED RNG: Do not apply a cooldown! 
+                            // The player never saw it, so let them try again next time they re-enter the 200m radius.
                             continue;
                         }
                         // else allow spawn to proceed
@@ -222,8 +215,7 @@ public class SpawnParked : Script
                         {
                             vehDict[spot] = vehicle;
 
-                            // Respect the localized ShowBlip override
-                            if (ModSettings.ParkedShowBlips && spot.ShowBlip) CreateBlip(vehicle, spot);
+                            // BLIP CREATION REMOVED HERE: Handled dynamically in the Despawn Check below
 
                             CarMod.ApplyStyle(vehicle, spot.Behavior, modelName);
                         }
@@ -236,21 +228,44 @@ public class SpawnParked : Script
                     attemptedRng.Remove(spot);
                 }
 
-                // C. DESPAWN CHECK
+                // C. DESPAWN CHECK & DYNAMIC BLIP LOGIC
                 if (vehDict.ContainsKey(spot))
                 {
-                    // Despawn if they leave the horizontal radius OR fly too high above the spot
+                    Vehicle car = vehDict[spot];
+                    bool hasBlip = markerDict.ContainsKey(spot);
+
+                    // --- 1. THE UI REVEAL TIER ---
+                    // A. Reveal the static blip when you get close
+                    if (horizDistance <= _blipRevealDist)
+                    {
+                        _discoveredSpots.Add(spot); // Mark as a valid encounter
+
+                        if (!hasBlip && ModSettings.ParkedShowBlips && spot.ShowBlip)
+                        {
+                            CreateBlip(car, spot);
+                        }
+                    }
+                    // B. Delete the blip when you back away
+                    else if (hasBlip && horizDistance > _blipHideDist)
+                    {
+                        DeleteBlipForSpot(spot);
+                    }
+
+                    // --- 2. THE ULTIMATE PHYSICAL DESPAWN TIER ---
                     const float MaxVerticalDespawnOffset = 400f;
 
                     if (horizDistance > activeDespawnDist || verticalDiff > MaxVerticalDespawnOffset)
                     {
                         DeleteSpotResources(spot);
 
-                        // Apply standard cooldown when naturally despawning off-screen
-                        if (ModSettings.EnableSpotCooldowns)
+                        // ONLY apply the standard cooldown if the player actually discovered the car!
+                        if (ModSettings.EnableSpotCooldowns && _discoveredSpots.Contains(spot))
                         {
                             spotCooldowns[spot] = Game.GameTime + ModSettings.SpotCooldown;
                         }
+
+                        // Wipe the memory for the next organic spawn cycle
+                        _discoveredSpots.Remove(spot);
                     }
                 }
             }
@@ -383,6 +398,7 @@ public class SpawnParked : Script
         vehDict.Clear();
         spotCooldowns.Clear();
         stolenPendingReset.Clear();
+        _discoveredSpots.Clear();
     }
 
     private void ReleaseAllToGame()
@@ -403,6 +419,7 @@ public class SpawnParked : Script
         vehDict.Clear();
         spotCooldowns.Clear();
         stolenPendingReset.Clear();
+        _discoveredSpots.Clear();
     }
     private void OnAborted(object sender, EventArgs e) => CleanupAll();
 }
