@@ -53,6 +53,7 @@ public static class ModSettings
     // ==========================================
     //              IMMERSION SETTINGS
     // ==========================================
+    public static bool DisableWhenWanted { get; private set; } = true;
 
     public static bool EnableSpotCooldowns = true; // Set to false to disable immersion cooldowns
     public static int SpotCooldown { get; private set; } = 50000;
@@ -101,8 +102,9 @@ public static class ModSettings
         // Blips
         ShowVehicleNameOnBlips = settings.GetValue("BLIPS", "ShowVehicleNameOnBlips", ShowVehicleNameOnBlips);
         BlipSize = settings.GetValue("BLIPS", "BlipSize", BlipSize);
-        
+
         // Immersion
+        DisableWhenWanted = settings.GetValue("IMMERSION", "DisableWhenWanted", DisableWhenWanted);
         EnableSpotCooldowns = settings.GetValue("IMMERSION", "EnableSpotCooldowns", EnableSpotCooldowns);
         SpotCooldown = settings.GetValue("IMMERSION", "SpotCooldown", SpotCooldown);
         SpotStolenCooldown = settings.GetValue("IMMERSION", "SpotStolenCooldown", SpotStolenCooldown);

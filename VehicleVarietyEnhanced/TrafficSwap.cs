@@ -8,20 +8,12 @@ using System.Linq;
 
 public class TrafficSwap : Script
 {
-
-
     private readonly List<Vehicle> _activeSwaps = new List<Vehicle>();
-
- 
     private readonly HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
-
-
     private readonly List<string> _recentSpawnHistory = new List<string>();
-
 
     private int _lastPlayerHandle = 0;
     private bool _wasPlayerDead = false;
-
 
     private const string DECOR_NAME = "TMP_Swap_ID";
     private const string AMB_TAG = "Ambient_Swap_ID";
@@ -32,7 +24,6 @@ public class TrafficSwap : Script
 
     private int _nextCheckTime = 0;
     private int _nextSpawnTime = 0;
-
 
     private readonly HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
     private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
@@ -48,7 +39,9 @@ public class TrafficSwap : Script
         "CHAMH", "DAVIS", "RANCHO", "STRAW", "BANNIN",
         "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN", "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE",
         "MIRR", "EAST_V",
-        "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT"
+        "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT",
+        "BEACH", "DELBE"
+
     };
 
     public TrafficSwap()
@@ -64,8 +57,6 @@ public class TrafficSwap : Script
 
     private void OnTick(object sender, EventArgs e)
     {
-
-
         Ped player = Game.Player.Character;
         if (player == null || !player.Exists()) return;
 
@@ -108,6 +99,10 @@ public class TrafficSwap : Script
                 _nextCheckTime = Game.GameTime + ModSettings.MissionEndDelay;
             }
         }
+
+        // IMMERSION SETTING: Check if the player is actively wanted.
+        // We do this here so existing blips and cars remain until you naturally leave the area.
+        bool isWanted = ModSettings.DisableWhenWanted && Game.Player.Wanted.WantedLevel > 0;
 
         // --- 0. SIGHT TRACKER (Prevent Blinking) ---
         Vehicle[] nearbyVehicles = World.GetNearbyVehicles(player.Position, 150f);
@@ -169,7 +164,12 @@ public class TrafficSwap : Script
         try
         {
             CleanupBlips();
-            RunDirectorAI();
+
+            // Only spawn new traffic if the cops aren't actively chasing you
+            if (!isWanted)
+            {
+                RunDirectorAI();
+            }
         }
         catch (Exception) { }
 
@@ -347,8 +347,6 @@ public class TrafficSwap : Script
         }
         // --------------------------------------
 
-
-
         if (candidates.Count > 0)
         {
             modelName = candidates[_rnd.Next(candidates.Count)];
@@ -467,7 +465,7 @@ public class TrafficSwap : Script
         ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
         Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
         Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
-        AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
+        AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE", "BEACH", "DELBE");
 
         ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
         Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3);
@@ -556,21 +554,26 @@ public class TrafficSwap : Script
     }
 
     private bool IsVehicleOnDirt(Vehicle v) { OutputArgument outDensity = new OutputArgument(); OutputArgument outFlags = new OutputArgument(); if (Function.Call<bool>(Hash.GET_VEHICLE_NODE_PROPERTIES, v.Position.X, v.Position.Y, v.Position.Z, outDensity, outFlags)) { if ((outFlags.GetResult<int>() & (int)VehicleNodeFlags.Dirt) != 0) return true; } return false; }
+
     private void CreateBlip(Vehicle v, string modelKey)
     {
         // TrafficSwap explicitly wants height hidden and long-range visibility initially
         Blip b = ModUtilities.CreateVehicleBlip(v, BlipColor.Blue);
         _activeBlips.Add(b);
     }
-    private void CleanupBlips() { 
-        Ped player = Game.Player.Character; 
-        for (int i = _activeBlips.Count - 1; i >= 0; i--) { Blip b = _activeBlips[i]; 
+
+    private void CleanupBlips()
+    {
+        Ped player = Game.Player.Character;
+        for (int i = _activeBlips.Count - 1; i >= 0; i--)
+        {
+            Blip b = _activeBlips[i];
             if (!b.Exists() || b.Entity == null || !b.Entity.Exists() || player.IsInVehicle((Vehicle)b.Entity) || b.Entity.IsDead)
-            { 
-                if (b.Exists()) b.Delete(); 
+            {
+                if (b.Exists()) b.Delete();
                 _activeBlips.RemoveAt(i);
             }
-        } 
+        }
     }
 
     private void ReleaseAllToGame()
@@ -595,7 +598,6 @@ public class TrafficSwap : Script
         _activeSwaps.Clear();
         _lockedVehicles.Clear();
     }
-   
 
     private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }
     public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; public string SourceProfile; }

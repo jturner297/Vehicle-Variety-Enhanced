@@ -13,7 +13,7 @@ public class SpawnParked : Script
     // ==========================================
     // DYNAMIC BLIP TUNING
     // ==========================================
-    private float _blipRevealDist = 120f;  // Must get this close to discover the car and trigger the blip
+    private float _blipRevealDist = 130f;  // Must get this close to discover the car and trigger the blip
     private float _blipHideDist = 150f;   // Must back up this far for the blip to fade away
 
     private int nextSpawnCheck = 0;
@@ -94,6 +94,9 @@ public class SpawnParked : Script
 
         var playerPos = player.Position;
 
+        // IMMERSION SETTING: Check if the player is actively wanted to pause new spawns
+        bool isWanted = ModSettings.DisableWhenWanted && Game.Player.Wanted.WantedLevel > 0;
+
         // --- MISSION HANDLING ---
         if (ModUtilities.IsMissionOrCutsceneActive())
         {
@@ -167,20 +170,24 @@ public class SpawnParked : Script
                 // B. SPAWN CHECK
                 bool isCoolingDown = ModSettings.EnableSpotCooldowns && spotCooldowns.ContainsKey(spot);
 
-                const float MaxVerticalSpawnOffset = 80f;
-                if (horizDistance < activeSpawnDist && horizDistance > ModSettings.SpotSpawnDistMin && verticalDiff < MaxVerticalSpawnOffset && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
+                // Added stolenPendingReset check to block instant respawns
+                // Only consider spawning when horizontally within range and not extremely high/low compared to the spot
+                const float MaxVerticalSpawnOffset = 80f; // prevents spawning directly beneath/above while flying
+
+                // NEW: Added !isWanted check so no new cars generate during a chase
+                if (!isWanted && horizDistance < activeSpawnDist && horizDistance > ModSettings.SpotSpawnDistMin && verticalDiff < MaxVerticalSpawnOffset && !vehDict.ContainsKey(spot) && !isCoolingDown && !stolenPendingReset.Contains(spot))
                 {
                     // --- FORWARD HEMISPHERE CHECK ---
                     // Prevent cars from spawning behind the camera to stop awkward blip pop-ins
                     Vector3 camDirHor = new Vector3(camDir.X, camDir.Y, 0f).Normalized;
                     Vector3 toSpotDirHor = new Vector3(spot.Position.X - camPos.X, spot.Position.Y - camPos.Y, 0f).Normalized;
 
-                    // A 93-degree angle creates a 180-degree half-circle strictly in front of the camera
-                    if (Vector3.Angle(camDirHor, toSpotDirHor) > 30f)
+                    // A 30-degree angle creates a 180-degree half-circle strictly in front of the camera
+                    if (Vector3.Angle(camDirHor, toSpotDirHor) > 60f)
                     {
                         continue; // Spot is behind the player's view plane, skip the spawn
                     }
-                    // --------------------------------
+                    // ----
 
                     // If RNG spawns enabled, perform a single chance roll the first time the player enters the radius
                     if (ModSettings.RngSpots)
