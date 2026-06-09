@@ -3,7 +3,6 @@ using GTA.Math;
 using GTA.Native;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 
 public class TrafficSwap : Script
@@ -283,15 +282,21 @@ public class TrafficSwap : Script
         Vector3 toCarDir = (vPos - camPos).Normalized;
         if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
 
+        // Compute lateral distance early so we can forgive navmesh/node mismatches
+        // for cars that are physically in front of the player (low lateral distance).
+        float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
+
         int carRoadID = GetVehicleNodeID(vPos);
 
         // Trajectory Check
         float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
-        if (movementDirection > 5f && carRoadID != playerRoadID) return 0f;
+        // If the car is moving toward its forward vector and navmesh node differs
+        // from the player's, normally reject it — unless it is physically in front
+        // of the player (low lateral distance), in which case we forgive the mismatch.
+        if (movementDirection > 5f && carRoadID != playerRoadID && lateralDist >= 20f) return 0f;
 
         // --- STATIC LATERAL MATH & SCORING ---
         bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
-        float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
 
         if (lateralDist < 20f)
         {
