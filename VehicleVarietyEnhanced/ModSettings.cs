@@ -31,7 +31,7 @@ public static class ModSettings
     public static int _historyCapacity { get; private set; } = 10;
     public static float SwapFOV { get; private set; } = 60f;
     public static float ScoreThreshold { get; private set; } = 400f;
-    public static float ScoreVisible { get; private set; } = 50f;
+    public static float ScoreVisible { get; private set; } = 200f;
     public static float ScoreSameRoad { get; private set; } = 150f;
     public static float ScoreDeadAhead { get; private set; } = 200f;
     public static bool TrafficShowBlips { get; private set; } = true;

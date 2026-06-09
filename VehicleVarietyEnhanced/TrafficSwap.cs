@@ -238,21 +238,33 @@ public class TrafficSwap : Script
         return Function.Call<int>(Hash.GET_NTH_CLOSEST_VEHICLE_NODE_ID, pos.X, pos.Y, pos.Z, 1, 1, 1073741824, 0);
     }
 
+    private float GetTravelDistance(Vector3 pos1, Vector3 pos2)
+    {
+        // Asks the game's AI pathfinding to calculate the true driving route distance
+        return Function.Call<float>(Hash.CALCULATE_TRAVEL_DISTANCE_BETWEEN_POINTS, pos1.X, pos1.Y, pos1.Z, pos2.X, pos2.Y, pos2.Z);
+    }
+
     // --- MAIN SCORING LOGIC ---
     private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
     {
         float score = 0f;
         Vector3 vPos = v.Position;
-        float dist = vPos.DistanceTo(camPos);
 
-        // 1. CHEAP FILTERS
-        if (dist < 60f || dist > ModSettings.MaxSwapDist) return 0f;
+        // 1. THE TRUE DRIVING DISTANCE (Navmesh)
+        float travelDist = GetTravelDistance(vPos, camPos);
 
-        // Height Check 
+        // If the game cannot find a driving path (e.g., across a river with no bridge), 
+        // it returns an absurdly high number (100,000+). Reject it instantly.
+        if (travelDist >= 100000f) return 0f;
+
+        // Replace straight-line limits with true driving distance.
+        // We multiply MaxSwapDist by 1.5f here to give leeway for winding roads (like Vinewood Hills).
+        if (travelDist < 60f || travelDist > (ModSettings.MaxSwapDist * 1.5f)) return 0f;
+
+        // 2. HEIGHT & FOV FILTERS
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
         if (heightDiff > 15f) return 0f;
 
-        // FOV & Direction Checks
         Vector3 toCarDir = (vPos - camPos).Normalized;
         if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
 
@@ -264,12 +276,8 @@ public class TrafficSwap : Script
 
         // --- STATIC LATERAL MATH & SCORING ---
         bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
-
-        // Calculate lateral distance
         float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
 
-        // STATIC DEAD AHEAD PRIORITY
-        // Widened to 20 meters to capture desirable cars slightly off-center 
         if (lateralDist < 20f)
         {
             score += ModSettings.ScoreDeadAhead;
@@ -282,26 +290,24 @@ public class TrafficSwap : Script
 
         if (isHidden && !_lockedVehicles.Contains(v.Handle))
         {
-            // Massive stealth bonus ONLY if it's on our exact road (blind corners, hills)
-            // OR if it's a cross-street directly in front of us (< 40m left/right).
-            if (isSameRoad || lateralDist < 40f)
+            if (isSameRoad || lateralDist < 80f)
             {
                 score += 500f;
             }
             else
             {
-                // Hidden, but far off to the side on a parallel street.
                 score += 50f;
             }
         }
         else
         {
-            // FIXED: Visible cars must be at least 250m away to ensure a safe swap
-            if (dist < 200f) return 0f;
+            // Visible cars must have a safe driving buffer to prevent popping
+            if (travelDist < 200f) return 0f;
             score += ModSettings.ScoreVisible;
         }
 
-        score += (ModSettings.MaxSwapDist - dist) * 0.5f;
+        // Reward vehicles that have a shorter driving distance to reach you
+        score += (ModSettings.MaxSwapDist - travelDist) * 0.5f;
 
         return score;
     }
@@ -420,10 +426,6 @@ public class TrafficSwap : Script
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
             if (ModSettings.TrafficShowBlips) CreateBlip(newVehicle, modelName);
-
-            //  newVehicle.MarkAsNoLongerNeeded();
-            //   driver.MarkAsNoLongerNeeded();
-            //   model.MarkAsNoLongerNeeded();
 
             return true;
         }
