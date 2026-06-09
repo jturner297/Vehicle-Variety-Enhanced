@@ -20,6 +20,7 @@ public static class ModSettings
     public static float SpotSpawnDistMin { get; private set; } = 80f;
     public static float SpotDefaultDespawnBuffer { get; private set; } = 50f;
 
+
     // ==========================================
     //              TRAFFIC SETTINGS
     // ==========================================
@@ -34,6 +35,8 @@ public static class ModSettings
     public static float ScoreVisible { get; private set; } = 200f;
     public static float ScoreSameRoad { get; private set; } = 150f;
     public static float ScoreDeadAhead { get; private set; } = 200f;
+    // Traffic-specific despawn buffer used for swapped vehicles
+    public static float TrafficDespawnBuffer { get; private set; } = 300f;
     public static bool TrafficShowBlips { get; private set; } = true;
 
    
@@ -93,6 +96,7 @@ public static class ModSettings
         ScoreVisible = settings.GetValue("TRAFFIC", "ScoreVisible", ScoreVisible);
         ScoreSameRoad = settings.GetValue("TRAFFIC", "ScoreSameRoad", ScoreSameRoad);
         ScoreDeadAhead = settings.GetValue("TRAFFIC", "ScoreDeadAhead", ScoreDeadAhead);
+        TrafficDespawnBuffer = settings.GetValue("TRAFFIC", "TrafficDespawnBuffer", TrafficDespawnBuffer);
         TrafficShowBlips = settings.GetValue("TRAFFIC", "ShowBlips", TrafficShowBlips);
         IgnoreEmergencyTraffic = settings.GetValue("TRAFFIC", "IgnoreEmergencyTraffic", IgnoreEmergencyTraffic);
         IgnoreServiceTraffic = settings.GetValue("TRAFFIC", "IgnoreServiceTraffic", IgnoreServiceTraffic);

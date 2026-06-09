@@ -11,6 +11,7 @@ public class TrafficSwap : Script
     private readonly List<Vehicle> _activeSwaps = new List<Vehicle>();
     private readonly HashSet<int> _lockedVehicles = new HashSet<int>(); // Prevents "Blinking"
     private readonly List<string> _recentSpawnHistory = new List<string>();
+    private readonly Dictionary<int, float> _swapInitialDistances = new Dictionary<int, float>();
 
     private int _lastPlayerHandle = 0;
     private bool _wasPlayerDead = false;
@@ -125,6 +126,7 @@ public class TrafficSwap : Script
             if (!v.Exists() || v.IsDead)
             {
                 _lockedVehicles.Remove(v.Handle);
+                if (_swapInitialDistances.ContainsKey(v.Handle)) _swapInitialDistances.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
                 continue;
@@ -134,12 +136,24 @@ public class TrafficSwap : Script
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 v.MarkAsNoLongerNeeded();
+                if (_swapInitialDistances.ContainsKey(v.Handle)) _swapInitialDistances.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 _nextSpawnTime = Game.GameTime + _rnd.Next(ModSettings.MinSwapCooldown, ModSettings.MaxSwapCooldown);
                 continue;
             }
 
-            if (v.Position.DistanceTo(player.Position) > 270f)
+            // Compute despawn threshold based on the vehicle's initial spawn distance when it was swapped.
+            float despawnThresholdLocal = 270f;
+            if (_swapInitialDistances.ContainsKey(v.Handle))
+            {
+                float initial = _swapInitialDistances[v.Handle];
+                float buffer = ModSettings.TrafficDespawnBuffer;
+                despawnThresholdLocal = Math.Max(100f, initial + buffer); // ensure a reasonable minimum
+                // Cap to avoid runaway values
+                despawnThresholdLocal = Math.Min(despawnThresholdLocal, Math.Max(1200f, ModSettings.MaxSwapDist * 2f));
+            }
+
+            if (v.Position.DistanceTo(player.Position) > despawnThresholdLocal)
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
                 //v.MarkAsNoLongerNeeded();
@@ -154,6 +168,7 @@ public class TrafficSwap : Script
                 }
                 v.Delete();
                 _lockedVehicles.Remove(v.Handle);
+                if (_swapInitialDistances.ContainsKey(v.Handle)) _swapInitialDistances.Remove(v.Handle);
                 _activeSwaps.RemoveAt(i);
                 continue;
             }
@@ -383,17 +398,39 @@ public class TrafficSwap : Script
 
         Vector3 oldVelocity = oldVehicle.Velocity;
         float oldSpeed = oldVehicle.Speed;
+        bool oldLightsOn = oldVehicle.AreLightsOn;
+        bool oldHighBeams = oldVehicle.AreHighBeamsOn;
 
         Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, driver, true, true);
         Vehicle newVehicle = World.CreateVehicle(model, oldVehicle.Position, oldVehicle.Heading);
 
         if (newVehicle != null)
         {
+            // Ensure the newly created vehicle isn't immediately cleaned up by the game
+            Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, newVehicle, true, true);
+
+            // Record how far the player was from the vehicle when it was spawned
+            try
+            {
+                Ped player = Game.Player.Character;
+                if (player != null && player.Exists())
+                {
+                    float initialDist = newVehicle.Position.DistanceTo(player.Position);
+                    _swapInitialDistances[newVehicle.Handle] = initialDist;
+                }
+            }
+            catch { }
+
             _activeSwaps.Add(newVehicle);
             _recentSpawnHistory.Add(modelName);
             if (_recentSpawnHistory.Count > ModSettings._historyCapacity) _recentSpawnHistory.RemoveAt(0);
 
-            newVehicle.IsEngineRunning = true;
+            Function.Call(Hash.SET_VEHICLE_ENGINE_ON, newVehicle, true, true, false);
+            int lightState = oldLightsOn ? 3 : 0;
+            Function.Call(Hash.SET_VEHICLE_LIGHTS, newVehicle, lightState);
+
+            // Apply high beams
+            Function.Call(Hash.SET_VEHICLE_FULLBEAM, newVehicle, oldHighBeams);
 
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
@@ -599,6 +636,7 @@ public class TrafficSwap : Script
         // 3. Clear memory trackers
         _activeSwaps.Clear();
         _lockedVehicles.Clear();
+        _swapInitialDistances.Clear();
     }
 
     private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }
