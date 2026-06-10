@@ -25,6 +25,12 @@ public class TrafficSwap : Script
     private int _nextCheckTime = 0;
     private int _nextSpawnTime = 0;
 
+    // --- CAMERA FOCUS FIELDS ---
+    private Vehicle _focusedVehicle = null;
+    private bool _isFocusing = false;
+    private const float FOCUS_RADIUS = 40f;
+    private int _nextFocusToggleTime = 0; // NEW: Prevents button spamming
+
     private readonly HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
     private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
 
@@ -41,7 +47,6 @@ public class TrafficSwap : Script
         "MIRR", "EAST_V",
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT",
         "BEACH", "DELBE"
-
     };
 
     public TrafficSwap()
@@ -100,6 +105,9 @@ public class TrafficSwap : Script
             }
         }
 
+        // --- CAMERA FOCUS LOGIC ---
+        ProcessCameraFocus(player);
+
         // IMMERSION SETTING: Check if the player is actively wanted.
         // We do this here so existing blips and cars remain until you naturally leave the area.
         bool isWanted = ModSettings.DisableWhenWanted && Game.Player.Wanted.WantedLevel > 0;
@@ -155,7 +163,6 @@ public class TrafficSwap : Script
             if (v.Position.DistanceTo(player.Position) > despawnThresholdLocal)
             {
                 if (v.AttachedBlip != null) v.AttachedBlip.Delete();
-                //v.MarkAsNoLongerNeeded();
 
                 // Delete all occupants before deleting the car so they don't drop to the road
                 foreach (Ped occupant in v.Occupants)
@@ -188,6 +195,136 @@ public class TrafficSwap : Script
         catch (Exception) { }
 
         _nextCheckTime = Game.GameTime + ModSettings.CheckInterval;
+    }
+
+    private void ProcessCameraFocus(Ped player)
+    {
+        if (player.IsInVehicle())
+        {
+            // 1. Check if the vanilla cinematic camera is currently rendering
+            bool isCinematicCamActive = Function.Call<bool>((Hash)0xB15162CB5826E9E8);
+
+            // 2. Check if the player is currently using their phone
+            bool isPhoneActive = Function.Call<bool>(Hash.IS_PED_RUNNING_MOBILE_PHONE_TASK, player);
+
+            // 3. Check if the player is in First-Person mode (Mode 4)
+            bool isFirstPerson = Function.Call<int>(Hash.GET_FOLLOW_VEHICLE_CAM_VIEW_MODE) == 4;
+
+            Vehicle closestSwapped = null;
+            float closestDist = FOCUS_RADIUS;
+
+            // Find the closest active swapped vehicle
+            foreach (Vehicle v in _activeSwaps)
+            {
+                if (v != null && v.Exists() && !v.IsDead)
+                {
+                    float dist = v.Position.DistanceTo(player.Position);
+                    if (dist <= closestDist)
+                    {
+                        closestDist = dist;
+                        closestSwapped = v;
+                    }
+                }
+            }
+
+            // Only hijack the B button if cinematic cam is off, phone is closed, AND not in FP
+            if (!isCinematicCamActive && !isPhoneActive && !isFirstPerson && (closestSwapped != null || _isFocusing))
+            {
+                Function.Call(Hash.DISABLE_CONTROL_ACTION, 0, 80, true);
+
+                if (Function.Call<bool>(Hash.IS_DISABLED_CONTROL_JUST_PRESSED, 0, 80))
+                {
+                    // Debounce to prevent post-fx queue lockup
+                    if (Game.GameTime > _nextFocusToggleTime)
+                    {
+                        if (_isFocusing)
+                        {
+                            StopFocus(false); // Manually toggling off = smooth pan out
+                        }
+                        else if (closestSwapped != null)
+                        {
+                            StartFocus(closestSwapped);
+                        }
+
+                        // Lock the button for 1200 milliseconds
+                        _nextFocusToggleTime = Game.GameTime + 1200;
+                    }
+                }
+            }
+
+            // Maintain focus constraints
+            if (_isFocusing)
+            {
+                // THE FIX: If switching to First-Person, pass 'true' for an instant camera snap
+                if (isFirstPerson)
+                {
+                    StopFocus(true);
+                }
+                // Otherwise, if phone opens or target is lost, pass 'false' for a smooth pan
+                else if (isPhoneActive || _focusedVehicle == null || !_focusedVehicle.Exists() || _focusedVehicle.IsDead || _focusedVehicle.Position.DistanceTo(player.Position) > FOCUS_RADIUS)
+                {
+                    StopFocus(false);
+                }
+            }
+        }
+        else
+        {
+            // Drop focus immediately if the player steps out of their vehicle
+            if (_isFocusing) StopFocus(false);
+        }
+    }
+
+    private void StartFocus(Vehicle target)
+    {
+        if (target == null || !target.Exists()) return;
+        _focusedVehicle = target;
+        _isFocusing = true;
+
+        // Forcefully stop both visual effects to guarantee a clean slate
+        Function.Call((Hash)0x068E835A1D0DC0E3, "FocusIn");
+        Function.Call((Hash)0x068E835A1D0DC0E3, "FocusOut");
+
+        // Play the fade-in visual effect (looped)
+        Function.Call((Hash)0x2206BF9A37B7F724, "FocusIn", 0, true);
+
+        // NEW: Play the vanilla audio cue for engaging the hint camera
+        Function.Call(Hash.PLAY_SOUND_FRONTEND, -1, "FocusIn", "HintCamSounds", true);
+
+        // Lock the camera to the target
+        Function.Call(Hash.SET_GAMEPLAY_ENTITY_HINT, target, 0f, 0f, 0f, true, -1, 1000, 1000, 0);
+    }
+
+    private void StopFocus(bool instant = false)
+    {
+        if (_isFocusing)
+        {
+            // Forcefully stop both visual effects before fading out
+            Function.Call((Hash)0x068E835A1D0DC0E3, "FocusIn");
+            Function.Call((Hash)0x068E835A1D0DC0E3, "FocusOut");
+
+            // Play the vanilla "FocusOut" visual effect (not looped) to fade away smoothly
+            Function.Call((Hash)0x2206BF9A37B7F724, "FocusOut", 0, false);
+
+            // Play the vanilla audio cue for dropping the hint camera
+            Function.Call(Hash.PLAY_SOUND_FRONTEND, -1, "FocusOut", "HintCamSounds", true);
+
+            // THE FIX: Pass our 'instant' boolean to the native to control the panning behavior
+            Function.Call(Hash.STOP_GAMEPLAY_HINT, instant);
+
+            _isFocusing = false;
+            _focusedVehicle = null;
+        }
+    }
+
+    private void OnAborted(object sender, EventArgs e)
+    {
+        // Safe to pass true here so the camera snaps instantly if the script is reloaded
+        StopFocus(true);
+
+        // Failsafe: Native ANIMPOSTFX_STOP_ALL
+        Function.Call((Hash)0xB4EDDC19532BFB85);
+
+        foreach (var b in _activeBlips) if (b.Exists()) b.Delete();
     }
 
     private void RunDirectorAI()
@@ -364,8 +501,6 @@ public class TrafficSwap : Script
         var candidates = layer.List.Except(_recentSpawnHistory).ToList();
 
         // --- OPTION #2: HISTORY CHOKE PURGE ---
-        // If the history blocked every single car in this zone, 
-        // clear the oldest half of the history to breathe life back into the candidates.
         if (candidates.Count == 0 && layer.List.Count > 1)
         {
             _recentSpawnHistory.RemoveRange(0, _recentSpawnHistory.Count / 2);
@@ -411,10 +546,8 @@ public class TrafficSwap : Script
 
         if (newVehicle != null)
         {
-            // Ensure the newly created vehicle isn't immediately cleaned up by the game
             Function.Call(Hash.SET_ENTITY_AS_MISSION_ENTITY, newVehicle, true, true);
 
-            // Record how far the player was from the vehicle when it was spawned
             try
             {
                 Ped player = Game.Player.Character;
@@ -433,20 +566,15 @@ public class TrafficSwap : Script
             Function.Call(Hash.SET_VEHICLE_ENGINE_ON, newVehicle, true, true, false);
             int lightState = oldLightsOn ? 3 : 0;
             Function.Call(Hash.SET_VEHICLE_LIGHTS, newVehicle, lightState);
-
-            // Apply high beams
             Function.Call(Hash.SET_VEHICLE_FULLBEAM, newVehicle, oldHighBeams);
 
             int comboCount = Function.Call<int>(Hash.GET_NUMBER_OF_VEHICLE_COLOURS, newVehicle);
             if (comboCount > 0) Function.Call(Hash.SET_VEHICLE_COLOUR_COMBINATION, newVehicle, _rnd.Next(0, comboCount));
 
             Function.Call(Hash.DECOR_SET_INT, newVehicle, DECOR_NAME, 1);
-
             driver.SetIntoVehicle(newVehicle, VehicleSeat.Driver);
-
             _lockedVehicles.Remove(oldVehicle.Handle);
 
-            // Delete any extra occupants so they don't get stranded on the road
             foreach (Ped occupant in oldVehicle.Occupants)
             {
                 if (occupant != null && occupant.Exists() && occupant != driver)
@@ -464,7 +592,6 @@ public class TrafficSwap : Script
             newVehicle.ForwardSpeed = oldSpeed;
 
             driver.BlockPermanentEvents = false;
-
             Function.Call(Hash.TASK_VEHICLE_DRIVE_WANDER, driver, newVehicle, 20.0f, (int)DriveStyle);
 
             if (ModSettings.TrafficShowBlips) CreateBlip(newVehicle, modelName);
@@ -601,7 +728,6 @@ public class TrafficSwap : Script
 
     private void CreateBlip(Vehicle v, string modelKey)
     {
-        // TrafficSwap explicitly wants height hidden and long-range visibility initially
         Blip b = ModUtilities.CreateVehicleBlip(v, BlipColor.Blue);
         _activeBlips.Add(b);
     }
@@ -622,14 +748,16 @@ public class TrafficSwap : Script
 
     private void ReleaseAllToGame()
     {
-        // 1. Delete Blips (Clean the map UI immediately)
+        StopFocus();
+
+        // 1. Delete Blips
         foreach (var blip in _activeBlips)
         {
             if (blip != null && blip.Exists()) blip.Delete();
         }
         _activeBlips.Clear();
 
-        // 2. Release Vehicles (Don't delete! Just let the game manage them)
+        // 2. Release Vehicles
         foreach (var vehicle in _activeSwaps)
         {
             if (vehicle != null && vehicle.Exists())
@@ -644,7 +772,7 @@ public class TrafficSwap : Script
         _swapInitialDistances.Clear();
     }
 
-    private void OnAborted(object sender, EventArgs e) { foreach (var b in _activeBlips) if (b.Exists()) b.Delete(); }
+ 
     public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; public string SourceProfile; }
     [Flags] public enum VehicleNodeFlags { None = 0, Dirt = 32 }
 }
