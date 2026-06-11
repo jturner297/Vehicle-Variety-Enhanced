@@ -32,7 +32,7 @@ public class TrafficSwap : Script
     private int _nextFocusToggleTime = 0; // NEW: Prevents button spamming
 
     private readonly HashSet<string> _excludedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "deveste", "sm722", "prototipo" };
-    private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL" };
+    private readonly HashSet<string> _bannedZones = new HashSet<string> { "ARMYB", "JAIL", "PALMPOW", "PALCOV", "ELGORL", "ISHeist", "HORS", "PROL", "BEACH", "DELBE" };
 
     private readonly Dictionary<string, ZoneProfile> _zoneRegistry = new Dictionary<string, ZoneProfile>();
     private readonly List<Blip> _activeBlips = new List<Blip>();
@@ -46,7 +46,6 @@ public class TrafficSwap : Script
         "ROCKF", "RICHM", "MOVIE", "GOLF", "MORN", "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE",
         "MIRR", "EAST_V",
         "EBURO", "CYPRE", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN", "ZP_ORT",
-        "BEACH", "DELBE"
     };
 
     public TrafficSwap()
@@ -636,7 +635,7 @@ public class TrafficSwap : Script
         ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
         Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
         Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
-        AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE", "BEACH", "DELBE");
+        AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
 
         ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
         Elite.AddIngredient("SUPER", VehList.models_super, SpawnBehavior.Spec, 3);

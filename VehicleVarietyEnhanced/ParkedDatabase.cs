@@ -186,7 +186,7 @@ public static class SpawnDatabase
             new SpawnSpot("AlamoSeaPitStop", new Vector3(2502.232f, 4080.495f, 38.63095f), 68.68851f, VehList.models_beaters, SpawnBehavior.Beater), // alamo sea
             //new SpawnSpot("towtruck_3", new Vector3(1203.418f, -1262.387f, 35.22676f), 178.5483f, VehList.models_beaters, SpawnBehavior.Beater),
             new SpawnSpot("StarwberryModShop", new Vector3(-71.37413f, -1339.442f, 29.25686f), 89.01824f, VehList.models_lowriders, SpawnBehavior.RandomSpec), // near benny’s
-            new SpawnSpot("Scrapyard", new Vector3(-464.9293f, -1718.74f, 18.66934f), 244.1471f, VehList.models_beaters, SpawnBehavior.Beater), // stadium dump
+            new SpawnSpot("Scrapyard", new Vector3(-464.9293f, -1718.74f, 18.66934f), 244.1471f, VehList.models_doomsday, SpawnBehavior.RandomSpec), // stadium dump
             // --- AIRPORT / RENTAL LOTS ---
             new SpawnSpot("AirportParkingGarage", new Vector3(-936.2781f, -2692.023f, 16.11801f), 241.2007f, VehList.models_bikes, SpawnBehavior.Spec), // airport parking garage
             new SpawnSpot("AirportShuttleLot", new Vector3(-532.5765f, -2133.869f, 5.491799f), 353.1183f, VehList.models_bikes, SpawnBehavior.Spec), // airport parking shuttle lot

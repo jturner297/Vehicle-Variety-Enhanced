@@ -247,7 +247,7 @@ public class SpawnParked : Script
                     {
                         _discoveredSpots.Add(spot); // Mark as a valid encounter
 
-                        if (!hasBlip && ModSettings.ParkedShowBlips && spot.ShowBlip)
+                        if (!hasBlip && ModSettings.ParkedShowBlips && spot.ShowBlip && !isWanted)
                         {
                             CreateBlip(car, spot);
                         }
