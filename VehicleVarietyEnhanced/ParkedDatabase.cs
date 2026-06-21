@@ -57,15 +57,15 @@ public static class SpawnDatabase
             new SpawnSpot("VespucciApartment", new Vector3(-1334.63f, -1008.97f, 6.867f), 126.968f, VehList.models_slingshot, SpawnBehavior.VIP, VehList.models_classics, 20),
 
             // --- RACING / ARENA (RandomSpec) ---
-            new SpawnSpot("ArenaHotring", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.RandomSpec, null, 0, 200f, 300f , false, 80),
-            new SpawnSpot("ArenaSpeed", new Vector3(-176.5869f, -2019.529f, 27.14398f), 75.334f, VehList.models_arena_speed, SpawnBehavior.RandomSpec, null, 0, 200f, 300f, false, 80),
-            new SpawnSpot("ArenaOffroad", new Vector3(-192.949f, -1928.497f, 27.20675f), -151.296f, VehList.models_arena_offroad, SpawnBehavior.RandomSpec, null, 0, 200f, 300f, false, 80),
+            new SpawnSpot("ArenaHotring", new Vector3(-206.046f, -1988.758f, 26.96269f), 90.246f, VehList.models_arena_hotring, SpawnBehavior.RandomSpec, null, 0, 200f, 300f , true, 80),
+            new SpawnSpot("ArenaSpeed", new Vector3(-176.5869f, -2019.529f, 27.14398f), 75.334f, VehList.models_arena_speed, SpawnBehavior.RandomSpec, VehList.models_super, 30, 200f, 300f, true, 80),
+            new SpawnSpot("ArenaOffroad", new Vector3(-192.949f, -1928.497f, 27.20675f), -151.296f, VehList.models_arena_offroad, SpawnBehavior.RandomSpec, null, 0, 200f, 300f, true, 80),
                                                                                                                                                           
             // Casino
-            new SpawnSpot("CasinoHotring", new Vector3(1189.208f, 304.6935f, 81.48812f), 146.908f, VehList.models_arena_hotring, SpawnBehavior.RandomSpec, null, 0, 400f, 300f , false, 80),
-            new SpawnSpot("CasinoSpeed", new Vector3(1117.519f, 257.8285f, 80.31487f), -122.074f, VehList.models_arena_speed, SpawnBehavior.RandomSpec, null, 0, 400f, 300f, false, 80),
-            new SpawnSpot("CasinoOffroad", new Vector3(1151.233f, 183.6329f, 80.23096f), -53.715f, VehList.models_arena_offroad, SpawnBehavior.RandomSpec, null, 0, 400f, 300f, false, 80),
-            new SpawnSpot("CasinoOpenwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.RandomSpec, null, 0, 400f, 300f, false, 80),             
+            new SpawnSpot("CasinoHotring", new Vector3(1189.208f, 304.6935f, 81.48812f), 146.908f, VehList.models_arena_hotring, SpawnBehavior.RandomSpec, null, 0, 400f, 300f , true, 80),
+            new SpawnSpot("CasinoSpeed", new Vector3(1117.519f, 257.8285f, 80.31487f), -122.074f, VehList.models_arena_speed, SpawnBehavior.RandomSpec, VehList.models_super, 30, 400f, 300f, true, 80),
+            new SpawnSpot("CasinoOffroad", new Vector3(1151.233f, 183.6329f, 80.23096f), -53.715f, VehList.models_arena_offroad, SpawnBehavior.RandomSpec, null, 0, 400f, 300f, true, 80),
+            new SpawnSpot("CasinoOpenwheel", new Vector3(1135.19f, 39.81987f, 80.34249f), 58.875f, VehList.models_openwheel, SpawnBehavior.RandomSpec, null, 0, 400f, 300f, true, 80),             
 
             // --- SPECIAL SPOTS ---
             new SpawnSpot("LagoZancudo", new Vector3(-3092.066f, 3465.729f, -0.474f), 47.552f, VehList.models_largeboats, SpawnBehavior.Stock, null, 0, 500f, 500f, false, 80),
@@ -73,9 +73,9 @@ public static class SpawnDatabase
             new SpawnSpot("MovieStudio", new Vector3(-1092.560f, -482.217f, 35.969f), 27.641f, VehList.models_studio, SpawnBehavior.Spec), // Spec calls Hero Specs
             new SpawnSpot("Cult", new Vector3(-719.9119f, 79.29325f, 55.13408f), 25.098f, VehList.models_cult, SpawnBehavior.RandomSpec), // RandomSpec + Cult List = Epsilon Blue
             new SpawnSpot("Rockford_Church", new Vector3(-762.865f, -38.192f, 37.687f), 115.427f, VehList.models_valentine, SpawnBehavior.Spec),
-            new SpawnSpot("Pier", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_slingshot, SpawnBehavior.VIP, VehList.models_karting, 20),
-            new SpawnSpot("BeachParking", new Vector3(-1235.388f, -1647.45f, 3.512795f), 124.5176f, VehList.models_slingshot, SpawnBehavior.VIP, VehList.models_karting, 20),
-            new SpawnSpot("GarmentFactory", new Vector3(651.461f, -1016.148f, 21.893f), 358.042f, VehList.models_kuruma, SpawnBehavior.Spec, null, 0, 100f, 100f, false, 20),
+            new SpawnSpot("Pier", new Vector3(-1530.63f, -993.47f, 12.017f), 254.258f, VehList.models_slingshot, SpawnBehavior.RandomSpec, VehList.models_karting, 20),
+            new SpawnSpot("BeachParking", new Vector3(-1235.388f, -1647.45f, 3.512795f), 124.5176f, VehList.models_slingshot, SpawnBehavior.RandomSpec, VehList.models_karting, 20),
+            new SpawnSpot("GarmentFactory", new Vector3(651.461f, -1016.148f, 21.893f), 358.042f, VehList.models_kuruma, SpawnBehavior.Spec, null, 0, 100f, 100f, false, 20), //Kuruma
 
             // --- LARGE VEHICLE SPAWNS ---
             // Higgins = Spec (Logic in CarMod detects Higgins List)
@@ -110,7 +110,7 @@ public static class SpawnDatabase
          
             new SpawnSpot("Kortz", new Vector3(-2316.357f, 280.0749f, 168.9348f), 201.5139f, VehList.models_luxury,  SpawnBehavior.VIP, VehList.models_armoured, 25),
             
-            new SpawnSpot("ChumashBeachHouse", new Vector3(-3072.296f, 657.9456f, 10.53257f), 311.2028f, VehList.models_slingshot,  SpawnBehavior.VIP, VehList.models_bikes, 30),
+            new SpawnSpot("ChumashBeachHouse", new Vector3(-3072.296f, 657.9456f, 10.53257f), 311.2028f, VehList.models_slingshot,  SpawnBehavior.RandomSpec, VehList.models_bikes, 30),
            
             new SpawnSpot("LegionSquareNorth", new Vector3(243.1413f, -861.0181f, 28.94244f), 248.5342f, VehList.models_luxury,  SpawnBehavior.VIP, VehList.models_armoured, 10),
 
@@ -131,7 +131,7 @@ public static class SpawnDatabase
 
             new SpawnSpot("LegionSquareSouth", new Vector3(185.595f, -1016.01f, 28.3f), 33.185f, VehList.models_muscle,  SpawnBehavior.Muscle),
             new SpawnSpot("EastLosHospital", new Vector3(1156.74f, -1474.257f, 33.9701f), 268.8033f, VehList.models_muscle,  SpawnBehavior.Muscle),
-            new SpawnSpot("ChumashShoppingCenter", new Vector3(-3139.044f, 1086.714f, 20.23225f),260.5882f, VehList.models_slingshot,  SpawnBehavior.VIP, VehList.models_bikes, 30),
+            new SpawnSpot("ChumashShoppingCenter", new Vector3(-3139.044f, 1086.714f, 20.23225f),260.5882f, VehList.models_slingshot,  SpawnBehavior.RandomSpec, VehList.models_bikes, 30),
             new SpawnSpot("MaibatsuDealer", new Vector3(246.847f, -1162.08f, 28.16f), 180.390f, VehList.models_tuner,  SpawnBehavior.Tuner,VehList.models_bikes, 30),
 
             // --- MILITARY SPAWNS (Spec) ---
@@ -151,7 +151,7 @@ public static class SpawnDatabase
 //new SpawnSpot("SandyShores_145708", new Vector3(1434.183f, 3640.622f, 34.397f), 289.263f, VehList.models_doomsday, SpawnBehavior.Spec), // Sandy Shores - Lesbos Ln - Ref: TAMPA3
 // new SpawnSpot("ZancudoRiver_145814", new Vector3(376.884f, 3565.175f, 32.763f), 71.017f, VehList.models_doomsday, SpawnBehavior.Spec), // Zancudo River - Marina Dr - Ref: TAMPA3
 // new SpawnSpot("GrandSenoraDesert_150025", new Vector3(-27.991f, 2890.005f, 58.122f), 229.419f, VehList.models_doomsday, SpawnBehavior.Spec), // Grand Senora Desert - Route 68 Approach - Ref: TAMPA3
-            new SpawnSpot("HarmonyAutoShop", new Vector3(222.276f, 2580.151f, 45.276f), 280.075f, VehList.models_doomsday, SpawnBehavior.RandomSpec),
+            new SpawnSpot("Doomsday_HarmonyAutoShop", new Vector3(222.276f, 2580.151f, 45.276f), 280.075f, VehList.models_doomsday, SpawnBehavior.RandomSpec),
     
             new SpawnSpot("Route68west", new Vector3(392.6896f, 2641.558f, 44.07256f), 205.5221f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_offroad, 20),
 
@@ -163,10 +163,10 @@ public static class SpawnDatabase
 
             // Sandy Shores / Alamo Sea Coast
             new SpawnSpot("Ace", new Vector3(1350.489f, 3605.351f, 34.47185f), 16.77524f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_offroad, 20),
-            new SpawnSpot("EastLosOilFields", new Vector3(1566.097f, -1683.17f, 87.205f), 14.900f, VehList.models_offroad, SpawnBehavior.Beater, VehList.models_muscle, 20),
+            new SpawnSpot("EastLosOilFields", new Vector3(1566.097f, -1683.17f, 87.205f), 14.900f, VehList.models_offroad, SpawnBehavior.Beater),
             new SpawnSpot("PowerStationNorth", new Vector3(2673.478f, 1678.569f, 23.488f), 270.297f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_muscle, 20, 200f, 150f),
             new SpawnSpot("PowerStationSouth", new Vector3(2717.772f, 1391.725f, 23.535f), 1.832709f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_muscle, 20, 200f, 150f),
-            new SpawnSpot("RedwoodTrack", new Vector3(839.097f, 2202.196f, 50.46f), 245.553f, VehList.models_offroad, SpawnBehavior.Beater, VehList.models_muscle, 20),
+            new SpawnSpot("RedwoodTrack", new Vector3(839.097f, 2202.196f, 50.46f), 245.553f, VehList.models_offroad, SpawnBehavior.Beater),
             
             new SpawnSpot("RebelRadio", new Vector3(756.539f, 2525.957f, 72.161f), 270.240f, VehList.models_wacky, SpawnBehavior.RandomSpec, VehList.models_offroad, 20), 
 
@@ -176,7 +176,7 @@ public static class SpawnDatabase
             new SpawnSpot("CypressFlatsNorth", new Vector3(934.148f, -1812.94f, 29.812f), 88.712f, VehList.models_lowriders, SpawnBehavior.RandomSpec),
             new SpawnSpot("CypressFlatsSouth", new Vector3(1028.898f, -2405.95f, 28.494f), 170.017f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_bikes, 50),
             new SpawnSpot("Hookies", new Vector3(-2221.14f, 4232.757f, 46.132f), 225.108f, VehList.models_bikes, SpawnBehavior.Spec),
-           new SpawnSpot("ZancudoGasStation", new Vector3(-2551.164f, 2338.370f, 32.648f), 93.422f, VehList.models_muscle, SpawnBehavior.RandomSpec, VehList.models_offroad, 30),
+           new SpawnSpot("ZancudoGasStation", new Vector3(-2551.164f, 2338.370f, 32.648f), 93.422f, VehList.models_muscle, SpawnBehavior.Muscle, VehList.models_offroad, 30),
 
 
                new SpawnSpot("Wastelander", new Vector3(1111.018f, 2221.073f, 50.140f), 273.390f, VehList.models_offroad, SpawnBehavior.RandomSpec, VehList.models_wastelander, 20),
@@ -186,19 +186,19 @@ public static class SpawnDatabase
             new SpawnSpot("AlamoSeaPitStop", new Vector3(2502.232f, 4080.495f, 38.63095f), 68.68851f, VehList.models_beaters, SpawnBehavior.Beater), // alamo sea
             //new SpawnSpot("towtruck_3", new Vector3(1203.418f, -1262.387f, 35.22676f), 178.5483f, VehList.models_beaters, SpawnBehavior.Beater),
             new SpawnSpot("StarwberryModShop", new Vector3(-71.37413f, -1339.442f, 29.25686f), 89.01824f, VehList.models_lowriders, SpawnBehavior.RandomSpec), // near benny’s
-            new SpawnSpot("Scrapyard", new Vector3(-464.9293f, -1718.74f, 18.66934f), 244.1471f, VehList.models_doomsday, SpawnBehavior.RandomSpec), // stadium dump
+            new SpawnSpot("Scrapyard", new Vector3(-464.9293f, -1718.74f, 18.66934f), 244.1471f, VehList.models_beaters, SpawnBehavior.Beater), // stadium dump
             // --- AIRPORT / RENTAL LOTS ---
             new SpawnSpot("AirportParkingGarage", new Vector3(-936.2781f, -2692.023f, 16.11801f), 241.2007f, VehList.models_bikes, SpawnBehavior.Spec), // airport parking garage
             new SpawnSpot("AirportShuttleLot", new Vector3(-532.5765f, -2133.869f, 5.491799f), 353.1183f, VehList.models_bikes, SpawnBehavior.Spec), // airport parking shuttle lot
        // --- PALETO FOREST / RANGER STATION ---
-            new SpawnSpot("paleto_forest_station", new Vector3(-771.927f, 5566.46f, 32.486f), 271.230f, VehList.models_offroad, SpawnBehavior.Spec), // paleto forest station
+            new SpawnSpot("paleto_forest_station", new Vector3(-771.927f, 5566.46f, 32.486f), 271.230f, VehList.models_offroad, SpawnBehavior.Beater), // paleto forest station
 
 
 
             new SpawnSpot("Madrazo", new Vector3(1362.672f, 1178.352f, 111.609f), 359.306f, VehList.models_classics, SpawnBehavior.Spec), // nope madrazo
-            new SpawnSpot("SandyShores", new Vector3(2002.724f, 3769.429f, 31.181f), 298.783f, VehList.models_offroad, SpawnBehavior.Spec), // sandy shores
+            new SpawnSpot("SandyShoresGas", new Vector3(2002.724f, 3769.429f, 31.181f), 298.783f, VehList.models_offroad, SpawnBehavior.Beater, VehList.models_wacky, 40),
 
-            new SpawnSpot("vans_6", new Vector3(1697.817f, 6414.365f, 31.73f), 247.870f, VehList.models_offroad, SpawnBehavior.Spec), // east paleto gas 
+            new SpawnSpot("vans_6", new Vector3(1697.817f, 6414.365f, 31.73f), 247.870f, VehList.models_offroad, SpawnBehavior.Beater), // east paleto gas 
             new SpawnSpot("vans_7", new Vector3(1700.445f, 4937.267f, 41.078f), 147.276f, VehList.models_beaters, SpawnBehavior.Beater), // grapseed main street
 
             new SpawnSpot("vans_11", new Vector3(-165.839f, 6454.25f, 30.495f), 225.116f, VehList.models_muscle, SpawnBehavior.Muscle), // paleto motel

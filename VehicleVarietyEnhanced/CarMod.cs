@@ -28,15 +28,21 @@ public static class CarMod
 
     // --- LIVERY BLACKLISTS ---
     { "eudora", new Dictionary<VehicleModType, HashSet<int>> {
-        { VehicleModType.Livery, new HashSet<int> { 10 } }
+        { VehicleModType.Livery, new HashSet<int> { 10 } } //taxi
     }},
     { "monstrociti", new Dictionary<VehicleModType, HashSet<int>> {
-        { VehicleModType.Livery, new HashSet<int> { 10, 11 } }
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } } //hsw livery
     }},
     { "arbitergt", new Dictionary<VehicleModType, HashSet<int>> {
-        { VehicleModType.Livery, new HashSet<int> { 10, 11 } }
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } } //hsw livery
+    }},
+        { "s95", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } } //hsw livery
+    }},
+           { "firebolt", new Dictionary<VehicleModType, HashSet<int>> {
+        { VehicleModType.Livery, new HashSet<int> { 10, 11 } } //hsw livery
     }}
-      
+
 };
 
     // ==========================================
@@ -315,7 +321,16 @@ public static class CarMod
                 break;
             case SpawnBehavior.Beater:
                 // DRAG / CLASSIC
-                v.Mods.Livery = -1; // Force Clean
+               if (random.Next(0, 2) == 0)
+                {
+                    RandomizeLivery(v, modelName);
+                }
+                // 50% Chance: Force clean metal (No Livery)
+                else
+                {
+                    v.Mods.Livery = -1;
+                }
+               // v.Mods.Livery = -1; // Force Clean
                 ApplyBeaterVisuals(v, modelName);
                 break;
 

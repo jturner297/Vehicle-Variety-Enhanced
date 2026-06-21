@@ -117,7 +117,8 @@ public class VehList
           "kamacho",
           "monstrociti",
           "vagrant",
-          "outlaw"
+          "outlaw",
+             "hellion"
     };
 
 
@@ -378,7 +379,8 @@ public class VehList
         "weevil2",
         "patriot3",
         "peyote2",
-        "ratbike",
+        //"ratbike",
+        "journey2",
         "ratloader2",
         "ratloader",
         "tornado6",
@@ -468,8 +470,8 @@ public class VehList
     "sentinel4",
     "elegy",
         "comet3",
-        "jugular"
-
+        "jugular",
+                "s95"
     };
 
     public static HashSet<string> models_muscle = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -544,7 +546,7 @@ public class VehList
         "schlagen",
         "viseris",
         "specter2",
-        "s95",
+      //  "s95",
       //  "vectre",
       //  "verlierer2",
         "vstr",
@@ -596,13 +598,11 @@ public class VehList
         "everon",
         "firebolt",
         "hellion",
-        "journey2",
         "kamacho",
         "monstrociti",
         "outlaw",
         "patriot3",
         "riata",
-        "rumpo3",
         "seminole2",
         "squaddie",
         "outlaw",

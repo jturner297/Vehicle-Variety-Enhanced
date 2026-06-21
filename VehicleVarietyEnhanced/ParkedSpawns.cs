@@ -13,8 +13,8 @@ public class SpawnParked : Script
     // ==========================================
     // DYNAMIC BLIP TUNING
     // ==========================================
-    private float _blipRevealDist = 130f;  // Must get this close to discover the car and trigger the blip
-    private float _blipHideDist = 150f;   // Must back up this far for the blip to fade away
+    private float _blipRevealDist = 140f;  // Must get this close to discover the car and trigger the blip
+    private float _blipHideDist = 160f;   // Must back up this far for the blip to fade away
 
     private int nextSpawnCheck = 0;
     private static Random random = new Random();
@@ -352,7 +352,7 @@ public class SpawnParked : Script
         Vehicle car = World.CreateVehicle(model, pos, heading);
         model.MarkAsNoLongerNeeded();
 
-        bool isFreeRide = spot.Id.Contains("Arena") || spot.Id.Contains("Casino");
+        bool isFreeRide = spot.Id.Contains("Arena") || spot.Id.Contains("Casino") || spot.Id.Contains("Doomsday");
 
         if (ModSettings.LockDoors && !isFreeRide)
         {

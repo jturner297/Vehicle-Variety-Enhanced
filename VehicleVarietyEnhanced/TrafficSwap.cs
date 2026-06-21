@@ -395,74 +395,82 @@ public class TrafficSwap : Script
     }
 
     // --- MAIN SCORING LOGIC ---
+    // --- MAIN SCORING LOGIC (THE OMNI-SCANNER) ---
     private float GetCinematicScore(Vehicle v, Vector3 camPos, Vector3 camDir, Vector3 playerVel, Vector3 playerRight, int playerRoadID)
     {
         float score = 0f;
         Vector3 vPos = v.Position;
 
-        // 1. THE TRUE DRIVING DISTANCE (Navmesh)
+        // 1. THE SPATIAL TRUTH
+        float physicalDist = vPos.DistanceTo(camPos);
         float travelDist = GetTravelDistance(vPos, camPos);
 
-        // If the game cannot find a driving path (e.g., across a river with no bridge), 
-        // it returns an absurdly high number (100,000+). Reject it instantly.
-        if (travelDist >= 100000f) return 0f;
+        // --- PHASE 1: THE RIVER & HIGHWAY RAYCAST ---
+        // If the navmesh panics on a straight road (returns 100k+), verify the environment.
+        if (travelDist >= 100000f)
+        {
+            // Shoot a raycast checking ONLY against the map geometry (ignores other cars).
+            RaycastResult terrainCheck = World.Raycast(camPos, vPos, IntersectFlags.Map);
 
-        // Replace straight-line limits with true driving distance.
-        // We multiply MaxSwapDist by 1.5f here to give leeway for winding roads (like Vinewood Hills).
-        if (travelDist < 60f || travelDist > (ModSettings.MaxSwapDist * 1.5f)) return 0f;
+            // If it hits a riverbank, canyon wall, or building across a gap, kill it.
+            if (terrainCheck.DidHit) return 0f;
 
-        // 2. HEIGHT & FOV FILTERS
+            // If the line of sight is completely clear, it's a straight highway. Trust physical distance.
+            travelDist = physicalDist;
+        }
+
+        // Enforce maximum bounds using our verified distance
+        if (travelDist < 60f || travelDist > (ModSettings.MaxSwapDist)) return 0f;
+
+        // 2. 3D VECTORS & TOPOLOGY
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
-        if (heightDiff > 15f) return 0f;
+        if (heightDiff > 100f) return 0f; // Absolute failsafe for orbital glitches
 
         Vector3 toCarDir = (vPos - camPos).Normalized;
         if (Vector3.Angle(camDir, toCarDir) > ModSettings.SwapFOV) return 0f;
 
-        // Compute lateral distance early so we can forgive navmesh/node mismatches
-        // for cars that are physically in front of the player (low lateral distance).
         float lateralDist = Math.Abs(Vector3.Dot((vPos - camPos), playerRight));
+        float forwardDist = Math.Abs(Vector3.Dot((vPos - camPos), camDir));
 
+        // 3. THE DYNAMIC ENVIRONMENT FILTERS
         int carRoadID = GetVehicleNodeID(vPos);
+
+        // Are they driving parallel to us? (Allows lane changes, rejects perpendicular overpasses)
+        bool isDrivingParallel = Vector3.Dot(v.ForwardVector, camDir) > 0.8f;
+
+        // Build the virtual hill ramp (4.5m base + 0.75m slope per meter forward)
+        float dynamicHeightThreshold = 4.5f + (forwardDist * 0.75f);
 
         // Trajectory Check
         float movementDirection = Vector3.Dot(v.Velocity, toCarDir);
-        // If the car is moving toward its forward vector and navmesh node differs
-        // from the player's, normally reject it — unless it is physically in front
-        // of the player (low lateral distance), in which case we forgive the mismatch.
-        if (movementDirection > 5f && carRoadID != playerRoadID && lateralDist >= 20f) return 0f;
 
-        // --- STATIC LATERAL MATH & SCORING ---
-        bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
-
-        if (lateralDist < 20f)
+        if (movementDirection > 5f && carRoadID != playerRoadID)
         {
-            score += ModSettings.ScoreDeadAhead;
+            // If it's a parallel highway lane, forgive the mismatch.
+            // Otherwise, enforce the dynamic height to block overpasses but allow steep hills.
+            if (!isDrivingParallel && (lateralDist >= 20f || heightDiff > dynamicHeightThreshold)) return 0f;
         }
 
+        // 4. SCORING & OCCLUSION
+        bool isSameRoad = (playerRoadID != 0 && carRoadID == playerRoadID);
+
+        if (lateralDist < 40f) score += ModSettings.ScoreDeadAhead;
         if (isSameRoad) score += ModSettings.ScoreSameRoad;
 
-        // 3. THE OCCLUSION DECISION
         bool isHidden = IsVehicleOccluded(v, camPos);
 
         if (isHidden && !_lockedVehicles.Contains(v.Handle))
         {
-            if (isSameRoad || lateralDist < 80f)
-            {
-                score += 500f;
-            }
-            else
-            {
-                score += 50f;
-            }
+            score += (isSameRoad || lateralDist < 80f) ? 500f : 50f;
         }
         else
         {
-            // Visible cars must have a safe driving buffer to prevent popping
+            // If it's visible, enforce a strict anti-pop boundary based on our VERIFIED distance.
             if (travelDist < 200f) return 0f;
             score += ModSettings.ScoreVisible;
         }
 
-        // Reward vehicles that have a shorter driving distance to reach you
+        // Reward proximity based on valid travel distance
         score += (ModSettings.MaxSwapDist - travelDist) * 0.5f;
 
         return score;
@@ -634,7 +642,8 @@ public class TrafficSwap : Script
 
         ZoneProfile Coastal = new ZoneProfile("COASTAL", _excludedModels);
         Coastal.AddIngredient("CLASSIC", VehList.models_classics, SpawnBehavior.Spec, 3);
-        Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 1);
+        Coastal.AddIngredient("LUX", VehList.models_luxury, SpawnBehavior.VIP, 2);
+        Coastal.AddIngredient("LUX", VehList.models_slingshot, SpawnBehavior.RandomSpec, 1);
         AssignToProfile(Coastal, "VCANA", "VESP", "PBLUFF", "BHAMCA", "CHU", "DELPE");
 
         ZoneProfile Elite = new ZoneProfile("ELITE", _excludedModels);
@@ -654,10 +663,10 @@ public class TrafficSwap : Script
         AssignToProfile(Industry, "EBURO", "CYPRE", "BANNIN", "LMESA", "MURRI", "PALHIGH", "TATAMO", "TERMINA", "ELYSIAN");
 
         ZoneProfile CountrySide = new ZoneProfile("COUNTRYSIDE", _excludedModels);
-        CountrySide.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater, 4);
-        CountrySide.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater, 2);
-        CountrySide.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater, 3);
-        CountrySide.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec, 1);
+        CountrySide.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater, 2);
+        CountrySide.AddIngredient("OFFROAD", VehList.models_offroad, SpawnBehavior.Beater, 3);
+        CountrySide.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater, 1);
+        CountrySide.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec, 4);
         AssignToProfile(CountrySide, "GRAPES", "TONGVAH", "MTGORDO", "CMSW", "PALFOR", "DESRT", "MTCHIL", "NCHU", "ALAMO", "PALETO", "SANDY", "GREATC", "WINDF", "ZANCUDO", "LAGO", "SANCHIA", "HARMO", "RTRAK", "ZQ_UAR", "MTJOSE", "TONGVAV", "SLAB");
 
         ZoneProfile offroadProfile = new ZoneProfile("OFFROAD", _excludedModels);
