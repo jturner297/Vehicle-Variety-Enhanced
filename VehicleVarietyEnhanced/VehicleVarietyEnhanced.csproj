@@ -68,6 +68,7 @@
     <Compile Include="ModUtilities.cs" />
     <Compile Include="SpawnSpotDebugger.cs" />
     <Compile Include="TrafficSwap.cs" />
+    <Compile Include="VehicleConfigDumper.cs" />
     <Compile Include="VehicleSelector.cs" />
     <Compile Include="VehList.cs" />
   </ItemGroup>

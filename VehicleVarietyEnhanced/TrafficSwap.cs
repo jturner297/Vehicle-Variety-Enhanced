@@ -349,7 +349,12 @@ public class TrafficSwap : Script
         {
             if (!v.Exists() || v.Driver == null || v.Driver.IsPlayer || IsSwapped(v)) continue;
             if (IsExcludedCategory(v)) continue;
-
+          
+            // --- THE IRONCLAD PHYSICAL BUBBLE ---
+            // Measures from the Player's exact coordinates, not the camera.
+            // If the car is within 85 meters, instantly reject it. No exceptions.
+            if (v.Position.DistanceTo(player.Position) < 30f) continue;
+        
             // Spatial Proximity Check
             bool isTooCloseToExistingSwap = false;
             foreach (Vehicle activeSwap in _activeSwaps)
@@ -420,7 +425,7 @@ public class TrafficSwap : Script
         }
 
         // Enforce maximum bounds using our verified distance
-        if (travelDist < 60f || travelDist > (ModSettings.MaxSwapDist)) return 0f;
+        if (travelDist > ModSettings.MaxSwapDist) return 0f;
 
         // 2. 3D VECTORS & TOPOLOGY
         float heightDiff = Math.Abs(vPos.Z - camPos.Z);
@@ -613,10 +618,10 @@ public class TrafficSwap : Script
     private void InitializeZones()
     {
         ZoneProfile Hippy = new ZoneProfile("HIPSTER", _excludedModels);
-        Hippy.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.Beater, 2);
-        Hippy.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Beater, 2);
+        Hippy.AddIngredient("WACKY", VehList.models_wacky, SpawnBehavior.RandomSpec, 2);
+        Hippy.AddIngredient("MUSCLE", VehList.models_muscle, SpawnBehavior.Muscle, 2);
         Hippy.AddIngredient("BEATER", VehList.models_beaters, SpawnBehavior.Beater, 3);
-        Hippy.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Beater, 1);
+        Hippy.AddIngredient("TUNER", VehList.models_tuner, SpawnBehavior.Tuner, 1);
         AssignToProfile(Hippy, "MIRR", "EAST_V");
 
         ZoneProfile Gangster = new ZoneProfile("GHETTO", _excludedModels);
@@ -780,7 +785,7 @@ public class TrafficSwap : Script
         _swapInitialDistances.Clear();
     }
 
- 
+
     public struct SelectionLayer { public HashSet<string> List; public SpawnBehavior Behavior; public string SourceProfile; }
     [Flags] public enum VehicleNodeFlags { None = 0, Dirt = 32 }
 }

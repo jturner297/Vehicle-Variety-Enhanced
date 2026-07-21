@@ -127,7 +127,7 @@ public static class SpawnDatabase
             // Tuner Spawns - Primary Spawn is tuner, secondary is muscle
             new SpawnSpot("KoreanRestaurant",new Vector3(-604.9778f, -1218.401f, 13.92473f), 133.0528f, VehList.models_tuner,  SpawnBehavior.Tuner),
             new SpawnSpot("LittlePluckerSeoul", new Vector3(-582.6653f, -859.2297f, 25.49919f),358.6906f, VehList.models_tuner,  SpawnBehavior.Tuner),
-         
+            new SpawnSpot("AutoExoticGarage", new Vector3(534.098f, -169.170f, 53.996f), 178.774f, VehList.models_tuner, SpawnBehavior.Tuner), 
 
             new SpawnSpot("LegionSquareSouth", new Vector3(185.595f, -1016.01f, 28.3f), 33.185f, VehList.models_muscle,  SpawnBehavior.Muscle),
             new SpawnSpot("EastLosHospital", new Vector3(1156.74f, -1474.257f, 33.9701f), 268.8033f, VehList.models_muscle,  SpawnBehavior.Muscle),
@@ -163,7 +163,7 @@ public static class SpawnDatabase
 
             // Sandy Shores / Alamo Sea Coast
             new SpawnSpot("Ace", new Vector3(1350.489f, 3605.351f, 34.47185f), 16.77524f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_offroad, 20),
-            new SpawnSpot("EastLosOilFields", new Vector3(1566.097f, -1683.17f, 87.205f), 14.900f, VehList.models_offroad, SpawnBehavior.Beater),
+            new SpawnSpot("EastLosOilFields", new Vector3(1566.097f, -1683.17f, 87.205f), 14.900f, VehList.models_industrial, SpawnBehavior.Spec),
             new SpawnSpot("PowerStationNorth", new Vector3(2673.478f, 1678.569f, 23.488f), 270.297f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_muscle, 20, 200f, 150f),
             new SpawnSpot("PowerStationSouth", new Vector3(2717.772f, 1391.725f, 23.535f), 1.832709f, VehList.models_beaters, SpawnBehavior.Beater, VehList.models_muscle, 20, 200f, 150f),
             new SpawnSpot("RedwoodTrack", new Vector3(839.097f, 2202.196f, 50.46f), 245.553f, VehList.models_offroad, SpawnBehavior.Beater),

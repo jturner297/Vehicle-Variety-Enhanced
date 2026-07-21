@@ -53,8 +53,25 @@ public static class CarMod
     private static readonly Dictionary<string, Action<Vehicle>> HeroConfigs = new Dictionary<string, Action<Vehicle>>(StringComparer.OrdinalIgnoreCase)
     {
         // --- MODEL FIXES ---
-        { "turismo2", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
-        { "banshee3", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
+     //   { "turismo2", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
+      //  { "banshee3", v => v.Mods[VehicleModType.Spoilers].Index = 3 },
+              { "turismo2", v => {
+            v.Mods[VehicleModType.Spoilers].Index = 3;
+            v.Mods[VehicleModType.ColumnShifterLevers].Index = 3;
+            v.Mods[VehicleModType.Speakers].Index = 0;
+        }},
+        { "banshee3", v => {
+            v.Mods[VehicleModType.Spoilers].Index = 3;
+            v.Mods[VehicleModType.ColumnShifterLevers].Index = 3;
+            v.Mods[VehicleModType.Speakers].Index = 0;
+        }},
+        { "horus", v => {
+            v.Mods[VehicleModType.Spoilers].Index = 0;
+            v.Mods[VehicleModType.RearBumper].Index = 4;
+            v.Mods[VehicleModType.Fender].Index = 4;
+            v.Mods[VehicleModType.ColumnShifterLevers].Index = 3;
+            v.Mods[VehicleModType.Speakers].Index = 0;
+        }},
         { "infernus2", v => v.Mods[VehicleModType.Spoilers].Index = 0 },
         { "kuruma2", v =>   SetColors(v, 12, 12, 0, 12) },
         { "ardent", v => {
@@ -226,6 +243,7 @@ public static class CarMod
             if (random.Next(0, 2) == 0) v.Mods[VehicleModType.Livery].Index = -1;
             else v.Mods[VehicleModType.Livery].Index = 3;
         }}
+
     };
 
     public static void ApplyStyle(Vehicle v, SpawnBehavior behavior, string modelName)
